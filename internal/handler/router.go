@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/middleware"
+	"task-manager-api/internal/service"
+	"task-manager-api/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,9 +13,12 @@ import (
 
 // RouterDependencies encapsulates all dependencies required to construct the HTTP router.
 type RouterDependencies struct {
-	Config *config.Config
-	Logger *slog.Logger
-	DBPool *pgxpool.Pool
+	Config      *config.Config
+	Logger      *slog.Logger
+	DBPool      *pgxpool.Pool
+	AuthService service.AuthService
+	UserService service.UserService
+	TokenMaker  token.Maker
 }
 
 // NewRouter constructs and configures the Gin engine with all routes and middlewares.
@@ -44,10 +49,31 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	// API versioning group
 	v1 := router.Group("/api/v1")
 	{
-		// Domain route groups will be added here in subsequent phases
 		v1.GET("/ping", func(c *gin.Context) {
 			c.JSON(200, gin.H{"message": "pong"})
 		})
+
+		// Authentication endpoints (public)
+		if deps.AuthService != nil {
+			authHandler := NewAuthHandler(deps.AuthService)
+			authGroup := v1.Group("/auth")
+			{
+				authGroup.POST("/register", authHandler.Register)
+				authGroup.POST("/login", authHandler.Login)
+				authGroup.POST("/refresh", authHandler.RefreshToken)
+				authGroup.POST("/logout", authHandler.Logout)
+			}
+		}
+
+		// User endpoints (protected by JWT AuthMiddleware)
+		if deps.UserService != nil && deps.TokenMaker != nil {
+			userHandler := NewUserHandler(deps.UserService)
+			userGroup := v1.Group("/users")
+			userGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			{
+				userGroup.GET("/me", userHandler.GetMe)
+			}
+		}
 	}
 
 	return router

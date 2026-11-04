@@ -12,7 +12,11 @@ import (
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/database"
 	"task-manager-api/internal/handler"
+	"task-manager-api/internal/repository"
+	"task-manager-api/internal/service"
+	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
+	"task-manager-api/pkg/token"
 	"time"
 )
 
@@ -51,11 +55,26 @@ func main() {
 		"min_conns", cfg.DBMinConns,
 	)
 
-	// 4. Initialize HTTP router with dependencies
+	// 4. Initialize repository, services, and token maker
+	tokenMaker, err := token.NewJWTMaker(cfg.JWTSecret)
+	if err != nil {
+		log.Error("Failed to initialize JWT token maker", "error", err)
+		os.Exit(1)
+	}
+
+	repo := repository.New(pool)
+	passwordHasher := hasher.NewBcryptHasher(12)
+	authService := service.NewAuthService(repo, passwordHasher, tokenMaker, cfg.JWTExpiration, cfg.JWTRefreshExpiration)
+	userService := service.NewUserService(repo)
+
+	// 5. Initialize HTTP router with dependencies
 	router := handler.NewRouter(handler.RouterDependencies{
-		Config: cfg,
-		Logger: log,
-		DBPool: pool,
+		Config:      cfg,
+		Logger:      log,
+		DBPool:      pool,
+		AuthService: authService,
+		UserService: userService,
+		TokenMaker:  tokenMaker,
 	})
 
 	// 5. Configure HTTP server with production-grade timeouts

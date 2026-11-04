@@ -1,6 +1,9 @@
 package service
 
-import "errors"
+import (
+	"errors"
+	"task-manager-api/pkg/hasher"
+)
 
 var (
 	// ErrEmailAlreadyExists indicates registration with an already taken email.
@@ -17,4 +20,6 @@ var (
 	ErrTokenRevoked = errors.New("token has been revoked")
 	// ErrTokenReuseDetected indicates a revoked token was attempted to be reused (potential theft).
 	ErrTokenReuseDetected = errors.New("refresh token reuse detected; all sessions revoked for security")
+	// ErrPasswordTooLong indicates password length exceeded allowed bcrypt size.
+	ErrPasswordTooLong = hasher.ErrPasswordTooLong
 )
