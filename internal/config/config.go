@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
 )
 
 // Config holds all configuration values for the application.
@@ -34,7 +35,11 @@ type Config struct {
 }
 
 // Load parses environment variables into Config and validates required fields.
+// It automatically attempts to load variables from a local .env file if present.
 func Load() (*Config, error) {
+	// Load .env file if it exists (no error if missing, e.g. in production/Docker)
+	_ = godotenv.Load()
+
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse environment configuration: %w", err)
