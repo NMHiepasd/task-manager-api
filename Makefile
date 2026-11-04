@@ -33,13 +33,13 @@ lint: ## Run golangci-lint
 	MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/app" -w //app golangci/golangci-lint:latest golangci-lint run ./...
 
 migrate-up: ## Run database migrations up
-	docker exec -i task_manager_db psql -U postgres -d task_manager -f /docker-entrypoint-initdb.d/01-init.sql
+	docker exec -i task_manager_db psql -U postgres -d task_manager -c "$$(cat migrations/000001_create_initial_schema.up.sql)"
 
 migrate-down: ## Rollback migrations
-	docker exec -i task_manager_db psql -U postgres -d task_manager -c "DROP TABLE IF EXISTS tasks;"
+	docker exec -i task_manager_db psql -U postgres -d task_manager -c "$$(cat migrations/000001_create_initial_schema.down.sql)"
 
 sqlc: ## Generate type-safe Go code with sqlc
-	sqlc generate
+	MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w //src sqlc/sqlc:latest generate
 
 docker-up: ## Start Docker services
 	docker compose up -d

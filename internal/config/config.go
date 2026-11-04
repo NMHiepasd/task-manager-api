@@ -1,36 +1,43 @@
 package config
 
 import (
-	"os"
+	"fmt"
+	"time"
+
+	"github.com/caarlos0/env/v11"
 )
 
+// Config holds all configuration values for the application.
 type Config struct {
-	Port   string
-	Env    string
-	DBHost string
-	DBPort string
-	DBUser string
-	DBPass string
-	DBName string
-	DBSSL  string
+	// Application Settings
+	AppPort  int    `env:"APP_PORT" envDefault:"8080"`
+	AppEnv   string `env:"APP_ENV" envDefault:"development"`
+	GinMode  string `env:"GIN_MODE" envDefault:"debug"`
+	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
+
+	// Security & Auth
+	JWTSecret string `env:"JWT_SECRET,required"`
+
+	// Database Connection & Pool
+	DatabaseURL         string        `env:"DB_URL,required"`
+	DBMaxConns          int32         `env:"DB_MAX_CONNS" envDefault:"25"`
+	DBMinConns          int32         `env:"DB_MIN_CONNS" envDefault:"5"`
+	DBMaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME" envDefault:"1h"`
+	DBMaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"30m"`
+	DBHealthCheckPeriod time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
+
+	// HTTP Server Timeouts
+	ServerReadHeaderTimeout time.Duration `env:"SERVER_READ_HEADER_TIMEOUT" envDefault:"5s"`
+	ServerReadTimeout       time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
+	ServerWriteTimeout      time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"10s"`
+	ServerIdleTimeout       time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"60s"`
 }
 
-func LoadConfig() *Config {
-	return &Config{
-		Port:   getEnv("PORT", "8080"),
-		Env:    getEnv("ENV", "development"),
-		DBHost: getEnv("DB_HOST", "localhost"),
-		DBPort: getEnv("DB_PORT", "5432"),
-		DBUser: getEnv("DB_USER", "postgres"),
-		DBPass: getEnv("DB_PASSWORD", "postgres"),
-		DBName: getEnv("DB_NAME", "task_manager"),
-		DBSSL:  getEnv("DB_SSLMODE", "disable"),
+// Load parses environment variables into Config and validates required fields.
+func Load() (*Config, error) {
+	cfg := &Config{}
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse environment configuration: %w", err)
 	}
-}
-
-func getEnv(key, defaultVal string) string {
-	if val, exists := os.LookupEnv(key); exists {
-		return val
-	}
-	return defaultVal
+	return cfg, nil
 }

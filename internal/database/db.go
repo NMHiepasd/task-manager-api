@@ -2,37 +2,41 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"task-manager-api/internal/config"
 	"time"
 
-	// Register pgx driver for database/sql
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Connect(cfg *config.Config) (*sql.DB, error) {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.DBUser, cfg.DBPass, cfg.DBHost, cfg.DBPort, cfg.DBName, cfg.DBSSL,
-	)
-
-	db, err := sql.Open("pgx", dsn)
+// NewPool initializes and returns a pgx connection pool based on configuration.
+func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
 
-	// Connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	db.SetConnMaxIdleTime(2 * time.Minute)
+	// Pool sizing and connection lifetime settings
+	poolConfig.MaxConns = cfg.DBMaxConns
+	poolConfig.MinConns = cfg.DBMinConns
+	poolConfig.MaxConnLifetime = cfg.DBMaxConnLifetime
+	poolConfig.MaxConnIdleTime = cfg.DBMaxConnIdleTime
+	poolConfig.HealthCheckPeriod = cfg.DBHealthCheckPeriod
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Establish connection pool
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	}
+
+	// Verify connectivity with a quick ping
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
+	if err := pool.Ping(pingCtx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return db, nil
+	return pool, nil
 }
