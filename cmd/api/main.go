@@ -11,15 +11,13 @@ import (
 	"syscall"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/database"
+	"task-manager-api/internal/handler"
 	"task-manager-api/pkg/logger"
-	"task-manager-api/pkg/response"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// 1. Load & validate configuration (fail-fast)
+	// 1. Load and validate environment configuration (fail-fast)
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("Configuration validation failed", "error", err)
@@ -28,13 +26,13 @@ func main() {
 
 	// 2. Initialize structured JSON logger
 	log := logger.Setup(cfg.LogLevel, cfg.AppEnv)
-	log.Info("Starting application",
+	log.Info("Configuration loaded successfully",
 		"env", cfg.AppEnv,
 		"port", cfg.AppPort,
 		"log_level", cfg.LogLevel,
 	)
 
-	// 3. Connect to PostgreSQL using pgxpool
+	// 3. Connect to PostgreSQL using connection pool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -44,36 +42,19 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	log.Info("Successfully connected to PostgreSQL connection pool",
+	log.Info("PostgreSQL connection pool established",
 		"max_conns", cfg.DBMaxConns,
 		"min_conns", cfg.DBMinConns,
 	)
 
-	// 4. Setup Gin engine
-	if cfg.GinMode == gin.ReleaseMode || cfg.AppEnv == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	router := gin.New()
-	router.Use(gin.Recovery())
-
-	// Health check endpoint (temporary for Batch 1 verification)
-	router.GET("/health", func(c *gin.Context) {
-		pingCtx, pingCancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-		defer pingCancel()
-
-		dbStatus := "connected"
-		if err := pool.Ping(pingCtx); err != nil {
-			dbStatus = "disconnected"
-		}
-
-		c.JSON(http.StatusOK, response.Success(gin.H{
-			"status":   "ok",
-			"database": dbStatus,
-			"time":     time.Now().UTC(),
-		}))
+	// 4. Initialize HTTP router with dependencies
+	router := handler.NewRouter(handler.RouterDependencies{
+		Config: cfg,
+		Logger: log,
+		DBPool: pool,
 	})
 
+	// 5. Configure HTTP server with production-grade timeouts
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.AppPort),
 		Handler:           router,
@@ -83,27 +64,32 @@ func main() {
 		IdleTimeout:       cfg.ServerIdleTimeout,
 	}
 
+	// 6. Setup signal notification context for graceful shutdown
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Start server in background goroutine
 	go func() {
-		log.Info("Server listening for HTTP requests", "addr", srv.Addr)
+		log.Info("Server listening for incoming requests", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("Server encountered fatal error", "error", err)
 			os.Exit(1)
 		}
 	}()
 
-	// Graceful shutdown with signal notification
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// Wait for termination signal
+	<-shutdownCtx.Done()
 
-	log.Info("Shutdown signal received, draining connections...")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
+	log.Info("Termination signal received, beginning graceful shutdown...")
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("Server forced to shutdown", "error", err)
+	// Create timeout context for connection draining
+	drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer drainCancel()
+
+	if err := srv.Shutdown(drainCtx); err != nil {
+		log.Error("Graceful shutdown failed, forcing server stop", "error", err)
 		os.Exit(1)
 	}
 
-	log.Info("Server exited cleanly")
+	log.Info("Server gracefully stopped, all connections drained")
 }
