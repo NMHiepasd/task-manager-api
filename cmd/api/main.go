@@ -16,6 +16,9 @@ import (
 	"time"
 )
 
+// version is injected at build time via -ldflags="-X main.version=..."
+var version = "dev"
+
 func main() {
 	// 1. Load and validate environment configuration (fail-fast)
 	cfg, err := config.Load()
@@ -27,6 +30,7 @@ func main() {
 	// 2. Initialize structured JSON logger
 	log := logger.Setup(cfg.LogLevel, cfg.AppEnv)
 	log.Info("Configuration loaded successfully",
+		"version", version,
 		"env", cfg.AppEnv,
 		"port", cfg.AppPort,
 		"log_level", cfg.LogLevel,
