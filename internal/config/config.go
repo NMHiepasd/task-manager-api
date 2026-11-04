@@ -17,7 +17,9 @@ type Config struct {
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 
 	// Security & Auth
-	JWTSecret string `env:"JWT_SECRET,required"`
+	JWTSecret            string        `env:"JWT_SECRET,required"`
+	JWTExpiration        time.Duration `env:"JWT_EXPIRATION" envDefault:"15m"`
+	JWTRefreshExpiration time.Duration `env:"JWT_REFRESH_EXPIRATION" envDefault:"168h"`
 
 	// Database Connection & Pool
 	DatabaseURL         string        `env:"DB_URL,required"`
