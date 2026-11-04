@@ -1,20 +1,24 @@
 # Binaries
 bin/
+tmp/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# Test binary
+# Test binary and coverage
 *.test
-
-# Output of the go coverage tool
 *.out
+coverage.html
 
 # Environment variables
 .env
 !.env.example
+
+# Air hot reload
+tmp/
+.air/
 
 # IDE specific files
 .idea/

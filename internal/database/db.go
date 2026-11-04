@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"task-manager-api/internal/config"
 	"time"
 
+	// Register pgx driver for database/sql
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"task-manager-api/internal/config"
 )
 
 func Connect(cfg *config.Config) (*sql.DB, error) {

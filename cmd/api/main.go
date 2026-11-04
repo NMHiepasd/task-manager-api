@@ -8,12 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"github.com/gin-gonic/gin"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/database"
 	"task-manager-api/pkg/response"
+	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -49,10 +49,11 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	go func() {

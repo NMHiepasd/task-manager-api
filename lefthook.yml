@@ -1,0 +1,17 @@
+# Lefthook Git Hooks Configuration
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      glob: "*.go"
+      run: MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/app" -w //app golangci/golangci-lint:latest golangci-lint run ./...
+    test:
+      glob: "*.go"
+      run: go test -short ./...
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: bash scripts/verify-commit-msg.sh {1}
