@@ -115,6 +115,11 @@ func ErrorHandler(logger *slog.Logger) gin.HandlerFunc {
 			code = "VALIDATION_FAILED"
 			detail = err.Error()
 
+		case errors.Is(err, domain.ErrRateLimitExceeded):
+			status = http.StatusTooManyRequests
+			code = "RATE_LIMIT_EXCEEDED"
+			detail = err.Error()
+
 		default:
 			logger.Error("Unhandled error in request pipeline",
 				"error", err,

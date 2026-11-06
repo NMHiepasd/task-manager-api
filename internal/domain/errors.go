@@ -30,6 +30,7 @@ var (
 	ErrInvalidTaskPriority    = fmt.Errorf("%w: invalid task priority; allowed: low, medium, high, urgent", ErrValidation)
 	ErrTagNotFound            = fmt.Errorf("%w: tag not found", ErrNotFound)
 	ErrPayloadTooLarge        = fmt.Errorf("%w: request payload exceeds size limit", ErrValidation)
+	ErrRateLimitExceeded      = errors.New("rate limit exceeded; please wait before retrying")
 )
 
 // InvalidParam describes a single invalid request field for RFC 9457.

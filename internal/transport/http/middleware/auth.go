@@ -20,6 +20,8 @@ const (
 	AuthorizationPayloadKey = "authorization_payload"
 	// AuthorizationUserIDKey is the context key for user UUID.
 	AuthorizationUserIDKey = "auth_user_id"
+	// AuthorizationUserRoleKey is the context key for user role.
+	AuthorizationUserRoleKey = "auth_user_role"
 )
 
 // AuthMiddleware creates a Gin middleware that authenticates requests using JWT access tokens.
@@ -74,8 +76,19 @@ func AuthMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
 
 		c.Set(AuthorizationPayloadKey, payload)
 		c.Set(AuthorizationUserIDKey, payload.UserID)
+		c.Set(AuthorizationUserRoleKey, payload.Role)
 		c.Next()
 	}
+}
+
+// CurrentUserID extracts the authenticated user's UUID from the gin.Context.
+func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {
+	val, exists := c.Get(AuthorizationUserIDKey)
+	if !exists {
+		return uuid.Nil, false
+	}
+	id, ok := val.(uuid.UUID)
+	return id, ok
 }
 
 // GetAuthPayload extracts the authenticated UserClaims from context.

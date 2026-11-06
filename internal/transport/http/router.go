@@ -11,6 +11,8 @@ import (
 	"task-manager-api/internal/transport/http/middleware"
 	"task-manager-api/pkg/token"
 
+	"golang.org/x/time/rate"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -51,6 +53,8 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		middleware.RequestID(),
 		middleware.StructuredLogger(deps.Logger),
 		middleware.Recovery(deps.Logger),
+		middleware.SecurityHeaders(deps.Config.AppEnv == "production"),
+		middleware.CORS(deps.Config.CORSAllowedOrigins),
 		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
 	)
@@ -89,10 +93,14 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	// API version 1 group
 	v1 := router.Group("/api/v1")
 	{
-		// Authentication endpoints (public)
+		// Authentication endpoints (public, rate limited per client IP)
 		if deps.AuthService != nil {
 			authHandler := handler.NewAuthHandler(deps.AuthService)
 			authGroup := v1.Group("/auth")
+			if deps.Config.RateLimitAuthRate > 0 && deps.Config.RateLimitAuthBurst > 0 {
+				authLimiter := middleware.NewIPRateLimiter(rate.Limit(deps.Config.RateLimitAuthRate), deps.Config.RateLimitAuthBurst)
+				authGroup.Use(authLimiter.Middleware())
+			}
 			{
 				authGroup.POST("/register", authHandler.Register)
 				authGroup.POST("/login", authHandler.Login)

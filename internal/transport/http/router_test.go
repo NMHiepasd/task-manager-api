@@ -31,8 +31,11 @@ type mockUserService struct {
 
 func setupTestRouter() http.Handler {
 	cfg := &config.Config{
-		AppEnv:  "test",
-		GinMode: "test",
+		AppEnv:             "test",
+		GinMode:            "test",
+		CORSAllowedOrigins: []string{"http://localhost:3000"},
+		RateLimitAuthRate:  1,
+		RateLimitAuthBurst: 2,
 	}
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	tokenMaker, _ := token.NewJWTMaker("12345678901234567890123456789012")
@@ -160,4 +163,53 @@ func TestRouter_ProtectedEndpoint_Unauthorized(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, problem.Status)
 	assert.Equal(t, "UNAUTHORIZED", problem.Code)
+}
+
+func TestRouter_SecurityHeaders_And_CORS(t *testing.T) {
+	router := setupTestRouter()
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	// Security headers
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", rec.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "strict-origin-when-cross-origin", rec.Header().Get("Referrer-Policy"))
+	// CORS header
+	assert.Equal(t, "http://localhost:3000", rec.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestRouter_RateLimit_Auth(t *testing.T) {
+	router := setupTestRouter()
+
+	// 2 requests within burst should pass (failing on validation 400 is fine, they are not 429)
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.50:50000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusBadRequest, rec.Code) // validation failure, meaning rate limit allowed it through
+	}
+
+	// 3rd request should exceed rate limit and return 429
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.50:50000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"))
+
+	var problem domain.ProblemDetails
+	err := json.Unmarshal(rec.Body.Bytes(), &problem)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, problem.Status)
+	assert.Equal(t, "RATE_LIMIT_EXCEEDED", problem.Code)
 }
