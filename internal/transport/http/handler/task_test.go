@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"task-manager-api/internal/middleware"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/transport/http/middleware"
 	"testing"
 	"time"
 
@@ -62,6 +62,7 @@ func (m *mockTaskService) DeleteTask(ctx context.Context, userID uuid.UUID, task
 func setupTestTaskRouter(h *TaskHandler, userID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	r.Use(middleware.ErrorHandler(nil))
 	r.Use(func(c *gin.Context) {
 		c.Set(middleware.AuthorizationUserIDKey, userID)
 		c.Next()
@@ -118,6 +119,7 @@ func TestTaskHandler_Create(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -171,4 +173,5 @@ func TestTaskHandler_Update_Conflict(t *testing.T) {
 
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 }

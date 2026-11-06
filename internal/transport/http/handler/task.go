@@ -1,11 +1,10 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
-	"task-manager-api/internal/middleware"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
-	"task-manager-api/pkg/response"
+	"task-manager-api/internal/transport/http/middleware"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -61,13 +60,13 @@ func NewTaskHandler(taskService service.TaskService) *TaskHandler {
 func (h *TaskHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	var req CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid task input", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -82,23 +81,11 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		TagIDs:      req.TagIDs,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("PROJECT_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrInvalidTaskStatus) || errors.Is(err, service.ErrInvalidTaskPriority) {
-			c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to create task"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.Success(task))
+	c.JSON(http.StatusCreated, task)
 }
 
 // GetByID retrieves task details by ID.
@@ -106,31 +93,26 @@ func (h *TaskHandler) Create(c *gin.Context) {
 func (h *TaskHandler) GetByID(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid task UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	task, err := h.taskService.GetTaskByID(c.Request.Context(), userID, taskID)
 	if err != nil {
-		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("TASK_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to retrieve task"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(task))
+	c.JSON(http.StatusOK, task)
 }
 
 // List retrieves paginated tasks based on criteria.
@@ -138,13 +120,13 @@ func (h *TaskHandler) GetByID(c *gin.Context) {
 func (h *TaskHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	var query ListTasksQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid query parameters", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -156,15 +138,11 @@ func (h *TaskHandler) List(c *gin.Context) {
 		Limit:     query.Limit,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidTaskStatus) || errors.Is(err, service.ErrInvalidTaskPriority) {
-			c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to list tasks"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(result))
+	c.JSON(http.StatusOK, result)
 }
 
 // Update updates an existing task with optimistic locking check.
@@ -172,19 +150,22 @@ func (h *TaskHandler) List(c *gin.Context) {
 func (h *TaskHandler) Update(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid task UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	var req UpdateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid update payload", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -200,27 +181,11 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		TagIDs:      req.TagIDs,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("TASK_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrOptimisticLockConflict) {
-			c.JSON(http.StatusConflict, response.Error("OPTIMISTIC_LOCK_CONFLICT", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrInvalidTaskStatus) || errors.Is(err, service.ErrInvalidTaskPriority) {
-			c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to update task"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(updated))
+	c.JSON(http.StatusOK, updated)
 }
 
 // Delete soft-deletes a task.
@@ -228,30 +193,25 @@ func (h *TaskHandler) Update(c *gin.Context) {
 func (h *TaskHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid task UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	if err := h.taskService.DeleteTask(c.Request.Context(), userID, taskID); err != nil {
-		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("TASK_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to delete task"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "Task deleted successfully",
-	}))
+	})
 }

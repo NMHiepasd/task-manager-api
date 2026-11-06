@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"task-manager-api/internal/middleware"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/transport/http/middleware"
 	"testing"
 	"time"
 
@@ -46,6 +46,7 @@ func (m *mockTagService) DeleteTag(ctx context.Context, userID uuid.UUID, tagID 
 func setupTestTagRouter(h *TagHandler, userID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	r.Use(middleware.ErrorHandler(nil))
 	r.Use(func(c *gin.Context) {
 		c.Set(middleware.AuthorizationUserIDKey, userID)
 		c.Next()

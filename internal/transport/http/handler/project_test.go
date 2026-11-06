@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"task-manager-api/internal/middleware"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/transport/http/middleware"
 	"testing"
 	"time"
 
@@ -62,6 +62,7 @@ func (m *mockProjectService) DeleteProject(ctx context.Context, ownerID uuid.UUI
 func setupTestProjectRouter(handler *ProjectHandler, userID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(middleware.ErrorHandler(nil))
 	router.Use(func(c *gin.Context) {
 		c.Set(middleware.AuthorizationUserIDKey, userID)
 		c.Next()
@@ -117,6 +118,7 @@ func TestProjectHandler_Create(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -161,6 +163,7 @@ func TestProjectHandler_GetByID(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusNotFound, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -189,6 +192,7 @@ func TestProjectHandler_Update_OptimisticLock(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusConflict, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 

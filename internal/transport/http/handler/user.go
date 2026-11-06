@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
-	"task-manager-api/internal/middleware"
 	"task-manager-api/internal/service"
-	"task-manager-api/pkg/response"
+	"task-manager-api/internal/transport/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,29 +23,15 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error(
-			"UNAUTHORIZED",
-			"User context could not be determined",
-		))
+		_ = c.Error(err)
 		return
 	}
 
 	profile, err := h.userService.GetProfile(c.Request.Context(), userID)
 	if err != nil {
-		if errors.Is(err, service.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, response.Error(
-				"USER_NOT_FOUND",
-				err.Error(),
-			))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, response.Error(
-			"INTERNAL_SERVER_ERROR",
-			"Failed to retrieve user profile",
-		))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(profile))
+	c.JSON(http.StatusOK, profile)
 }

@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"task-manager-api/internal/domain"
 	"task-manager-api/pkg/token"
 	"testing"
 	"time"
@@ -84,6 +85,7 @@ func TestAuthMiddleware(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
+			router.Use(RequestID())
 			router.Use(AuthMiddleware(tokenMaker))
 			router.GET("/protected", func(c *gin.Context) {
 				claims, err := GetAuthPayload(c)
@@ -113,10 +115,10 @@ func TestGetAuthContext_Missing(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 
 	claims, err := GetAuthPayload(c)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, domain.ErrUnauthorized)
 	require.Nil(t, claims)
 
 	uid, err := GetAuthUserID(c)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, domain.ErrUnauthorized)
 	require.Equal(t, uuid.Nil, uid)
 }

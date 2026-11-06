@@ -1,10 +1,14 @@
-package handler
+package http
 
 import (
+	"fmt"
 	"log/slog"
+	"net/http"
 	"task-manager-api/internal/config"
-	"task-manager-api/internal/middleware"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/transport/http/handler"
+	"task-manager-api/internal/transport/http/middleware"
 	"task-manager-api/pkg/token"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +28,7 @@ type RouterDependencies struct {
 	TokenMaker     token.Maker
 }
 
-// NewRouter constructs and configures the Gin engine with all routes and middlewares.
+// NewRouter constructs and configures the Gin engine with all routes and RFC 9457 error handling.
 func NewRouter(deps RouterDependencies) *gin.Engine {
 	if deps.Config.GinMode == gin.ReleaseMode || deps.Config.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -34,31 +38,60 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 
 	router := gin.New()
 
-	// Disable trusted proxies by default for security, or set explicitly
+	// Disable auto redirects per ADR-002 for strict REST semantics
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
+	router.HandleMethodNotAllowed = true
+
+	// Disable trusted proxies by default for security
 	_ = router.SetTrustedProxies(nil)
 
-	// Attach standard middlewares
+	// Attach standard global middlewares
 	router.Use(
 		middleware.RequestID(),
 		middleware.StructuredLogger(deps.Logger),
 		middleware.Recovery(deps.Logger),
+		middleware.MaxBytes(2<<20), // 2MB request body ceiling
+		middleware.ErrorHandler(deps.Logger),
 	)
 
-	// Health and probe endpoints
-	healthHandler := NewHealthHandler(deps.DBPool)
+	// NoRoute handler: RFC 9457 404
+	router.NoRoute(func(c *gin.Context) {
+		reqID := middleware.GetRequestID(c)
+		c.Header("Content-Type", "application/problem+json")
+		c.JSON(http.StatusNotFound, domain.NewProblem(
+			http.StatusNotFound,
+			fmt.Sprintf("Route %s %s was not found on this server", c.Request.Method, c.Request.URL.Path),
+			"ROUTE_NOT_FOUND",
+			c.Request.URL.Path,
+			reqID,
+		))
+	})
+
+	// NoMethod handler: RFC 9457 405
+	router.NoMethod(func(c *gin.Context) {
+		reqID := middleware.GetRequestID(c)
+		c.Header("Content-Type", "application/problem+json")
+		c.JSON(http.StatusMethodNotAllowed, domain.NewProblem(
+			http.StatusMethodNotAllowed,
+			fmt.Sprintf("Method %s is not allowed for route %s", c.Request.Method, c.Request.URL.Path),
+			"METHOD_NOT_ALLOWED",
+			c.Request.URL.Path,
+			reqID,
+		))
+	})
+
+	// Health and probe endpoints (unauthenticated)
+	healthHandler := handler.NewHealthHandler(deps.DBPool)
 	router.GET("/healthz", healthHandler.Liveness)
 	router.GET("/readyz", healthHandler.Readiness)
 
-	// API versioning group
+	// API version 1 group
 	v1 := router.Group("/api/v1")
 	{
-		v1.GET("/ping", func(c *gin.Context) {
-			c.JSON(200, gin.H{"message": "pong"})
-		})
-
 		// Authentication endpoints (public)
 		if deps.AuthService != nil {
-			authHandler := NewAuthHandler(deps.AuthService)
+			authHandler := handler.NewAuthHandler(deps.AuthService)
 			authGroup := v1.Group("/auth")
 			{
 				authGroup.POST("/register", authHandler.Register)
@@ -68,9 +101,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// User endpoints (protected by JWT AuthMiddleware)
+		// User profile endpoints (protected)
 		if deps.UserService != nil && deps.TokenMaker != nil {
-			userHandler := NewUserHandler(deps.UserService)
+			userHandler := handler.NewUserHandler(deps.UserService)
 			userGroup := v1.Group("/users")
 			userGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
@@ -78,9 +111,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Project endpoints (protected by JWT AuthMiddleware)
+		// Project endpoints (protected)
 		if deps.ProjectService != nil && deps.TokenMaker != nil {
-			projectHandler := NewProjectHandler(deps.ProjectService)
+			projectHandler := handler.NewProjectHandler(deps.ProjectService)
 			projectGroup := v1.Group("/projects")
 			projectGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
@@ -92,9 +125,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Task endpoints (protected by JWT AuthMiddleware)
+		// Task endpoints (protected)
 		if deps.TaskService != nil && deps.TokenMaker != nil {
-			taskHandler := NewTaskHandler(deps.TaskService)
+			taskHandler := handler.NewTaskHandler(deps.TaskService)
 			taskGroup := v1.Group("/tasks")
 			taskGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
@@ -106,9 +139,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Tag endpoints (protected by JWT AuthMiddleware)
+		// Tag endpoints (protected)
 		if deps.TagService != nil && deps.TokenMaker != nil {
-			tagHandler := NewTagHandler(deps.TagService)
+			tagHandler := handler.NewTagHandler(deps.TagService)
 			tagGroup := v1.Group("/tags")
 			tagGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{

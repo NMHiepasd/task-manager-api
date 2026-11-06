@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/transport/http/middleware"
 	"testing"
 	"time"
 
@@ -74,6 +75,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/register", handler.Register)
 
 		body := map[string]string{
@@ -94,6 +96,7 @@ func TestAuthHandler_Register(t *testing.T) {
 	t.Run("BadRequest_400_ShortPassword", func(t *testing.T) {
 		handler := NewAuthHandler(&mockAuthService{})
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/register", handler.Register)
 
 		body := map[string]string{
@@ -109,6 +112,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 
 	t.Run("Conflict_409_EmailExists", func(t *testing.T) {
@@ -120,6 +124,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/register", handler.Register)
 
 		body := map[string]string{
@@ -135,6 +140,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusConflict, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -154,6 +160,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/login", handler.Login)
 
 		body := map[string]string{
@@ -179,6 +186,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/login", handler.Login)
 
 		body := map[string]string{
@@ -193,6 +201,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -211,6 +220,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/refresh", handler.RefreshToken)
 
 		body := map[string]string{"refresh_token": "valid_token"}
@@ -233,6 +243,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 
 		handler := NewAuthHandler(mock)
 		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
 		router.POST("/refresh", handler.RefreshToken)
 
 		body := map[string]string{"refresh_token": "reused_token"}
@@ -244,6 +255,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
 }
 
@@ -258,6 +270,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 
 	handler := NewAuthHandler(mock)
 	router := gin.New()
+	router.Use(middleware.ErrorHandler(nil))
 	router.POST("/logout", handler.Logout)
 
 	body := map[string]string{"refresh_token": "some_token"}

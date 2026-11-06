@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"task-manager-api/internal/service"
-	"task-manager-api/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,11 +45,7 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(
-			"BAD_REQUEST",
-			"Invalid registration input",
-			err.Error(),
-		))
+		_ = c.Error(err)
 		return
 	}
 
@@ -61,30 +55,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		FullName: req.FullName,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrEmailAlreadyExists) {
-			c.JSON(http.StatusConflict, response.Error(
-				"EMAIL_EXISTS",
-				err.Error(),
-			))
-			return
-		}
-
-		if errors.Is(err, service.ErrPasswordTooLong) {
-			c.JSON(http.StatusBadRequest, response.Error(
-				"BAD_REQUEST",
-				err.Error(),
-			))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, response.Error(
-			"INTERNAL_SERVER_ERROR",
-			"Failed to complete user registration",
-		))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.Success(result))
+	c.JSON(http.StatusCreated, result)
 }
 
 // Login authenticates a user and returns an access/refresh token pair.
@@ -92,11 +67,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(
-			"BAD_REQUEST",
-			"Invalid login input",
-			err.Error(),
-		))
+		_ = c.Error(err)
 		return
 	}
 
@@ -105,22 +76,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidCredentials) {
-			c.JSON(http.StatusUnauthorized, response.Error(
-				"UNAUTHORIZED",
-				err.Error(),
-			))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, response.Error(
-			"INTERNAL_SERVER_ERROR",
-			"Failed to authenticate user",
-		))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(result))
+	c.JSON(http.StatusOK, result)
 }
 
 // RefreshToken rotates the current refresh token and issues a new pair.
@@ -128,48 +88,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(
-			"BAD_REQUEST",
-			"Refresh token is required",
-			err.Error(),
-		))
+		_ = c.Error(err)
 		return
 	}
 
 	result, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		if errors.Is(err, service.ErrTokenReuseDetected) {
-			c.JSON(http.StatusUnauthorized, response.Error(
-				"TOKEN_REUSE_DETECTED",
-				err.Error(),
-			))
-			return
-		}
-
-		if errors.Is(err, service.ErrTokenExpired) {
-			c.JSON(http.StatusUnauthorized, response.Error(
-				"TOKEN_EXPIRED",
-				err.Error(),
-			))
-			return
-		}
-
-		if errors.Is(err, service.ErrInvalidToken) || errors.Is(err, service.ErrUserNotFound) {
-			c.JSON(http.StatusUnauthorized, response.Error(
-				"INVALID_TOKEN",
-				"Refresh token is invalid or user was removed",
-			))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, response.Error(
-			"INTERNAL_SERVER_ERROR",
-			"Failed to refresh session token",
-		))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(result))
+	c.JSON(http.StatusOK, result)
 }
 
 // Logout revokes the given refresh token.
@@ -177,23 +106,16 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(
-			"BAD_REQUEST",
-			"Refresh token is required for logout",
-			err.Error(),
-		))
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.authService.Logout(c.Request.Context(), req.RefreshToken); err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error(
-			"INTERNAL_SERVER_ERROR",
-			"Failed to revoke session token",
-		))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "Successfully logged out",
-	}))
+	})
 }

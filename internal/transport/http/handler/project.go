@@ -1,11 +1,10 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
-	"task-manager-api/internal/middleware"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
-	"task-manager-api/pkg/response"
+	"task-manager-api/internal/transport/http/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -47,13 +46,13 @@ func NewProjectHandler(projectService service.ProjectService) *ProjectHandler {
 func (h *ProjectHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	var req CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid project input", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -63,11 +62,11 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		Color:       req.Color,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to create project"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.Success(project))
+	c.JSON(http.StatusCreated, project)
 }
 
 // GetByID retrieves project details by ID.
@@ -75,31 +74,26 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 func (h *ProjectHandler) GetByID(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid project UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	project, err := h.projectService.GetProjectByID(c.Request.Context(), userID, projectID)
 	if err != nil {
-		if errors.Is(err, service.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("PROJECT_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to get project"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(project))
+	c.JSON(http.StatusOK, project)
 }
 
 // List retrieves paginated projects for the authenticated user.
@@ -107,13 +101,13 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 func (h *ProjectHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	var query ListProjectsQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid pagination query", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -122,11 +116,11 @@ func (h *ProjectHandler) List(c *gin.Context) {
 		Limit: query.Limit,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to list projects"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(result))
+	c.JSON(http.StatusOK, result)
 }
 
 // Update updates an existing project with optimistic concurrency control.
@@ -134,19 +128,22 @@ func (h *ProjectHandler) List(c *gin.Context) {
 func (h *ProjectHandler) Update(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid project UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	var req UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid update project input", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -157,23 +154,11 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		Version:     req.Version,
 	})
 	if err != nil {
-		if errors.Is(err, service.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("PROJECT_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrOptimisticLockConflict) {
-			c.JSON(http.StatusConflict, response.Error("OPTIMISTIC_LOCK_CONFLICT", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to update project"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(updated))
+	c.JSON(http.StatusOK, updated)
 }
 
 // Delete soft-deletes a project owned by the user.
@@ -181,30 +166,25 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid project UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	if err := h.projectService.DeleteProject(c.Request.Context(), userID, projectID); err != nil {
-		if errors.Is(err, service.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, response.Error("PROJECT_NOT_FOUND", err.Error()))
-			return
-		}
-		if errors.Is(err, service.ErrForbidden) {
-			c.JSON(http.StatusForbidden, response.Error("FORBIDDEN", err.Error()))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to delete project"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "Project deleted successfully",
-	}))
+	})
 }

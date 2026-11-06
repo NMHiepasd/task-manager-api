@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/database"
-	"task-manager-api/internal/handler"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/service"
+	transportHttp "task-manager-api/internal/transport/http"
 	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
 	"task-manager-api/pkg/token"
@@ -71,7 +71,7 @@ func main() {
 	tagService := service.NewTagService(repo)
 
 	// 5. Initialize HTTP router with dependencies
-	router := handler.NewRouter(handler.RouterDependencies{
+	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config:         cfg,
 		Logger:         log,
 		DBPool:         pool,

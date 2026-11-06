@@ -2,9 +2,9 @@ package handler
 
 import (
 	"net/http"
-	"task-manager-api/internal/middleware"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
-	"task-manager-api/pkg/response"
+	"task-manager-api/internal/transport/http/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,13 +31,13 @@ func NewTagHandler(tagService service.TagService) *TagHandler {
 func (h *TagHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	var req CreateTagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("BAD_REQUEST", "Invalid tag input", err.Error()))
+		_ = c.Error(err)
 		return
 	}
 
@@ -46,11 +46,11 @@ func (h *TagHandler) Create(c *gin.Context) {
 		Color: req.Color,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to create tag"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.Success(tag))
+	c.JSON(http.StatusCreated, tag)
 }
 
 // List retrieves all tags for the user.
@@ -58,17 +58,17 @@ func (h *TagHandler) Create(c *gin.Context) {
 func (h *TagHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	tags, err := h.tagService.ListTags(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to list tags"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(tags))
+	c.JSON(http.StatusOK, tags)
 }
 
 // Delete deletes a tag owned by the user.
@@ -76,22 +76,25 @@ func (h *TagHandler) List(c *gin.Context) {
 func (h *TagHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.Error("UNAUTHORIZED", "User context not found"))
+		_ = c.Error(err)
 		return
 	}
 
 	tagID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error("INVALID_UUID", "Invalid tag UUID format"))
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
 		return
 	}
 
 	if err := h.tagService.DeleteTag(c.Request.Context(), userID, tagID); err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error("INTERNAL_SERVER_ERROR", "Failed to delete tag"))
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, response.Success(gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "Tag deleted successfully",
-	}))
+	})
 }
