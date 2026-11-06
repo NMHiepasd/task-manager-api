@@ -11,20 +11,26 @@ import (
 )
 
 type Querier interface {
+	CountProjectsByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error)
+	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error)
 	ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error
 	SoftDeleteTask(ctx context.Context, id uuid.UUID) error
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }

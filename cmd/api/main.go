@@ -66,15 +66,17 @@ func main() {
 	passwordHasher := hasher.NewBcryptHasher(12)
 	authService := service.NewAuthService(repo, passwordHasher, tokenMaker, cfg.JWTExpiration, cfg.JWTRefreshExpiration)
 	userService := service.NewUserService(repo)
+	projectService := service.NewProjectService(repo)
 
 	// 5. Initialize HTTP router with dependencies
 	router := handler.NewRouter(handler.RouterDependencies{
-		Config:      cfg,
-		Logger:      log,
-		DBPool:      pool,
-		AuthService: authService,
-		UserService: userService,
-		TokenMaker:  tokenMaker,
+		Config:         cfg,
+		Logger:         log,
+		DBPool:         pool,
+		AuthService:    authService,
+		UserService:    userService,
+		ProjectService: projectService,
+		TokenMaker:     tokenMaker,
 	})
 
 	// 5. Configure HTTP server with production-grade timeouts

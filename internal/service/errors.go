@@ -22,4 +22,10 @@ var (
 	ErrTokenReuseDetected = errors.New("refresh token reuse detected; all sessions revoked for security")
 	// ErrPasswordTooLong indicates password length exceeded allowed bcrypt size.
 	ErrPasswordTooLong = hasher.ErrPasswordTooLong
+	// ErrProjectNotFound indicates the requested project does not exist or has been deleted.
+	ErrProjectNotFound = errors.New("project not found")
+	// ErrOptimisticLockConflict indicates the resource version does not match the database version.
+	ErrOptimisticLockConflict = errors.New("resource has been modified by another request; please reload and try again")
+	// ErrForbidden indicates the authenticated user does not own or have permission to access the resource.
+	ErrForbidden = errors.New("forbidden: you do not have permission to perform this action")
 )

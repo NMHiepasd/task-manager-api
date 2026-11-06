@@ -13,12 +13,13 @@ import (
 
 // RouterDependencies encapsulates all dependencies required to construct the HTTP router.
 type RouterDependencies struct {
-	Config      *config.Config
-	Logger      *slog.Logger
-	DBPool      *pgxpool.Pool
-	AuthService service.AuthService
-	UserService service.UserService
-	TokenMaker  token.Maker
+	Config         *config.Config
+	Logger         *slog.Logger
+	DBPool         *pgxpool.Pool
+	AuthService    service.AuthService
+	UserService    service.UserService
+	ProjectService service.ProjectService
+	TokenMaker     token.Maker
 }
 
 // NewRouter constructs and configures the Gin engine with all routes and middlewares.
@@ -72,6 +73,20 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			userGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
 				userGroup.GET("/me", userHandler.GetMe)
+			}
+		}
+
+		// Project endpoints (protected by JWT AuthMiddleware)
+		if deps.ProjectService != nil && deps.TokenMaker != nil {
+			projectHandler := NewProjectHandler(deps.ProjectService)
+			projectGroup := v1.Group("/projects")
+			projectGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			{
+				projectGroup.POST("", projectHandler.Create)
+				projectGroup.GET("", projectHandler.List)
+				projectGroup.GET("/:id", projectHandler.GetByID)
+				projectGroup.PUT("/:id", projectHandler.Update)
+				projectGroup.DELETE("/:id", projectHandler.Delete)
 			}
 		}
 	}

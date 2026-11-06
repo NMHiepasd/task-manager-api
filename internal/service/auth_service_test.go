@@ -75,6 +75,30 @@ func (m *mockQuerier) RevokeAllUserRefreshTokens(ctx context.Context, userID uui
 }
 
 // Stubs for remaining Querier interface methods
+func (m *mockQuerier) CountProjectsByOwner(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) CreateProject(context.Context, repository.CreateProjectParams) (repository.Project, error) {
+	return repository.Project{}, nil
+}
+
+func (m *mockQuerier) GetProjectByID(context.Context, uuid.UUID) (repository.Project, error) {
+	return repository.Project{}, nil
+}
+
+func (m *mockQuerier) ListProjectsByOwner(context.Context, repository.ListProjectsByOwnerParams) ([]repository.Project, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) SoftDeleteProject(context.Context, repository.SoftDeleteProjectParams) error {
+	return nil
+}
+
+func (m *mockQuerier) UpdateProject(context.Context, repository.UpdateProjectParams) (repository.Project, error) {
+	return repository.Project{}, nil
+}
+
 func (m *mockQuerier) CreateTask(context.Context, repository.CreateTaskParams) (repository.Task, error) {
 	return repository.Task{}, nil
 }
