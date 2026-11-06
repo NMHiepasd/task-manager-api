@@ -152,6 +152,14 @@ func (m *mockQuerier) ListTasks(context.Context, repository.ListTasksParams) ([]
 	return nil, nil
 }
 
+func (m *mockQuerier) ListProjectsKeyset(context.Context, repository.ListProjectsKeysetParams) ([]repository.Project, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListTasksKeyset(context.Context, repository.ListTasksKeysetParams) ([]repository.Task, error) {
+	return nil, nil
+}
+
 func (m *mockQuerier) RemoveTagFromTask(context.Context, repository.RemoveTagFromTaskParams) error {
 	return nil
 }

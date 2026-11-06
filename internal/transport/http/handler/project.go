@@ -27,8 +27,9 @@ type UpdateProjectRequest struct {
 
 // ListProjectsQuery specifies query parameters for listing projects.
 type ListProjectsQuery struct {
-	Page  int32 `form:"page,default=1" binding:"omitempty,min=1"`
-	Limit int32 `form:"limit,default=10" binding:"omitempty,min=1,max=100"`
+	Cursor string `form:"cursor"`
+	Page   int32  `form:"page,default=1" binding:"omitempty,min=1"`
+	Limit  int32  `form:"limit,default=10" binding:"omitempty,min=1,max=100"`
 }
 
 // ProjectHandler handles HTTP requests for projects.
@@ -112,8 +113,9 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	}
 
 	result, err := h.projectService.ListProjects(c.Request.Context(), userID, service.PaginationParams{
-		Page:  query.Page,
-		Limit: query.Limit,
+		Cursor: query.Cursor,
+		Page:   query.Page,
+		Limit:  query.Limit,
 	})
 	if err != nil {
 		_ = c.Error(err)

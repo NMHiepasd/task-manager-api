@@ -36,13 +36,22 @@ type UpdateTaskRequest struct {
 	TagIDs      []uuid.UUID `json:"tag_ids"`
 }
 
+// SetTaskTagsRequest defines payload for updating task tags.
+type SetTaskTagsRequest struct {
+	TagIDs []uuid.UUID `json:"tag_ids"`
+}
+
 // ListTasksQuery defines query filters for listing tasks.
 type ListTasksQuery struct {
 	ProjectID *uuid.UUID `form:"project_id"`
 	Status    *string    `form:"status" binding:"omitempty,oneof=todo in_progress completed cancelled"`
 	Priority  *string    `form:"priority" binding:"omitempty,oneof=low medium high urgent"`
+	TagID     *uuid.UUID `form:"tag_id"`
+	Search    *string    `form:"q"`
+	DueBefore *time.Time `form:"due_before" time_format:"2006-01-02T15:04:05Z07:00"`
+	Cursor    string     `form:"cursor"`
 	Page      int32      `form:"page,default=1" binding:"omitempty,min=1"`
-	Limit     int32      `form:"limit,default=10" binding:"omitempty,min=1,max=100"`
+	Limit     int32      `form:"limit,default=20" binding:"omitempty,min=1,max=100"`
 }
 
 // TaskHandler handles HTTP requests for tasks.
@@ -134,6 +143,10 @@ func (h *TaskHandler) List(c *gin.Context) {
 		ProjectID: query.ProjectID,
 		Status:    query.Status,
 		Priority:  query.Priority,
+		TagID:     query.TagID,
+		Search:    query.Search,
+		DueBefore: query.DueBefore,
+		Cursor:    query.Cursor,
 		Page:      query.Page,
 		Limit:     query.Limit,
 	})
@@ -143,6 +156,81 @@ func (h *TaskHandler) List(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// ListProjectTasks retrieves all tasks for a specific project.
+// GET /api/v1/projects/:id/tasks
+func (h *TaskHandler) ListProjectTasks(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	var query ListTasksQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	result, err := h.taskService.ListProjectTasks(c.Request.Context(), userID, projectID, service.ListTasksFilter{
+		Status:    query.Status,
+		Priority:  query.Priority,
+		TagID:     query.TagID,
+		Search:    query.Search,
+		DueBefore: query.DueBefore,
+		Cursor:    query.Cursor,
+		Page:      query.Page,
+		Limit:     query.Limit,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// SetTags replaces all tags for a task.
+// PUT /api/v1/tasks/:id/tags
+func (h *TaskHandler) SetTags(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	taskID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	var req SetTaskTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	tags, err := h.taskService.SetTaskTags(c.Request.Context(), userID, taskID, req.TagIDs)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, tags)
 }
 
 // Update updates an existing task with optimistic locking check.

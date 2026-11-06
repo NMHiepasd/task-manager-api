@@ -137,7 +137,7 @@ func TestTaskService_CreateTask(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidTaskStatus)
 	})
 
-	t.Run("ForbiddenProject", func(t *testing.T) {
+	t.Run("AntiIDOR_ProjectNotOwned", func(t *testing.T) {
 		otherUser := uuid.New()
 		mock := &mockTaskQuerier{
 			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
@@ -150,7 +150,7 @@ func TestTaskService_CreateTask(t *testing.T) {
 			ProjectID: &projectID,
 			Title:     "Task",
 		})
-		require.ErrorIs(t, err, ErrForbidden)
+		require.ErrorIs(t, err, ErrProjectNotFound)
 	})
 }
 
@@ -179,7 +179,7 @@ func TestTaskService_GetTaskByID(t *testing.T) {
 		require.Equal(t, "Test Task", res.Title)
 	})
 
-	t.Run("Forbidden", func(t *testing.T) {
+	t.Run("AntiIDOR_NotAllowed", func(t *testing.T) {
 		otherUser := uuid.New()
 		mock := &mockTaskQuerier{
 			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
@@ -192,7 +192,7 @@ func TestTaskService_GetTaskByID(t *testing.T) {
 
 		svc := NewTaskService(mock)
 		_, err := svc.GetTaskByID(context.Background(), userID, taskID)
-		require.ErrorIs(t, err, ErrForbidden)
+		require.ErrorIs(t, err, ErrTaskNotFound)
 	})
 }
 

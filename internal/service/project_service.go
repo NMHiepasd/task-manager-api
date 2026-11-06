@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/pagination"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // CreateProjectInput holds payload for creating a new project.
@@ -40,19 +43,22 @@ type ProjectResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// PaginationParams specifies pagination offset/limit.
+// PaginationParams specifies pagination offset/limit or keyset cursor.
 type PaginationParams struct {
-	Page  int32 `json:"page"`
-	Limit int32 `json:"limit"`
+	Cursor string `json:"cursor"`
+	Page   int32  `json:"page"`
+	Limit  int32  `json:"limit"`
 }
 
 // PaginatedProjectsResponse represents paginated project results.
 type PaginatedProjectsResponse struct {
 	Items      []ProjectResponse `json:"items"`
 	TotalItems int64             `json:"total_items"`
-	Page       int32             `json:"page"`
+	Page       int32             `json:"page,omitempty"`
 	Limit      int32             `json:"limit"`
-	TotalPages int32             `json:"total_pages"`
+	TotalPages int32             `json:"total_pages,omitempty"`
+	NextCursor string            `json:"next_cursor,omitempty"`
+	HasMore    bool              `json:"has_more"`
 }
 
 // ProjectService defines business logic for managing projects.
@@ -106,26 +112,71 @@ func (s *projectService) GetProjectByID(ctx context.Context, ownerID uuid.UUID, 
 	}
 
 	if project.OwnerID != ownerID {
-		return nil, ErrForbidden
+		return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	return s.mapProject(project), nil
 }
 
-// ListProjects retrieves paginated projects owned by the user.
-func (s *projectService) ListProjects(ctx context.Context, ownerID uuid.UUID, pagination PaginationParams) (*PaginatedProjectsResponse, error) {
-	page := pagination.Page
-	if page <= 0 {
-		page = 1
-	}
-
-	limit := pagination.Limit
+// ListProjects retrieves paginated projects owned by the user using keyset cursor or offset.
+func (s *projectService) ListProjects(ctx context.Context, ownerID uuid.UUID, params PaginationParams) (*PaginatedProjectsResponse, error) {
+	limit := params.Limit
 	if limit <= 0 {
 		limit = 10
 	} else if limit > 100 {
 		limit = 100
 	}
 
+	if params.Cursor != "" {
+		cursorTime, cursorID, err := pagination.DecodeCursor(params.Cursor)
+		if err != nil {
+			return nil, domain.ValidationErrors{
+				Message: "Input validation failed",
+				Params: []domain.InvalidParam{
+					{Name: "cursor", Reason: "invalid pagination cursor"},
+				},
+			}
+		}
+
+		projects, err := s.repo.ListProjectsKeyset(ctx, repository.ListProjectsKeysetParams{
+			OwnerID:         ownerID,
+			Limit:           limit + 1,
+			CursorCreatedAt: pgtype.Timestamptz{Time: cursorTime, Valid: true},
+			CursorID:        pgtype.UUID{Bytes: cursorID, Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query keyset projects: %w", err)
+		}
+
+		hasMore := len(projects) > int(limit)
+		if hasMore {
+			projects = projects[:limit]
+		}
+
+		var nextCursor string
+		if len(projects) > 0 && hasMore {
+			last := projects[len(projects)-1]
+			nextCursor = pagination.EncodeCursor(last.CreatedAt.Time, last.ID)
+		}
+
+		items := make([]ProjectResponse, len(projects))
+		for i, p := range projects {
+			items[i] = *s.mapProject(p)
+		}
+
+		return &PaginatedProjectsResponse{
+			Items:      items,
+			TotalItems: int64(len(items)),
+			Limit:      limit,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
+		}, nil
+	}
+
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
 	offset := (page - 1) * limit
 
 	total, err := s.repo.CountProjectsByOwner(ctx, ownerID)
@@ -148,6 +199,12 @@ func (s *projectService) ListProjects(ctx context.Context, ownerID uuid.UUID, pa
 	}
 
 	totalPages := int32(math.Ceil(float64(total) / float64(limit)))
+	hasMore := int64(offset+limit) < total
+	var nextCursor string
+	if len(projects) > 0 && hasMore {
+		last := projects[len(projects)-1]
+		nextCursor = pagination.EncodeCursor(last.CreatedAt.Time, last.ID)
+	}
 
 	return &PaginatedProjectsResponse{
 		Items:      items,
@@ -155,6 +212,8 @@ func (s *projectService) ListProjects(ctx context.Context, ownerID uuid.UUID, pa
 		Page:       page,
 		Limit:      limit,
 		TotalPages: totalPages,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -170,7 +229,7 @@ func (s *projectService) UpdateProject(ctx context.Context, ownerID uuid.UUID, p
 	}
 
 	if existing.OwnerID != ownerID {
-		return nil, ErrForbidden
+		return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	// 2. Check optimistic lock version
@@ -218,7 +277,7 @@ func (s *projectService) DeleteProject(ctx context.Context, ownerID uuid.UUID, p
 	}
 
 	if existing.OwnerID != ownerID {
-		return ErrForbidden
+		return ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	if err := s.repo.SoftDeleteProject(ctx, repository.SoftDeleteProjectParams{

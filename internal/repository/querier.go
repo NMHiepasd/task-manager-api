@@ -31,9 +31,11 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error)
+	ListProjectsKeyset(ctx context.Context, arg ListProjectsKeysetParams) ([]Project, error)
 	ListTagsByUser(ctx context.Context, userID uuid.UUID) ([]Tag, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error)
+	ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error

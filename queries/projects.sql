@@ -16,8 +16,15 @@ LIMIT 1;
 -- name: ListProjectsByOwner :many
 SELECT * FROM projects
 WHERE owner_id = $1 AND deleted_at IS NULL
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $2 OFFSET $3;
+
+-- name: ListProjectsKeyset :many
+SELECT * FROM projects
+WHERE owner_id = $1 AND deleted_at IS NULL
+  AND (sqlc.narg('cursor_created_at')::timestamptz IS NULL OR (created_at, id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $2;
 
 -- name: CountProjectsByOwner :one
 SELECT count(*) FROM projects

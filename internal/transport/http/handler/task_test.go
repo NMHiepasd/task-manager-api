@@ -17,11 +17,13 @@ import (
 )
 
 type mockTaskService struct {
-	createTaskFn  func(ctx context.Context, userID uuid.UUID, input service.CreateTaskInput) (*service.TaskResponse, error)
-	getTaskByIDFn func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*service.TaskResponse, error)
-	listTasksFn   func(ctx context.Context, userID uuid.UUID, filter service.ListTasksFilter) (*service.PaginatedTasksResponse, error)
-	updateTaskFn  func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, input service.UpdateTaskInput) (*service.TaskResponse, error)
-	deleteTaskFn  func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) error
+	createTaskFn       func(ctx context.Context, userID uuid.UUID, input service.CreateTaskInput) (*service.TaskResponse, error)
+	getTaskByIDFn      func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*service.TaskResponse, error)
+	listTasksFn        func(ctx context.Context, userID uuid.UUID, filter service.ListTasksFilter) (*service.PaginatedTasksResponse, error)
+	listProjectTasksFn func(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, filter service.ListTasksFilter) (*service.PaginatedTasksResponse, error)
+	updateTaskFn       func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, input service.UpdateTaskInput) (*service.TaskResponse, error)
+	deleteTaskFn       func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) error
+	setTaskTagsFn      func(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, tagIDs []uuid.UUID) ([]service.TagResponse, error)
 }
 
 func (m *mockTaskService) CreateTask(ctx context.Context, userID uuid.UUID, input service.CreateTaskInput) (*service.TaskResponse, error) {
@@ -45,6 +47,13 @@ func (m *mockTaskService) ListTasks(ctx context.Context, userID uuid.UUID, filte
 	return nil, nil
 }
 
+func (m *mockTaskService) ListProjectTasks(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, filter service.ListTasksFilter) (*service.PaginatedTasksResponse, error) {
+	if m.listProjectTasksFn != nil {
+		return m.listProjectTasksFn(ctx, userID, projectID, filter)
+	}
+	return nil, nil
+}
+
 func (m *mockTaskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, input service.UpdateTaskInput) (*service.TaskResponse, error) {
 	if m.updateTaskFn != nil {
 		return m.updateTaskFn(ctx, userID, taskID, input)
@@ -57,6 +66,13 @@ func (m *mockTaskService) DeleteTask(ctx context.Context, userID uuid.UUID, task
 		return m.deleteTaskFn(ctx, userID, taskID)
 	}
 	return nil
+}
+
+func (m *mockTaskService) SetTaskTags(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, tagIDs []uuid.UUID) ([]service.TagResponse, error) {
+	if m.setTaskTagsFn != nil {
+		return m.setTaskTagsFn(ctx, userID, taskID, tagIDs)
+	}
+	return nil, nil
 }
 
 func setupTestTaskRouter(h *TaskHandler, userID uuid.UUID) *gin.Engine {
@@ -72,6 +88,8 @@ func setupTestTaskRouter(h *TaskHandler, userID uuid.UUID) *gin.Engine {
 	r.GET("/tasks/:id", h.GetByID)
 	r.PUT("/tasks/:id", h.Update)
 	r.DELETE("/tasks/:id", h.Delete)
+	r.PUT("/tasks/:id/tags", h.SetTags)
+	r.GET("/projects/:id/tasks", h.ListProjectTasks)
 	return r
 }
 
@@ -174,4 +192,57 @@ func TestTaskHandler_Update_Conflict(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusConflict, rec.Code)
 	require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
+}
+
+func TestTaskHandler_SetTags(t *testing.T) {
+	userID := uuid.New()
+	taskID := uuid.New()
+	tagID := uuid.New()
+
+	mock := &mockTaskService{
+		setTaskTagsFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []uuid.UUID) ([]service.TagResponse, error) {
+			return []service.TagResponse{
+				{ID: tagID, Name: "Frontend", Color: "#3b82f6"},
+			}, nil
+		},
+	}
+
+	h := NewTaskHandler(mock)
+	router := setupTestTaskRouter(h, userID)
+
+	body := map[string]interface{}{
+		"tag_ids": []string{tagID.String()},
+	}
+	b, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest(http.MethodPut, "/tasks/"+taskID.String()+"/tags", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestTaskHandler_ListProjectTasks(t *testing.T) {
+	userID := uuid.New()
+	projectID := uuid.New()
+
+	mock := &mockTaskService{
+		listProjectTasksFn: func(_ context.Context, _ uuid.UUID, pID uuid.UUID, _ service.ListTasksFilter) (*service.PaginatedTasksResponse, error) {
+			return &service.PaginatedTasksResponse{
+				Items: []service.TaskResponse{
+					{ID: uuid.New(), ProjectID: &pID, Title: "Project Task 1"},
+				},
+				TotalItems: 1,
+			}, nil
+		},
+	}
+
+	h := NewTaskHandler(mock)
+	router := setupTestTaskRouter(h, userID)
+
+	req, _ := http.NewRequest(http.MethodGet, "/projects/"+projectID.String()+"/tasks", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
 }

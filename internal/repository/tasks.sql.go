@@ -19,13 +19,21 @@ WHERE deleted_at IS NULL
   AND ($2::uuid IS NULL OR project_id = $2)
   AND ($3::varchar IS NULL OR status = $3)
   AND ($4::varchar IS NULL OR priority = $4)
+  AND ($5::timestamptz IS NULL OR due_date <= $5)
+  AND ($6::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $6) OR title ILIKE '%' || $6 || '%')
+  AND ($7::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $7
+  ))
 `
 
 type CountTasksParams struct {
-	CreatorID uuid.UUID   `json:"creator_id"`
-	ProjectID pgtype.UUID `json:"project_id"`
-	Status    pgtype.Text `json:"status"`
-	Priority  pgtype.Text `json:"priority"`
+	CreatorID uuid.UUID          `json:"creator_id"`
+	ProjectID pgtype.UUID        `json:"project_id"`
+	Status    pgtype.Text        `json:"status"`
+	Priority  pgtype.Text        `json:"priority"`
+	DueBefore pgtype.Timestamptz `json:"due_before"`
+	Search    pgtype.Text        `json:"search"`
+	TagID     pgtype.UUID        `json:"tag_id"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
@@ -34,6 +42,9 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 		arg.ProjectID,
 		arg.Status,
 		arg.Priority,
+		arg.DueBefore,
+		arg.Search,
+		arg.TagID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -130,17 +141,25 @@ WHERE deleted_at IS NULL
   AND ($4::uuid IS NULL OR project_id = $4)
   AND ($5::varchar IS NULL OR status = $5)
   AND ($6::varchar IS NULL OR priority = $6)
-ORDER BY created_at DESC
+  AND ($7::timestamptz IS NULL OR due_date <= $7)
+  AND ($8::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $8) OR title ILIKE '%' || $8 || '%')
+  AND ($9::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $9
+  ))
+ORDER BY created_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `
 
 type ListTasksParams struct {
-	CreatorID uuid.UUID   `json:"creator_id"`
-	Limit     int32       `json:"limit"`
-	Offset    int32       `json:"offset"`
-	ProjectID pgtype.UUID `json:"project_id"`
-	Status    pgtype.Text `json:"status"`
-	Priority  pgtype.Text `json:"priority"`
+	CreatorID uuid.UUID          `json:"creator_id"`
+	Limit     int32              `json:"limit"`
+	Offset    int32              `json:"offset"`
+	ProjectID pgtype.UUID        `json:"project_id"`
+	Status    pgtype.Text        `json:"status"`
+	Priority  pgtype.Text        `json:"priority"`
+	DueBefore pgtype.Timestamptz `json:"due_before"`
+	Search    pgtype.Text        `json:"search"`
+	TagID     pgtype.UUID        `json:"tag_id"`
 }
 
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
@@ -151,6 +170,9 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 		arg.ProjectID,
 		arg.Status,
 		arg.Priority,
+		arg.DueBefore,
+		arg.Search,
+		arg.TagID,
 	)
 	if err != nil {
 		return nil, err
@@ -199,6 +221,81 @@ type ListTasksByCreatorParams struct {
 
 func (q *Queries) ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listTasksByCreator, arg.CreatorID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CreatorID,
+			&i.AssigneeID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksKeyset = `-- name: ListTasksKeyset :many
+SELECT id, project_id, creator_id, assignee_id, title, description, status, priority, due_date, version, created_at, updated_at, deleted_at FROM tasks
+WHERE deleted_at IS NULL
+  AND (creator_id = $1 OR assignee_id = $1)
+  AND ($3::uuid IS NULL OR project_id = $3)
+  AND ($4::varchar IS NULL OR status = $4)
+  AND ($5::varchar IS NULL OR priority = $5)
+  AND ($6::timestamptz IS NULL OR due_date <= $6)
+  AND ($7::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $7) OR title ILIKE '%' || $7 || '%')
+  AND ($8::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $8
+  ))
+  AND ($9::timestamptz IS NULL OR (created_at, id) < ($9::timestamptz, $10::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+`
+
+type ListTasksKeysetParams struct {
+	CreatorID       uuid.UUID          `json:"creator_id"`
+	Limit           int32              `json:"limit"`
+	ProjectID       pgtype.UUID        `json:"project_id"`
+	Status          pgtype.Text        `json:"status"`
+	Priority        pgtype.Text        `json:"priority"`
+	DueBefore       pgtype.Timestamptz `json:"due_before"`
+	Search          pgtype.Text        `json:"search"`
+	TagID           pgtype.UUID        `json:"tag_id"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+}
+
+func (q *Queries) ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listTasksKeyset,
+		arg.CreatorID,
+		arg.Limit,
+		arg.ProjectID,
+		arg.Status,
+		arg.Priority,
+		arg.DueBefore,
+		arg.Search,
+		arg.TagID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countProjectsByOwner = `-- name: CountProjectsByOwner :one
@@ -89,7 +90,7 @@ func (q *Queries) GetProjectByID(ctx context.Context, id uuid.UUID) (Project, er
 const listProjectsByOwner = `-- name: ListProjectsByOwner :many
 SELECT id, owner_id, name, description, color, version, created_at, updated_at, deleted_at FROM projects
 WHERE owner_id = $1 AND deleted_at IS NULL
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -101,6 +102,56 @@ type ListProjectsByOwnerParams struct {
 
 func (q *Queries) ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error) {
 	rows, err := q.db.Query(ctx, listProjectsByOwner, arg.OwnerID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Project{}
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectsKeyset = `-- name: ListProjectsKeyset :many
+SELECT id, owner_id, name, description, color, version, created_at, updated_at, deleted_at FROM projects
+WHERE owner_id = $1 AND deleted_at IS NULL
+  AND ($3::timestamptz IS NULL OR (created_at, id) < ($3::timestamptz, $4::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+`
+
+type ListProjectsKeysetParams struct {
+	OwnerID         uuid.UUID          `json:"owner_id"`
+	Limit           int32              `json:"limit"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+}
+
+func (q *Queries) ListProjectsKeyset(ctx context.Context, arg ListProjectsKeysetParams) ([]Project, error) {
+	rows, err := q.db.Query(ctx, listProjectsKeyset,
+		arg.OwnerID,
+		arg.Limit,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+	)
 	if err != nil {
 		return nil, err
 	}

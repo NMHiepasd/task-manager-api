@@ -129,7 +129,12 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				projectGroup.GET("", projectHandler.List)
 				projectGroup.GET("/:id", projectHandler.GetByID)
 				projectGroup.PUT("/:id", projectHandler.Update)
+				projectGroup.PATCH("/:id", projectHandler.Update)
 				projectGroup.DELETE("/:id", projectHandler.Delete)
+				if deps.TaskService != nil {
+					taskHandler := handler.NewTaskHandler(deps.TaskService)
+					projectGroup.GET("/:id/tasks", taskHandler.ListProjectTasks)
+				}
 			}
 		}
 
@@ -143,7 +148,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				taskGroup.GET("", taskHandler.List)
 				taskGroup.GET("/:id", taskHandler.GetByID)
 				taskGroup.PUT("/:id", taskHandler.Update)
+				taskGroup.PATCH("/:id", taskHandler.Update)
 				taskGroup.DELETE("/:id", taskHandler.Delete)
+				taskGroup.PUT("/:id/tags", taskHandler.SetTags)
 			}
 		}
 

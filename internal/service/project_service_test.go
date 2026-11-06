@@ -136,7 +136,7 @@ func TestProjectService_GetProjectByID(t *testing.T) {
 		require.Nil(t, res)
 	})
 
-	t.Run("Forbidden_NotOwner", func(t *testing.T) {
+	t.Run("AntiIDOR_NotOwner", func(t *testing.T) {
 		differentOwner := uuid.New()
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
@@ -150,7 +150,7 @@ func TestProjectService_GetProjectByID(t *testing.T) {
 
 		service := NewProjectService(mock)
 		res, err := service.GetProjectByID(context.Background(), ownerID, projectID)
-		require.ErrorIs(t, err, ErrForbidden)
+		require.ErrorIs(t, err, ErrProjectNotFound)
 		require.Nil(t, res)
 	})
 }
@@ -277,7 +277,7 @@ func TestProjectService_DeleteProject(t *testing.T) {
 		require.True(t, deleted)
 	})
 
-	t.Run("Forbidden", func(t *testing.T) {
+	t.Run("AntiIDOR_NotOwner", func(t *testing.T) {
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
 				return repository.Project{
@@ -289,6 +289,6 @@ func TestProjectService_DeleteProject(t *testing.T) {
 
 		service := NewProjectService(mock)
 		err := service.DeleteProject(context.Background(), ownerID, projectID)
-		require.ErrorIs(t, err, ErrForbidden)
+		require.ErrorIs(t, err, ErrProjectNotFound)
 	})
 }

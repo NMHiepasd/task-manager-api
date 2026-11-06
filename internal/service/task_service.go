@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/pagination"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +60,10 @@ type ListTasksFilter struct {
 	ProjectID *uuid.UUID `json:"project_id"`
 	Status    *string    `json:"status"`
 	Priority  *string    `json:"priority"`
+	TagID     *uuid.UUID `json:"tag_id"`
+	Search    *string    `json:"search"`
+	DueBefore *time.Time `json:"due_before"`
+	Cursor    string     `json:"cursor"`
 	Page      int32      `json:"page"`
 	Limit     int32      `json:"limit"`
 }
@@ -83,9 +89,11 @@ type TaskResponse struct {
 type PaginatedTasksResponse struct {
 	Items      []TaskResponse `json:"items"`
 	TotalItems int64          `json:"total_items"`
-	Page       int32          `json:"page"`
+	Page       int32          `json:"page,omitempty"`
 	Limit      int32          `json:"limit"`
-	TotalPages int32          `json:"total_pages"`
+	TotalPages int32          `json:"total_pages,omitempty"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+	HasMore    bool           `json:"has_more"`
 }
 
 // TaskService defines business logic for tasks.
@@ -93,8 +101,10 @@ type TaskService interface {
 	CreateTask(ctx context.Context, userID uuid.UUID, input CreateTaskInput) (*TaskResponse, error)
 	GetTaskByID(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*TaskResponse, error)
 	ListTasks(ctx context.Context, userID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error)
+	ListProjectTasks(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error)
 	UpdateTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, input UpdateTaskInput) (*TaskResponse, error)
 	DeleteTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) error
+	SetTaskTags(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, tagIDs []uuid.UUID) ([]TagResponse, error)
 }
 
 type taskService struct {
@@ -122,6 +132,15 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 		return nil, ErrInvalidTaskPriority
 	}
 
+	if input.DueDate != nil && input.DueDate.Before(time.Now().Add(-5*time.Minute)) {
+		return nil, domain.ValidationErrors{
+			Message: "Input validation failed",
+			Params: []domain.InvalidParam{
+				{Name: "due_date", Reason: "due date cannot be in the past"},
+			},
+		}
+	}
+
 	var pID pgtype.UUID
 	if input.ProjectID != nil {
 		project, err := s.repo.GetProjectByID(ctx, *input.ProjectID)
@@ -132,7 +151,7 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 			return nil, fmt.Errorf("failed to verify project: %w", err)
 		}
 		if project.OwnerID != userID {
-			return nil, ErrForbidden
+			return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 		}
 		pID = pgtype.UUID{Bytes: *input.ProjectID, Valid: true}
 	}
@@ -147,29 +166,64 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 		dDate = pgtype.Timestamptz{Time: *input.DueDate, Valid: true}
 	}
 
-	task, err := s.repo.CreateTask(ctx, repository.CreateTaskParams{
-		ProjectID:   pID,
-		CreatorID:   userID,
-		AssigneeID:  aID,
-		Title:       strings.TrimSpace(input.Title),
-		Description: strings.TrimSpace(input.Description),
-		Status:      status,
-		Priority:    priority,
-		DueDate:     dDate,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to persist task: %w", err)
-	}
+	var task repository.Task
+	var tags []repository.Tag
 
-	// Attach tags if provided
-	for _, tagID := range input.TagIDs {
-		_ = s.repo.AddTagToTask(ctx, repository.AddTagToTaskParams{
-			TaskID: task.ID,
-			TagID:  tagID,
+	if store, ok := s.repo.(repository.Store); ok {
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			var err error
+			task, err = q.CreateTask(ctx, repository.CreateTaskParams{
+				ProjectID:   pID,
+				CreatorID:   userID,
+				AssigneeID:  aID,
+				Title:       strings.TrimSpace(input.Title),
+				Description: strings.TrimSpace(input.Description),
+				Status:      status,
+				Priority:    priority,
+				DueDate:     dDate,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to persist task: %w", err)
+			}
+
+			for _, tagID := range input.TagIDs {
+				_ = q.AddTagToTask(ctx, repository.AddTagToTaskParams{
+					TaskID: task.ID,
+					TagID:  tagID,
+				})
+			}
+
+			tags, _ = q.GetTagsForTask(ctx, task.ID)
+			return nil
 		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		task, err = s.repo.CreateTask(ctx, repository.CreateTaskParams{
+			ProjectID:   pID,
+			CreatorID:   userID,
+			AssigneeID:  aID,
+			Title:       strings.TrimSpace(input.Title),
+			Description: strings.TrimSpace(input.Description),
+			Status:      status,
+			Priority:    priority,
+			DueDate:     dDate,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to persist task: %w", err)
+		}
+
+		for _, tagID := range input.TagIDs {
+			_ = s.repo.AddTagToTask(ctx, repository.AddTagToTaskParams{
+				TaskID: task.ID,
+				TagID:  tagID,
+			})
+		}
+		tags, _ = s.repo.GetTagsForTask(ctx, task.ID)
 	}
 
-	tags, _ := s.repo.GetTagsForTask(ctx, task.ID)
 	return s.mapTask(task, tags), nil
 }
 
@@ -193,7 +247,7 @@ func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID 
 	}
 
 	if !hasAccess {
-		return nil, ErrForbidden
+		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	tags, err := s.repo.GetTagsForTask(ctx, task.ID)
@@ -204,21 +258,32 @@ func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID 
 	return s.mapTask(task, tags), nil
 }
 
-// ListTasks retrieves paginated tasks filtered by project, status, priority.
-func (s *taskService) ListTasks(ctx context.Context, userID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error) {
-	page := filter.Page
-	if page <= 0 {
-		page = 1
+// ListProjectTasks lists all tasks belonging to a specific project after verifying ownership.
+func (s *taskService) ListProjectTasks(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error) {
+	// Verify project ownership (anti-IDOR: return 404 if project doesn't exist or belong to user)
+	project, err := s.repo.GetProjectByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, fmt.Errorf("failed to fetch project: %w", err)
+	}
+	if project.OwnerID != userID {
+		return nil, ErrProjectNotFound // anti-IDOR
 	}
 
+	filter.ProjectID = &projectID
+	return s.ListTasks(ctx, userID, filter)
+}
+
+// ListTasks retrieves paginated tasks filtered by project, status, priority, search, tag, due_before.
+func (s *taskService) ListTasks(ctx context.Context, userID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error) {
 	limit := filter.Limit
 	if limit <= 0 {
-		limit = 10
+		limit = 20
 	} else if limit > 100 {
 		limit = 100
 	}
-
-	offset := (page - 1) * limit
 
 	var pID pgtype.UUID
 	if filter.ProjectID != nil {
@@ -243,11 +308,86 @@ func (s *taskService) ListTasks(ctx context.Context, userID uuid.UUID, filter Li
 		priority = pgtype.Text{String: pr, Valid: true}
 	}
 
+	var search pgtype.Text
+	if filter.Search != nil && strings.TrimSpace(*filter.Search) != "" {
+		search = pgtype.Text{String: strings.TrimSpace(*filter.Search), Valid: true}
+	}
+
+	var dueBefore pgtype.Timestamptz
+	if filter.DueBefore != nil {
+		dueBefore = pgtype.Timestamptz{Time: *filter.DueBefore, Valid: true}
+	}
+
+	var tagID pgtype.UUID
+	if filter.TagID != nil {
+		tagID = pgtype.UUID{Bytes: *filter.TagID, Valid: true}
+	}
+
+	// 1. Keyset cursor-based pagination
+	if filter.Cursor != "" {
+		cursorTime, cursorID, err := pagination.DecodeCursor(filter.Cursor)
+		if err != nil {
+			return nil, domain.ValidationErrors{
+				Message: "Input validation failed",
+				Params: []domain.InvalidParam{
+					{Name: "cursor", Reason: "invalid pagination cursor"},
+				},
+			}
+		}
+
+		keysetRows, err := s.repo.ListTasksKeyset(ctx, repository.ListTasksKeysetParams{
+			CreatorID:       userID,
+			Limit:           limit + 1,
+			ProjectID:       pID,
+			Status:          status,
+			Priority:        priority,
+			DueBefore:       dueBefore,
+			Search:          search,
+			TagID:           tagID,
+			CursorCreatedAt: pgtype.Timestamptz{Time: cursorTime, Valid: true},
+			CursorID:        pgtype.UUID{Bytes: cursorID, Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query keyset tasks: %w", err)
+		}
+
+		hasMore := len(keysetRows) > int(limit)
+		if hasMore {
+			keysetRows = keysetRows[:limit]
+		}
+
+		var nextCursor string
+		if len(keysetRows) > 0 && hasMore {
+			last := keysetRows[len(keysetRows)-1]
+			nextCursor = pagination.EncodeCursor(last.CreatedAt.Time, last.ID)
+		}
+
+		items := s.mapTasksWithTags(ctx, keysetRows)
+
+		return &PaginatedTasksResponse{
+			Items:      items,
+			TotalItems: int64(len(items)),
+			Limit:      limit,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
+		}, nil
+	}
+
+	// 2. Traditional offset pagination
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
 	total, err := s.repo.CountTasks(ctx, repository.CountTasksParams{
 		CreatorID: userID,
 		ProjectID: pID,
 		Status:    status,
 		Priority:  priority,
+		DueBefore: dueBefore,
+		Search:    search,
+		TagID:     tagID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to count tasks: %w", err)
@@ -260,12 +400,36 @@ func (s *taskService) ListTasks(ctx context.Context, userID uuid.UUID, filter Li
 		ProjectID: pID,
 		Status:    status,
 		Priority:  priority,
+		DueBefore: dueBefore,
+		Search:    search,
+		TagID:     tagID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
 
-	// Fetch tags in batch
+	items := s.mapTasksWithTags(ctx, tasks)
+	totalPages := int32(math.Ceil(float64(total) / float64(limit)))
+
+	hasMore := int64(offset+limit) < total
+	var nextCursor string
+	if len(tasks) > 0 && hasMore {
+		last := tasks[len(tasks)-1]
+		nextCursor = pagination.EncodeCursor(last.CreatedAt.Time, last.ID)
+	}
+
+	return &PaginatedTasksResponse{
+		Items:      items,
+		TotalItems: total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}, nil
+}
+
+func (s *taskService) mapTasksWithTags(ctx context.Context, tasks []repository.Task) []TaskResponse {
 	taskIDs := make([]uuid.UUID, len(tasks))
 	for i, t := range tasks {
 		taskIDs[i] = t.ID
@@ -293,16 +457,83 @@ func (s *taskService) ListTasks(ctx context.Context, userID uuid.UUID, filter Li
 			items[i].Tags = assignedTags
 		}
 	}
+	return items
+}
 
-	totalPages := int32(math.Ceil(float64(total) / float64(limit)))
+// SetTaskTags replaces all tags for a task within a transaction.
+func (s *taskService) SetTaskTags(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, tagIDs []uuid.UUID) ([]TagResponse, error) {
+	// First verify task exists and user has access
+	task, err := s.repo.GetTaskByID(ctx, taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("failed to get task: %w", err)
+	}
 
-	return &PaginatedTasksResponse{
-		Items:      items,
-		TotalItems: total,
-		Page:       page,
-		Limit:      limit,
-		TotalPages: totalPages,
-	}, nil
+	if task.CreatorID != userID && (!task.AssigneeID.Valid || task.AssigneeID.Bytes != userID) {
+		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
+	}
+
+	// Use transaction if store supports WithTx
+	if store, ok := s.repo.(repository.Store); ok {
+		var updatedTags []TagResponse
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			if err := q.ClearTaskTags(ctx, taskID); err != nil {
+				return fmt.Errorf("failed to clear tags: %w", err)
+			}
+			for _, tagID := range tagIDs {
+				if err := q.AddTagToTask(ctx, repository.AddTagToTaskParams{
+					TaskID: taskID,
+					TagID:  tagID,
+				}); err != nil {
+					return fmt.Errorf("failed to add tag: %w", err)
+				}
+			}
+			tags, err := q.GetTagsForTask(ctx, taskID)
+			if err != nil {
+				return fmt.Errorf("failed to fetch updated tags: %w", err)
+			}
+			for _, t := range tags {
+				updatedTags = append(updatedTags, TagResponse{
+					ID:        t.ID,
+					Name:      t.Name,
+					Color:     t.Color,
+					CreatedAt: t.CreatedAt.Time,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return updatedTags, nil
+	}
+
+	// Fallback without transaction wrapper
+	if err := s.repo.ClearTaskTags(ctx, taskID); err != nil {
+		return nil, fmt.Errorf("failed to clear tags: %w", err)
+	}
+	for _, tagID := range tagIDs {
+		_ = s.repo.AddTagToTask(ctx, repository.AddTagToTaskParams{
+			TaskID: taskID,
+			TagID:  tagID,
+		})
+	}
+	tags, err := s.repo.GetTagsForTask(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch updated tags: %w", err)
+	}
+	var res []TagResponse
+	for _, t := range tags {
+		res = append(res, TagResponse{
+			ID:        t.ID,
+			Name:      t.Name,
+			Color:     t.Color,
+			CreatedAt: t.CreatedAt.Time,
+		})
+	}
+	return res, nil
 }
 
 // UpdateTask updates task fields with optimistic lock version verification.
@@ -316,7 +547,7 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 	}
 
 	if existing.CreatorID != userID && (!existing.AssigneeID.Valid || existing.AssigneeID.Bytes != userID) {
-		return nil, ErrForbidden
+		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	if existing.Version != input.Version {
@@ -382,13 +613,7 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 
 	// Update tags if provided
 	if input.TagIDs != nil {
-		_ = s.repo.ClearTaskTags(ctx, taskID)
-		for _, tagID := range input.TagIDs {
-			_ = s.repo.AddTagToTask(ctx, repository.AddTagToTaskParams{
-				TaskID: taskID,
-				TagID:  tagID,
-			})
-		}
+		_, _ = s.SetTaskTags(ctx, userID, taskID, input.TagIDs)
 	}
 
 	tags, _ := s.repo.GetTagsForTask(ctx, taskID)
@@ -406,11 +631,11 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 	}
 
 	if existing.CreatorID != userID {
-		return ErrForbidden
+		return ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
 	if err := s.repo.SoftDeleteTask(ctx, taskID); err != nil {
-		return fmt.Errorf("failed to soft delete task: %w", err)
+		return fmt.Errorf("failed to delete task: %w", err)
 	}
 
 	return nil
