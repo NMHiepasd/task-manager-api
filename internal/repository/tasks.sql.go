@@ -12,6 +12,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTasks = `-- name: CountTasks :one
+SELECT count(*) FROM tasks
+WHERE deleted_at IS NULL
+  AND (creator_id = $1 OR assignee_id = $1)
+  AND ($2::uuid IS NULL OR project_id = $2)
+  AND ($3::varchar IS NULL OR status = $3)
+  AND ($4::varchar IS NULL OR priority = $4)
+`
+
+type CountTasksParams struct {
+	CreatorID uuid.UUID   `json:"creator_id"`
+	ProjectID pgtype.UUID `json:"project_id"`
+	Status    pgtype.Text `json:"status"`
+	Priority  pgtype.Text `json:"priority"`
+}
+
+func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTasks,
+		arg.CreatorID,
+		arg.ProjectID,
+		arg.Status,
+		arg.Priority,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
     project_id,
@@ -95,6 +123,67 @@ func (q *Queries) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	return i, err
 }
 
+const listTasks = `-- name: ListTasks :many
+SELECT id, project_id, creator_id, assignee_id, title, description, status, priority, due_date, version, created_at, updated_at, deleted_at FROM tasks
+WHERE deleted_at IS NULL
+  AND (creator_id = $1 OR assignee_id = $1)
+  AND ($4::uuid IS NULL OR project_id = $4)
+  AND ($5::varchar IS NULL OR status = $5)
+  AND ($6::varchar IS NULL OR priority = $6)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListTasksParams struct {
+	CreatorID uuid.UUID   `json:"creator_id"`
+	Limit     int32       `json:"limit"`
+	Offset    int32       `json:"offset"`
+	ProjectID pgtype.UUID `json:"project_id"`
+	Status    pgtype.Text `json:"status"`
+	Priority  pgtype.Text `json:"priority"`
+}
+
+func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listTasks,
+		arg.CreatorID,
+		arg.Limit,
+		arg.Offset,
+		arg.ProjectID,
+		arg.Status,
+		arg.Priority,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CreatorID,
+			&i.AssigneeID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksByCreator = `-- name: ListTasksByCreator :many
 SELECT id, project_id, creator_id, assignee_id, title, description, status, priority, due_date, version, created_at, updated_at, deleted_at FROM tasks
 WHERE creator_id = $1 AND deleted_at IS NULL
@@ -156,19 +245,23 @@ func (q *Queries) SoftDeleteTask(ctx context.Context, id uuid.UUID) error {
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET 
-    title = COALESCE($2, title),
-    description = COALESCE($3, description),
-    status = COALESCE($4, status),
-    priority = COALESCE($5, priority),
-    due_date = COALESCE($6, due_date),
+    project_id = $2,
+    assignee_id = $3,
+    title = $4,
+    description = $5,
+    status = $6,
+    priority = $7,
+    due_date = $8,
     version = version + 1,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND version = $7 AND deleted_at IS NULL
+WHERE id = $1 AND version = $9 AND deleted_at IS NULL
 RETURNING id, project_id, creator_id, assignee_id, title, description, status, priority, due_date, version, created_at, updated_at, deleted_at
 `
 
 type UpdateTaskParams struct {
 	ID          uuid.UUID          `json:"id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Title       string             `json:"title"`
 	Description string             `json:"description"`
 	Status      string             `json:"status"`
@@ -180,6 +273,8 @@ type UpdateTaskParams struct {
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
 	row := q.db.QueryRow(ctx, updateTask,
 		arg.ID,
+		arg.ProjectID,
+		arg.AssigneeID,
 		arg.Title,
 		arg.Description,
 		arg.Status,

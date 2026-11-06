@@ -120,6 +120,42 @@ func (m *mockQuerier) UpdateTask(context.Context, repository.UpdateTaskParams) (
 	return repository.Task{}, nil
 }
 
+func (m *mockQuerier) AddTagToTask(context.Context, repository.AddTagToTaskParams) error { return nil }
+
+func (m *mockQuerier) ClearTaskTags(context.Context, uuid.UUID) error { return nil }
+
+func (m *mockQuerier) CountTasks(context.Context, repository.CountTasksParams) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) CreateTag(context.Context, repository.CreateTagParams) (repository.Tag, error) {
+	return repository.Tag{}, nil
+}
+func (m *mockQuerier) DeleteTag(context.Context, repository.DeleteTagParams) error { return nil }
+func (m *mockQuerier) GetTagByID(context.Context, uuid.UUID) (repository.Tag, error) {
+	return repository.Tag{}, nil
+}
+
+func (m *mockQuerier) GetTagsForTask(context.Context, uuid.UUID) ([]repository.Tag, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) GetTagsForTasks(context.Context, []uuid.UUID) ([]repository.GetTagsForTasksRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListTagsByUser(context.Context, uuid.UUID) ([]repository.Tag, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListTasks(context.Context, repository.ListTasksParams) ([]repository.Task, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) RemoveTagFromTask(context.Context, repository.RemoveTagFromTaskParams) error {
+	return nil
+}
+
 func (m *mockQuerier) UpdateUser(context.Context, repository.UpdateUserParams) (repository.User, error) {
 	return repository.User{}, nil
 }

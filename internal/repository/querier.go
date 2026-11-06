@@ -11,20 +11,31 @@ import (
 )
 
 type Querier interface {
+	AddTagToTask(ctx context.Context, arg AddTagToTaskParams) error
+	ClearTaskTags(ctx context.Context, taskID uuid.UUID) error
 	CountProjectsByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error)
+	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetTagByID(ctx context.Context, id uuid.UUID) (Tag, error)
+	GetTagsForTask(ctx context.Context, taskID uuid.UUID) ([]Tag, error)
+	GetTagsForTasks(ctx context.Context, dollar_1 []uuid.UUID) ([]GetTagsForTasksRow, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error)
+	ListTagsByUser(ctx context.Context, userID uuid.UUID) ([]Tag, error)
+	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error

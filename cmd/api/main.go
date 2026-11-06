@@ -67,6 +67,8 @@ func main() {
 	authService := service.NewAuthService(repo, passwordHasher, tokenMaker, cfg.JWTExpiration, cfg.JWTRefreshExpiration)
 	userService := service.NewUserService(repo)
 	projectService := service.NewProjectService(repo)
+	taskService := service.NewTaskService(repo)
+	tagService := service.NewTagService(repo)
 
 	// 5. Initialize HTTP router with dependencies
 	router := handler.NewRouter(handler.RouterDependencies{
@@ -76,6 +78,8 @@ func main() {
 		AuthService:    authService,
 		UserService:    userService,
 		ProjectService: projectService,
+		TaskService:    taskService,
+		TagService:     tagService,
 		TokenMaker:     tokenMaker,
 	})
 

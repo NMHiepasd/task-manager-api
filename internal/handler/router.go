@@ -19,6 +19,8 @@ type RouterDependencies struct {
 	AuthService    service.AuthService
 	UserService    service.UserService
 	ProjectService service.ProjectService
+	TaskService    service.TaskService
+	TagService     service.TagService
 	TokenMaker     token.Maker
 }
 
@@ -87,6 +89,32 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				projectGroup.GET("/:id", projectHandler.GetByID)
 				projectGroup.PUT("/:id", projectHandler.Update)
 				projectGroup.DELETE("/:id", projectHandler.Delete)
+			}
+		}
+
+		// Task endpoints (protected by JWT AuthMiddleware)
+		if deps.TaskService != nil && deps.TokenMaker != nil {
+			taskHandler := NewTaskHandler(deps.TaskService)
+			taskGroup := v1.Group("/tasks")
+			taskGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			{
+				taskGroup.POST("", taskHandler.Create)
+				taskGroup.GET("", taskHandler.List)
+				taskGroup.GET("/:id", taskHandler.GetByID)
+				taskGroup.PUT("/:id", taskHandler.Update)
+				taskGroup.DELETE("/:id", taskHandler.Delete)
+			}
+		}
+
+		// Tag endpoints (protected by JWT AuthMiddleware)
+		if deps.TagService != nil && deps.TokenMaker != nil {
+			tagHandler := NewTagHandler(deps.TagService)
+			tagGroup := v1.Group("/tags")
+			tagGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			{
+				tagGroup.POST("", tagHandler.Create)
+				tagGroup.GET("", tagHandler.List)
+				tagGroup.DELETE("/:id", tagHandler.Delete)
 			}
 		}
 	}
