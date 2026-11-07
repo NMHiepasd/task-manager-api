@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
@@ -12,6 +13,7 @@ import (
 	"task-manager-api/internal/transport/http/handler"
 	"task-manager-api/internal/transport/http/middleware"
 	"task-manager-api/pkg/token"
+	"time"
 
 	"golang.org/x/time/rate"
 
@@ -110,13 +112,48 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 
 	// API version 1 group
 	v1 := router.Group("/api/v1")
+	if deps.Config.RateLimitAPILimit > 0 && deps.Config.RateLimitAPIWindow > 0 {
+		apiLimiter := middleware.NewRateLimiter(
+			deps.Cache,
+			"api",
+			deps.Config.RateLimitAPILimit,
+			deps.Config.RateLimitAPIWindow,
+			rate.Limit(deps.Config.RateLimitAPIRate),
+			deps.Config.RateLimitAPIBurst,
+			deps.Logger,
+		)
+		v1.Use(apiLimiter.Middleware())
+	}
 	{
 		// Authentication endpoints (public, rate limited per client IP)
 		if deps.AuthService != nil {
 			authHandler := handler.NewAuthHandler(deps.AuthService)
 			authGroup := v1.Group("/auth")
 			if deps.Config.RateLimitAuthRate > 0 && deps.Config.RateLimitAuthBurst > 0 {
-				authLimiter := middleware.NewIPRateLimiter(rate.Limit(deps.Config.RateLimitAuthRate), deps.Config.RateLimitAuthBurst)
+				authLimit := deps.Config.RateLimitAuthLimit
+				authWindow := deps.Config.RateLimitAuthWindow
+				if authWindow <= 0 {
+					authWindow = time.Minute
+				}
+				if authLimit <= 0 {
+					authLimit = int(math.Ceil(deps.Config.RateLimitAuthRate * authWindow.Seconds()))
+					if authLimit <= 0 {
+						authLimit = deps.Config.RateLimitAuthBurst
+					}
+					if authLimit <= 0 {
+						authLimit = 10
+					}
+				}
+
+				authLimiter := middleware.NewRateLimiter(
+					deps.Cache,
+					"auth",
+					authLimit,
+					authWindow,
+					rate.Limit(deps.Config.RateLimitAuthRate),
+					deps.Config.RateLimitAuthBurst,
+					deps.Logger,
+				)
 				authGroup.Use(authLimiter.Middleware())
 			}
 			{

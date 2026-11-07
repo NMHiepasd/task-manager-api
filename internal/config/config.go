@@ -23,6 +23,12 @@ type Config struct {
 	CORSAllowedOrigins   []string      `env:"CORS_ALLOWED_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://localhost:5173"`
 	RateLimitAuthRate    float64       `env:"RATE_LIMIT_AUTH_RATE" envDefault:"0.166667"` // 10 reqs per minute (~0.167 req/sec)
 	RateLimitAuthBurst   int           `env:"RATE_LIMIT_AUTH_BURST" envDefault:"5"`
+	RateLimitAuthLimit   int           `env:"RATE_LIMIT_AUTH_LIMIT" envDefault:"10"`
+	RateLimitAuthWindow  time.Duration `env:"RATE_LIMIT_AUTH_WINDOW" envDefault:"1m"`
+	RateLimitAPIRate     float64       `env:"RATE_LIMIT_API_RATE" envDefault:"100"` // 100 reqs per minute
+	RateLimitAPIBurst    int           `env:"RATE_LIMIT_API_BURST" envDefault:"50"`
+	RateLimitAPILimit    int           `env:"RATE_LIMIT_API_LIMIT" envDefault:"100"`
+	RateLimitAPIWindow   time.Duration `env:"RATE_LIMIT_API_WINDOW" envDefault:"1m"`
 
 	// Database Connection & Pool
 	DatabaseURL         string        `env:"DB_URL,required"`

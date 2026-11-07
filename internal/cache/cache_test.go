@@ -119,3 +119,104 @@ func TestRedisCache_FullLifecycle_And_Singleflight(t *testing.T) {
 	// Cleanup
 	_ = c.Delete(ctx, stampedeKey)
 }
+
+func TestNoopCache_RateLimit(t *testing.T) {
+	c := cache.NewNoopCache()
+	res, err := c.RateLimit(context.Background(), "test-key", 10, time.Minute)
+	assert.ErrorIs(t, err, cache.ErrNoopCache)
+	assert.False(t, res.Allowed)
+}
+
+func TestRedisCache_RateLimit(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.NewRedisCache(ctx, "redis://localhost:6379/1", "", 1)
+	if err != nil {
+		t.Skip("Skipping Redis test: local redis container not available on localhost:6379")
+		return
+	}
+	defer c.Close()
+
+	key := "ratelimit:test:" + time.Now().Format("150405.000000")
+	defer func() { _ = c.Delete(ctx, key) }()
+
+	// Limit: 3 requests per 1 second
+	limit := 3
+	window := 1 * time.Second
+
+	// 1st request -> allowed, remaining 2
+	res1, err := c.RateLimit(ctx, key, limit, window)
+	require.NoError(t, err)
+	assert.True(t, res1.Allowed)
+	assert.Equal(t, 2, res1.Remaining)
+
+	// 2nd request -> allowed, remaining 1
+	res2, err := c.RateLimit(ctx, key, limit, window)
+	require.NoError(t, err)
+	assert.True(t, res2.Allowed)
+	assert.Equal(t, 1, res2.Remaining)
+
+	// 3rd request -> allowed, remaining 0
+	res3, err := c.RateLimit(ctx, key, limit, window)
+	require.NoError(t, err)
+	assert.True(t, res3.Allowed)
+	assert.Equal(t, 0, res3.Remaining)
+
+	// 4th request -> blocked!
+	res4, err := c.RateLimit(ctx, key, limit, window)
+	require.NoError(t, err)
+	assert.False(t, res4.Allowed)
+	assert.Equal(t, 0, res4.Remaining)
+	assert.Greater(t, res4.RetryAfter, time.Duration(0))
+
+	// Wait for window to expire
+	time.Sleep(1100 * time.Millisecond)
+
+	// 5th request -> allowed again
+	res5, err := c.RateLimit(ctx, key, limit, window)
+	require.NoError(t, err)
+	assert.True(t, res5.Allowed)
+	assert.Equal(t, 2, res5.Remaining)
+}
+
+func TestRedisCache_RateLimit_Concurrent(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.NewRedisCache(ctx, "redis://localhost:6379/1", "", 1)
+	if err != nil {
+		t.Skip("Skipping Redis test: local redis container not available on localhost:6379")
+		return
+	}
+	defer c.Close()
+
+	key := "ratelimit:concurrent:" + time.Now().Format("150405.000000")
+	defer func() { _ = c.Delete(ctx, key) }()
+
+	limit := 5
+	window := 2 * time.Second
+	totalRequests := 20
+
+	var allowedCount int32
+	var blockedCount int32
+	var wg sync.WaitGroup
+
+	for i := 0; i < totalRequests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := c.RateLimit(ctx, key, limit, window)
+			if err != nil {
+				return
+			}
+			if res.Allowed {
+				atomic.AddInt32(&allowedCount, 1)
+			} else {
+				atomic.AddInt32(&blockedCount, 1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Exactly 5 allowed, 15 blocked
+	assert.Equal(t, int32(limit), atomic.LoadInt32(&allowedCount))
+	assert.Equal(t, int32(totalRequests-limit), atomic.LoadInt32(&blockedCount))
+}

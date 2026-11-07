@@ -49,6 +49,11 @@ func (n *NoopCache) Remember(ctx context.Context, _ string, _ time.Duration, des
 	return json.Unmarshal(data, dest)
 }
 
+// RateLimit on NoopCache returns ErrNoopCache to signal fallback to in-memory rate limiting.
+func (n *NoopCache) RateLimit(_ context.Context, _ string, _ int, _ time.Duration) (RateLimitResult, error) {
+	return RateLimitResult{}, ErrNoopCache
+}
+
 // Ping always succeeds.
 func (n *NoopCache) Ping(_ context.Context) error {
 	return nil

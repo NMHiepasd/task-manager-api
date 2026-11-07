@@ -5,16 +5,53 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/singleflight"
 )
 
+var rateLimitLuaScript = redis.NewScript(`
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local memberId = ARGV[4]
+
+local clearBefore = now - window
+
+-- Remove expired entries older than the sliding window
+redis.call('ZREMRANGEBYSCORE', key, '-inf', clearBefore)
+
+-- Count current items in window
+local current = redis.call('ZCARD', key)
+
+if current < limit then
+    redis.call('ZADD', key, now, memberId)
+    redis.call('PEXPIRE', key, window)
+    local remaining = limit - current - 1
+    return {1, remaining, 0, window}
+else
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local retryAfterMs = 1000
+    if #oldest >= 2 then
+        local oldestScore = tonumber(oldest[2])
+        local waitMs = (oldestScore + window) - now
+        if waitMs > 0 then
+            retryAfterMs = waitMs
+        end
+    end
+    return {0, 0, retryAfterMs, window}
+end
+`)
+
 // RedisCache implements the Cache interface backed by Redis and singleflight.
 type RedisCache struct {
-	client *redis.Client
-	sfg    singleflight.Group
+	client       *redis.Client
+	sfg          singleflight.Group
+	rateLimitSeq uint64
 }
 
 // NewRedisCache initializes a Redis client from configuration and verifies connectivity.
@@ -148,6 +185,68 @@ func (r *RedisCache) Remember(ctx context.Context, key string, ttl time.Duration
 	}
 
 	return json.Unmarshal(bytesData, dest)
+}
+
+// RateLimit implements distributed sliding window rate limiting using Redis ZSET.
+func (r *RedisCache) RateLimit(ctx context.Context, key string, limit int, window time.Duration) (RateLimitResult, error) {
+	if limit <= 0 {
+		return RateLimitResult{
+			Allowed:    false,
+			Remaining:  0,
+			RetryAfter: window,
+			ResetAfter: window,
+		}, nil
+	}
+
+	if window <= 0 {
+		window = time.Second
+	}
+
+	now := time.Now()
+	nowMs := now.UnixMilli()
+	windowMs := window.Milliseconds()
+	if windowMs <= 0 {
+		windowMs = 1
+	}
+	seq := atomic.AddUint64(&r.rateLimitSeq, 1)
+	memberID := fmt.Sprintf("%d-%d", now.UnixNano(), seq)
+
+	raw, err := rateLimitLuaScript.Run(ctx, r.client, []string{key}, nowMs, windowMs, limit, memberID).Slice()
+	if err != nil {
+		return RateLimitResult{}, fmt.Errorf("failed to execute rate limit script: %w", err)
+	}
+
+	if len(raw) < 4 {
+		return RateLimitResult{}, fmt.Errorf("unexpected lua result length: %d", len(raw))
+	}
+
+	allowed := toInt64(raw[0]) == 1
+	remaining := int(toInt64(raw[1]))
+	retryAfterMs := toInt64(raw[2])
+	resetAfterMs := toInt64(raw[3])
+
+	return RateLimitResult{
+		Allowed:    allowed,
+		Remaining:  remaining,
+		RetryAfter: time.Duration(retryAfterMs) * time.Millisecond,
+		ResetAfter: time.Duration(resetAfterMs) * time.Millisecond,
+	}, nil
+}
+
+func toInt64(val any) int64 {
+	switch v := val.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case string:
+		n, _ := strconv.ParseInt(v, 10, 64)
+		return n
+	default:
+		return 0
+	}
 }
 
 // Ping verifies Redis connectivity.
