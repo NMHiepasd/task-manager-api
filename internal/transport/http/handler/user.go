@@ -19,7 +19,16 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 }
 
 // GetMe retrieves the currently authenticated user's profile.
-// GET /api/v1/users/me
+// @Summary      Get current user profile
+// @Description  Retrieve profile details for the authenticated user
+// @Tags         users
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Success      200 {object} service.UserResponse
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/users/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {

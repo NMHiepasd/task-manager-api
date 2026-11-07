@@ -13,8 +13,12 @@ import (
 
 	"golang.org/x/time/rate"
 
+	_ "task-manager-api/docs/swagger" // docs is imported for side-effect Swagger registration
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // RouterDependencies encapsulates all dependencies required to construct the HTTP router.
@@ -89,6 +93,9 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	healthHandler := handler.NewHealthHandler(deps.DBPool)
 	router.GET("/healthz", healthHandler.Liveness)
 	router.GET("/readyz", healthHandler.Readiness)
+
+	// Swagger API documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// API version 1 group
 	v1 := router.Group("/api/v1")

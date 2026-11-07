@@ -22,7 +22,12 @@ func NewHealthHandler(dbPool *pgxpool.Pool) *HealthHandler {
 }
 
 // Liveness indicates if the application process is running.
-// GET /healthz
+// @Summary      Liveness probe
+// @Description  Check if the application HTTP process is running
+// @Tags         health
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Router       /healthz [get]
 func (h *HealthHandler) Liveness(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "alive",
@@ -31,7 +36,14 @@ func (h *HealthHandler) Liveness(c *gin.Context) {
 }
 
 // Readiness verifies that the application dependencies (PostgreSQL) are operational.
-// GET /readyz
+// @Summary      Readiness probe
+// @Description  Verify database connectivity and application readiness
+// @Tags         health
+// @Produce      json
+// @Produce      application/problem+json
+// @Success      200 {object} map[string]string
+// @Failure      503 {object} ProblemDetails
+// @Router       /readyz [get]
 func (h *HealthHandler) Readiness(c *gin.Context) {
 	if h.dbPool == nil {
 		reqID := middleware.GetRequestID(c)

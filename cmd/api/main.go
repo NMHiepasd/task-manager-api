@@ -1,3 +1,16 @@
+// @title           Task Manager REST API
+// @version         1.0.0
+// @description     Production-ready RESTful Task Management API built with Go, Gin, PostgreSQL (pgx/v5 & sqlc), and Docker.
+// @contact.name    API Support
+// @contact.url     https://github.com/NMHiepasd/task-manager-api
+// @license.name    MIT
+// @host            localhost:8080
+// @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Type "Bearer" followed by a space and your JWT access token.
+
 package main
 
 import (
@@ -13,11 +26,12 @@ import (
 	"task-manager-api/internal/database"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/service"
-	transportHttp "task-manager-api/internal/transport/http"
 	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
 	"task-manager-api/pkg/token"
 	"time"
+
+	transportHttp "task-manager-api/internal/transport/http"
 )
 
 // version is injected at build time via -ldflags="-X main.version=..."

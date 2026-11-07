@@ -41,7 +41,18 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 }
 
 // Register creates a new user and issues access/refresh tokens.
-// POST /api/v1/auth/register
+// @Summary      Register a new user
+// @Description  Create a new user account and obtain access and refresh JWT tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Param        payload body RegisterRequest true "Registration payload"
+// @Success      201 {object} service.TokenResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      409 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,7 +74,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 // Login authenticates a user and returns an access/refresh token pair.
-// POST /api/v1/auth/login
+// @Summary      Authenticate user
+// @Description  Log in using email and password to receive JWT tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Param        payload body LoginRequest true "Login credentials"
+// @Success      200 {object} service.TokenResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -84,7 +106,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // RefreshToken rotates the current refresh token and issues a new pair.
-// POST /api/v1/auth/refresh
+// @Summary      Rotate refresh token
+// @Description  Exchange a valid refresh token for a newly issued token pair (with reuse detection)
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Param        payload body RefreshTokenRequest true "Refresh token payload"
+// @Success      200 {object} service.TokenResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -102,7 +134,16 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 // Logout revokes the given refresh token.
-// POST /api/v1/auth/logout
+// @Summary      Revoke session / Logout
+// @Description  Revoke the given refresh token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Param        payload body LogoutRequest true "Logout payload"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} ProblemDetails
+// @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

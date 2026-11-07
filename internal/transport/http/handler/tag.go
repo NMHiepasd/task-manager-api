@@ -27,7 +27,18 @@ func NewTagHandler(tagService service.TagService) *TagHandler {
 }
 
 // Create creates or updates a tag.
-// POST /api/v1/tags
+// @Summary      Create tag
+// @Description  Create a tag for labeling tasks
+// @Tags         tags
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        payload body CreateTagRequest true "Tag payload"
+// @Success      201 {object} service.TagResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/tags [post]
 func (h *TagHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -54,7 +65,15 @@ func (h *TagHandler) Create(c *gin.Context) {
 }
 
 // List retrieves all tags for the user.
-// GET /api/v1/tags
+// @Summary      List tags
+// @Description  Retrieve all tags owned by the authenticated user
+// @Tags         tags
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Success      200 {array} service.TagResponse
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/tags [get]
 func (h *TagHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -72,7 +91,18 @@ func (h *TagHandler) List(c *gin.Context) {
 }
 
 // Delete deletes a tag owned by the user.
-// DELETE /api/v1/tags/:id
+// @Summary      Delete tag
+// @Description  Delete a tag by ID
+// @Tags         tags
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Tag UUID"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/tags/{id} [delete]
 func (h *TagHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {

@@ -1,4 +1,4 @@
-.PHONY: help run build test test-race test-integration test-fuzz cover lint migrate-up migrate-down sqlc docker-up docker-down
+.PHONY: help run build test test-race test-integration test-fuzz cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
 
 # Default target
 .DEFAULT_GOAL := help
@@ -18,6 +18,7 @@ help: ## Show this help message
 	@echo "  test-fuzz         Run fuzz tests on cursor pagination"
 	@echo "  cover             Generate test coverage profile and HTML report"
 	@echo "  lint              Run golangci-lint on the codebase"
+	@echo "  swagger           Generate Swagger OpenAPI documentation"
 	@echo "  migrate-up        Apply all pending database migrations"
 	@echo "  migrate-down      Rollback the most recent database migration"
 	@echo "  sqlc              Generate type-safe Go database code from SQL queries"
@@ -49,6 +50,9 @@ cover: ## Generate test coverage report
 
 lint: ## Run golangci-lint
 	MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/app" -w //app golangci/golangci-lint:latest golangci-lint run ./...
+
+swagger: ## Generate Swagger API documentation
+	swag init -g cmd/api/main.go -o docs/swagger --parseInternal --parseDependency
 
 migrate-up: ## Run database migrations up
 	docker exec -i task_manager_db psql -U postgres -d task_manager -c "$$(cat migrations/000001_create_initial_schema.up.sql)"

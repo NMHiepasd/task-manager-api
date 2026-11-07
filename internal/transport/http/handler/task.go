@@ -65,7 +65,19 @@ func NewTaskHandler(taskService service.TaskService) *TaskHandler {
 }
 
 // Create creates a task.
-// POST /api/v1/tasks
+// @Summary      Create task
+// @Description  Create a new task with project assignment, tags, priority, and due date
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        payload body CreateTaskRequest true "Task payload"
+// @Success      201 {object} service.TaskResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/tasks [post]
 func (h *TaskHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -98,7 +110,18 @@ func (h *TaskHandler) Create(c *gin.Context) {
 }
 
 // GetByID retrieves task details by ID.
-// GET /api/v1/tasks/:id
+// @Summary      Get task by ID
+// @Description  Retrieve task details and associated tags by ID (enforcing anti-IDOR 404)
+// @Tags         tasks
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Task UUID"
+// @Success      200 {object} service.TaskResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/tasks/{id} [get]
 func (h *TaskHandler) GetByID(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -125,7 +148,25 @@ func (h *TaskHandler) GetByID(c *gin.Context) {
 }
 
 // List retrieves paginated tasks based on criteria.
-// GET /api/v1/tasks
+// @Summary      List tasks
+// @Description  Search and filter tasks with Keyset Pagination or Offset Paging, full-text search, and filtering
+// @Tags         tasks
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        project_id query string false "Filter by Project UUID"
+// @Param        status query string false "Filter by status (todo, in_progress, completed, cancelled)"
+// @Param        priority query string false "Filter by priority (low, medium, high, urgent)"
+// @Param        tag_id query string false "Filter by Tag UUID"
+// @Param        q query string false "Full-text search query across title and description"
+// @Param        due_before query string false "Filter tasks due before RFC3339 timestamp"
+// @Param        cursor query string false "Opaque keyset pagination cursor"
+// @Param        page query int false "Offset page number (default 1)"
+// @Param        limit query int false "Items per page (default 20, max 100)"
+// @Success      200 {object} service.PaginatedTasksResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/tasks [get]
 func (h *TaskHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -159,7 +200,26 @@ func (h *TaskHandler) List(c *gin.Context) {
 }
 
 // ListProjectTasks retrieves all tasks for a specific project.
-// GET /api/v1/projects/:id/tasks
+// @Summary      List tasks for a project
+// @Description  Retrieve all tasks under a specific project (with anti-IDOR 404)
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Param        status query string false "Filter by status"
+// @Param        priority query string false "Filter by priority"
+// @Param        tag_id query string false "Filter by Tag UUID"
+// @Param        q query string false "Full-text search query"
+// @Param        due_before query string false "Due before RFC3339"
+// @Param        cursor query string false "Keyset cursor"
+// @Param        page query int false "Page number"
+// @Param        limit query int false "Limit"
+// @Success      200 {object} service.PaginatedTasksResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/projects/{id}/tasks [get]
 func (h *TaskHandler) ListProjectTasks(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -201,7 +261,20 @@ func (h *TaskHandler) ListProjectTasks(c *gin.Context) {
 }
 
 // SetTags replaces all tags for a task.
-// PUT /api/v1/tasks/:id/tags
+// @Summary      Replace task tags
+// @Description  Atomic batch replacement of all tags assigned to a task in a single transaction
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Task UUID"
+// @Param        payload body SetTaskTagsRequest true "Array of Tag UUIDs"
+// @Success      200 {array} service.TagResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/tasks/{id}/tags [put]
 func (h *TaskHandler) SetTags(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -234,7 +307,22 @@ func (h *TaskHandler) SetTags(c *gin.Context) {
 }
 
 // Update updates an existing task with optimistic locking check.
-// PUT /api/v1/tasks/:id
+// @Summary      Update task
+// @Description  Update task details with optimistic concurrency control (version check)
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Task UUID"
+// @Param        payload body UpdateTaskRequest true "Update payload with current version"
+// @Success      200 {object} service.TaskResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      409 {object} ProblemDetails
+// @Router       /api/v1/tasks/{id} [put]
+// @Router       /api/v1/tasks/{id} [patch]
 func (h *TaskHandler) Update(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -277,7 +365,18 @@ func (h *TaskHandler) Update(c *gin.Context) {
 }
 
 // Delete soft-deletes a task.
-// DELETE /api/v1/tasks/:id
+// @Summary      Delete task
+// @Description  Soft delete task owned by the authenticated user
+// @Tags         tasks
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Task UUID"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/tasks/{id} [delete]
 func (h *TaskHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {

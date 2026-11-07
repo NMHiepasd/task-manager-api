@@ -1,0 +1,1228 @@
+basePath: /
+definitions:
+  internal_transport_http_handler.CreateProjectRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      description:
+        maxLength: 1000
+        type: string
+      name:
+        maxLength: 150
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  internal_transport_http_handler.CreateTagRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  internal_transport_http_handler.CreateTaskRequest:
+    properties:
+      assignee_id:
+        type: string
+      description:
+        maxLength: 5000
+        type: string
+      due_date:
+        type: string
+      priority:
+        enum:
+        - low
+        - medium
+        - high
+        - urgent
+        type: string
+      project_id:
+        type: string
+      status:
+        enum:
+        - todo
+        - in_progress
+        - completed
+        - cancelled
+        type: string
+      tag_ids:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - title
+    type: object
+  internal_transport_http_handler.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_transport_http_handler.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_transport_http_handler.ProblemDetails:
+    properties:
+      code:
+        type: string
+      detail:
+        type: string
+      instance:
+        type: string
+      invalid_params:
+        items:
+          $ref: '#/definitions/task-manager-api_internal_domain.InvalidParam'
+        type: array
+      request_id:
+        type: string
+      status:
+        type: integer
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  internal_transport_http_handler.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_transport_http_handler.RegisterRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      full_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+    required:
+    - email
+    - full_name
+    - password
+    type: object
+  internal_transport_http_handler.SetTaskTagsRequest:
+    properties:
+      tag_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_transport_http_handler.UpdateProjectRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      description:
+        maxLength: 1000
+        type: string
+      name:
+        maxLength: 150
+        minLength: 1
+        type: string
+      version:
+        minimum: 1
+        type: integer
+    required:
+    - version
+    type: object
+  internal_transport_http_handler.UpdateTaskRequest:
+    properties:
+      assignee_id:
+        type: string
+      description:
+        maxLength: 5000
+        type: string
+      due_date:
+        type: string
+      priority:
+        enum:
+        - low
+        - medium
+        - high
+        - urgent
+        type: string
+      project_id:
+        type: string
+      status:
+        enum:
+        - todo
+        - in_progress
+        - completed
+        - cancelled
+        type: string
+      tag_ids:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+      version:
+        minimum: 1
+        type: integer
+    required:
+    - version
+    type: object
+  task-manager-api_internal_domain.InvalidParam:
+    properties:
+      name:
+        type: string
+      reason:
+        type: string
+    type: object
+  task-manager-api_internal_service.PaginatedProjectsResponse:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+        type: array
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  task-manager-api_internal_service.PaginatedTasksResponse:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+        type: array
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  task-manager-api_internal_service.ProjectResponse:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      owner_id:
+        type: string
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+  task-manager-api_internal_service.TagResponse:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      user_id:
+        type: string
+    type: object
+  task-manager-api_internal_service.TaskResponse:
+    properties:
+      assignee_id:
+        type: string
+      created_at:
+        type: string
+      creator_id:
+        type: string
+      description:
+        type: string
+      due_date:
+        type: string
+      id:
+        type: string
+      priority:
+        type: string
+      project_id:
+        type: string
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+  task-manager-api_internal_service.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: In seconds
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/task-manager-api_internal_service.UserResponse'
+    type: object
+  task-manager-api_internal_service.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: API Support
+    url: https://github.com/NMHiepasd/task-manager-api
+  description: Production-ready RESTful Task Management API built with Go, Gin, PostgreSQL
+    (pgx/v5 & sqlc), and Docker.
+  license:
+    name: MIT
+  title: Task Manager REST API
+  version: 1.0.0
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Log in using email and password to receive JWT tokens
+      parameters:
+      - description: Login credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.LoginRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      summary: Authenticate user
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revoke the given refresh token
+      parameters:
+      - description: Logout payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.LogoutRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      summary: Revoke session / Logout
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchange a valid refresh token for a newly issued token pair (with
+        reuse detection)
+      parameters:
+      - description: Refresh token payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.RefreshTokenRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      summary: Rotate refresh token
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account and obtain access and refresh JWT tokens
+      parameters:
+      - description: Registration payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.RegisterRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      summary: Register a new user
+      tags:
+      - auth
+  /api/v1/projects:
+    get:
+      description: Retrieve paginated projects using keyset cursor or offset paging
+      parameters:
+      - description: Opaque keyset pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Offset page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Number of items per page (default 10, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.PaginatedProjectsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new project owned by the authenticated user
+      parameters:
+      - description: Project payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.CreateProjectRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Create project
+      tags:
+      - projects
+  /api/v1/projects/{id}:
+    delete:
+      description: Soft delete project owned by the authenticated user
+      parameters:
+      - description: Project UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete project
+      tags:
+      - projects
+    get:
+      description: Retrieve project details by its UUID (enforcing anti-IDOR 404)
+      parameters:
+      - description: Project UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Get project by ID
+      tags:
+      - projects
+    patch:
+      consumes:
+      - application/json
+      description: Update project details with optimistic concurrency control (version
+        check)
+      parameters:
+      - description: Project UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload with current version
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.UpdateProjectRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update project
+      tags:
+      - projects
+    put:
+      consumes:
+      - application/json
+      description: Update project details with optimistic concurrency control (version
+        check)
+      parameters:
+      - description: Project UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload with current version
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.UpdateProjectRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update project
+      tags:
+      - projects
+  /api/v1/projects/{id}/tasks:
+    get:
+      description: Retrieve all tasks under a specific project (with anti-IDOR 404)
+      parameters:
+      - description: Project UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by priority
+        in: query
+        name: priority
+        type: string
+      - description: Filter by Tag UUID
+        in: query
+        name: tag_id
+        type: string
+      - description: Full-text search query
+        in: query
+        name: q
+        type: string
+      - description: Due before RFC3339
+        in: query
+        name: due_before
+        type: string
+      - description: Keyset cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.PaginatedTasksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List tasks for a project
+      tags:
+      - projects
+  /api/v1/tags:
+    get:
+      description: Retrieve all tags owned by the authenticated user
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List tags
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      description: Create a tag for labeling tasks
+      parameters:
+      - description: Tag payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.CreateTagRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Create tag
+      tags:
+      - tags
+  /api/v1/tags/{id}:
+    delete:
+      description: Delete a tag by ID
+      parameters:
+      - description: Tag UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete tag
+      tags:
+      - tags
+  /api/v1/tasks:
+    get:
+      description: Search and filter tasks with Keyset Pagination or Offset Paging,
+        full-text search, and filtering
+      parameters:
+      - description: Filter by Project UUID
+        in: query
+        name: project_id
+        type: string
+      - description: Filter by status (todo, in_progress, completed, cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by priority (low, medium, high, urgent)
+        in: query
+        name: priority
+        type: string
+      - description: Filter by Tag UUID
+        in: query
+        name: tag_id
+        type: string
+      - description: Full-text search query across title and description
+        in: query
+        name: q
+        type: string
+      - description: Filter tasks due before RFC3339 timestamp
+        in: query
+        name: due_before
+        type: string
+      - description: Opaque keyset pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Offset page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.PaginatedTasksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List tasks
+      tags:
+      - tasks
+    post:
+      consumes:
+      - application/json
+      description: Create a new task with project assignment, tags, priority, and
+        due date
+      parameters:
+      - description: Task payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.CreateTaskRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Create task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}:
+    delete:
+      description: Soft delete task owned by the authenticated user
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete task
+      tags:
+      - tasks
+    get:
+      description: Retrieve task details and associated tags by ID (enforcing anti-IDOR
+        404)
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Get task by ID
+      tags:
+      - tasks
+    patch:
+      consumes:
+      - application/json
+      description: Update task details with optimistic concurrency control (version
+        check)
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload with current version
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.UpdateTaskRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update task
+      tags:
+      - tasks
+    put:
+      consumes:
+      - application/json
+      description: Update task details with optimistic concurrency control (version
+        check)
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload with current version
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.UpdateTaskRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/tags:
+    put:
+      consumes:
+      - application/json
+      description: Atomic batch replacement of all tags assigned to a task in a single
+        transaction
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Array of Tag UUIDs
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.SetTaskTagsRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Replace task tags
+      tags:
+      - tasks
+  /api/v1/users/me:
+    get:
+      description: Retrieve profile details for the authenticated user
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+  /healthz:
+    get:
+      description: Check if the application HTTP process is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - health
+  /readyz:
+    get:
+      description: Verify database connectivity and application readiness
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      summary: Readiness probe
+      tags:
+      - health
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and your JWT access token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -187,15 +187,15 @@ Làm xen kẽ từ Phase 2, chốt ở phase này.
 
 ## Phase 6: Tài liệu API
 
-- [ ] Chọn một hướng: `swaggo/swag` (comment trong handler) hoặc OpenAPI viết tay + `oapi-codegen`
-- [ ] Gắn `gin-swagger` ở `/swagger` (chỉ bật ở dev/staging)
-- [ ] Mô tả đủ: auth scheme, mã lỗi, ví dụ request/response
-- [ ] Cập nhật README: kiến trúc, ERD, cách chạy, danh sách biến môi trường
+- [x] Chọn một hướng: `swaggo/swag` (comment trong handler) hoặc OpenAPI viết tay + `oapi-codegen`
+- [x] Gắn `gin-swagger` ở `/swagger` (chỉ bật ở dev/staging)
+- [x] Mô tả đủ: auth scheme, mã lỗi, ví dụ request/response
+- [x] Cập nhật README: kiến trúc, ERD, cách chạy, danh sách biến môi trường
 
 **DoD**
 
-- [ ] Thử được toàn bộ endpoint từ Swagger UI
-- [ ] Người mới đọc README có thể chạy được dự án
+- [x] Thử được toàn bộ endpoint từ Swagger UI
+- [x] Người mới đọc README có thể chạy được dự án
 
 ## Phase 7: Hardening bảo mật và độ tin cậy
 

@@ -43,7 +43,18 @@ func NewProjectHandler(projectService service.ProjectService) *ProjectHandler {
 }
 
 // Create creates a new project owned by the authenticated user.
-// POST /api/v1/projects
+// @Summary      Create project
+// @Description  Create a new project owned by the authenticated user
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        payload body CreateProjectRequest true "Project payload"
+// @Success      201 {object} service.ProjectResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/projects [post]
 func (h *ProjectHandler) Create(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -71,7 +82,18 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 }
 
 // GetByID retrieves project details by ID.
-// GET /api/v1/projects/:id
+// @Summary      Get project by ID
+// @Description  Retrieve project details by its UUID (enforcing anti-IDOR 404)
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Success      200 {object} service.ProjectResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/projects/{id} [get]
 func (h *ProjectHandler) GetByID(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -98,7 +120,19 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 }
 
 // List retrieves paginated projects for the authenticated user.
-// GET /api/v1/projects
+// @Summary      List projects
+// @Description  Retrieve paginated projects using keyset cursor or offset paging
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        cursor query string false "Opaque keyset pagination cursor"
+// @Param        page query int false "Offset page number (default 1)"
+// @Param        limit query int false "Number of items per page (default 10, max 100)"
+// @Success      200 {object} service.PaginatedProjectsResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Router       /api/v1/projects [get]
 func (h *ProjectHandler) List(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -126,7 +160,22 @@ func (h *ProjectHandler) List(c *gin.Context) {
 }
 
 // Update updates an existing project with optimistic concurrency control.
-// PUT /api/v1/projects/:id
+// @Summary      Update project
+// @Description  Update project details with optimistic concurrency control (version check)
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Param        payload body UpdateProjectRequest true "Update payload with current version"
+// @Success      200 {object} service.ProjectResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      409 {object} ProblemDetails
+// @Router       /api/v1/projects/{id} [put]
+// @Router       /api/v1/projects/{id} [patch]
 func (h *ProjectHandler) Update(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
@@ -164,7 +213,18 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 }
 
 // Delete soft-deletes a project owned by the user.
-// DELETE /api/v1/projects/:id
+// @Summary      Delete project
+// @Description  Soft delete project owned by the authenticated user
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Router       /api/v1/projects/{id} [delete]
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	userID, err := middleware.GetAuthUserID(c)
 	if err != nil {
