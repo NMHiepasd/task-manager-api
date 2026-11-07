@@ -33,6 +33,12 @@ type Config struct {
 	DBHealthCheckPeriod time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
 	DBStatementTimeout  time.Duration `env:"DB_STATEMENT_TIMEOUT" envDefault:"10s"`
 
+	// Redis & Caching
+	RedisURL        string        `env:"REDIS_URL" envDefault:"redis://localhost:6379/0"`
+	RedisPassword   string        `env:"REDIS_PASSWORD" envDefault:""`
+	RedisDB         int           `env:"REDIS_DB" envDefault:"0"`
+	CacheDefaultTTL time.Duration `env:"CACHE_DEFAULT_TTL" envDefault:"15m"`
+
 	// HTTP Server & Middleware Timeouts
 	RequestTimeout          time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
 	ServerReadHeaderTimeout time.Duration `env:"SERVER_READ_HEADER_TIMEOUT" envDefault:"5s"`

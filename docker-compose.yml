@@ -42,9 +42,27 @@ services:
       DB_MAX_CONN_LIFETIME: 1h
       DB_MAX_CONN_IDLE_TIME: 30m
       DB_HEALTH_CHECK_PERIOD: 1m
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - task_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: task_manager_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly no
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - task_network
 

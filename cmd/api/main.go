@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/database"
 	"task-manager-api/internal/repository"
@@ -69,7 +70,19 @@ func main() {
 		"min_conns", cfg.DBMinConns,
 	)
 
-	// 4. Initialize repository, services, and token maker
+	// 4. Initialize Redis cache (with graceful fallback to NoopCache if unavailable)
+	var cacheStore cache.Cache
+	redisCache, err := cache.NewRedisCache(ctx, cfg.RedisURL, cfg.RedisPassword, cfg.RedisDB)
+	if err != nil {
+		log.Warn("Redis unavailable; operating with in-memory noop cache", "error", err)
+		cacheStore = cache.NewNoopCache()
+	} else {
+		defer redisCache.Close()
+		cacheStore = redisCache
+		log.Info("Redis cache connection established", "url", cfg.RedisURL)
+	}
+
+	// 5. Initialize repository, services, and token maker
 	tokenMaker, err := token.NewJWTMaker(cfg.JWTSecret)
 	if err != nil {
 		log.Error("Failed to initialize JWT token maker", "error", err)
@@ -84,11 +97,12 @@ func main() {
 	taskService := service.NewTaskService(store)
 	tagService := service.NewTagService(store)
 
-	// 5. Initialize HTTP router with dependencies
+	// 6. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config:         cfg,
 		Logger:         log,
 		DBPool:         pool,
+		Cache:          cacheStore,
 		AuthService:    authService,
 		UserService:    userService,
 		ProjectService: projectService,

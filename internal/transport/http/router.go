@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
@@ -27,6 +28,7 @@ type RouterDependencies struct {
 	Config         *config.Config
 	Logger         *slog.Logger
 	DBPool         *pgxpool.Pool
+	Cache          cache.Cache
 	AuthService    service.AuthService
 	UserService    service.UserService
 	ProjectService service.ProjectService
@@ -37,6 +39,10 @@ type RouterDependencies struct {
 
 // NewRouter constructs and configures the Gin engine with all routes and RFC 9457 error handling.
 func NewRouter(deps RouterDependencies) *gin.Engine {
+	if deps.Cache == nil {
+		deps.Cache = cache.NewNoopCache()
+	}
+
 	if deps.Config.GinMode == gin.ReleaseMode || deps.Config.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else if deps.Config.GinMode == gin.TestMode {
