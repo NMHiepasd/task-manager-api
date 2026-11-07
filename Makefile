@@ -1,4 +1,4 @@
-.PHONY: help run build test test-race test-integration test-fuzz cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
+.PHONY: help run build test test-race test-integration test-fuzz bench load-test cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
 
 # Default target
 .DEFAULT_GOAL := help
@@ -42,6 +42,12 @@ test-integration: ## Run integration tests with Testcontainers
 
 test-fuzz: ## Run fuzz tests
 	go test -fuzz=FuzzDecodeCursor -fuzztime=5s ./pkg/pagination/...
+
+bench: ## Run microbenchmarks on hot paths
+	go test -bench ".*" -benchmem -run NONE ./pkg/pagination ./pkg/token ./internal/cache
+
+load-test: ## Run k6 load testing script
+	k6 run scripts/k6/load-test.js
 
 cover: ## Generate test coverage report
 	go test -coverprofile=coverage.out ./...

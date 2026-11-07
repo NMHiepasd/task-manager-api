@@ -213,3 +213,14 @@ func TestRouter_RateLimit_Auth(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, problem.Status)
 	assert.Equal(t, "RATE_LIMIT_EXCEEDED", problem.Code)
 }
+
+func TestRouter_PProf(t *testing.T) {
+	router := setupTestRouter()
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Types of profiles available:")
+}

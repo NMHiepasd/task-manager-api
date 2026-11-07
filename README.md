@@ -284,6 +284,8 @@ make cover
 | `make test-race` | Run unit tests with `-race` detection |
 | `make test-integration` | Execute integration tests against real PostgreSQL via Testcontainers |
 | `make test-fuzz` | Run property fuzz tests against cursor serialization/deserialization |
+| `make bench` | Run microbenchmarks on hot paths (pagination, JWT, Redis cache) |
+| `make load-test` | Execute k6 concurrent load testing script |
 | `make cover` | Produce HTML code coverage profile |
 | `make lint` | Run `golangci-lint` with strict security and style rules |
 | `make swagger` | Generate Swagger OpenAPI specifications via `swaggo/swag` |
@@ -305,6 +307,8 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-005: Testing Strategy with Testcontainers, Fuzzing, and Goleak](docs/adr/0005-testing-strategy-and-testcontainers.md)**
 - **[ADR-006: API Documentation with OpenAPI 3.0 and Swagger UI](docs/adr/0006-api-documentation-and-swagger.md)**
 - **[ADR-007: Idempotency-Key Header and Request Timeout Strategy](docs/adr/0007-idempotency-key-and-request-timeout.md)**
+- **[ADR-008: Caching Strategy and Performance Optimization](docs/adr/0008-caching-strategy-and-performance-optimization.md)**
+- Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---
 

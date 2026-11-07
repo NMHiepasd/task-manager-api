@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/http/pprof"
 	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/domain"
@@ -70,7 +71,7 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		middleware.SecurityHeaders(deps.Config.AppEnv == "production"),
 		middleware.CORS(deps.Config.CORSAllowedOrigins),
 		middleware.Timeout(deps.Config.RequestTimeout),
-		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz"})),
+		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz", "/debug/pprof"})),
 		middleware.ETag(),
 		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
@@ -109,6 +110,25 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 
 	// Swagger API documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Profiling endpoints (net/http/pprof) available in non-production environments
+	if deps.Config.AppEnv != "production" {
+		pprofGroup := router.Group("/debug/pprof")
+		{
+			pprofGroup.GET("/", gin.WrapF(pprof.Index))
+			pprofGroup.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+			pprofGroup.GET("/profile", gin.WrapF(pprof.Profile))
+			pprofGroup.POST("/symbol", gin.WrapF(pprof.Symbol))
+			pprofGroup.GET("/symbol", gin.WrapF(pprof.Symbol))
+			pprofGroup.GET("/trace", gin.WrapF(pprof.Trace))
+			pprofGroup.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+			pprofGroup.GET("/block", gin.WrapH(pprof.Handler("block")))
+			pprofGroup.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+			pprofGroup.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+			pprofGroup.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+			pprofGroup.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+		}
+	}
 
 	// API version 1 group
 	v1 := router.Group("/api/v1")

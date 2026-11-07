@@ -219,32 +219,32 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 
 ### 8.1 Đo trước
 
-- [ ] Bật `pg_stat_statements`, `log_min_duration_statement=200`, `auto_explain`
-- [ ] Kịch bản k6 cho: login, list tasks, tạo task (ghi lại p95, RPS, error rate làm baseline)
-- [ ] `net/http/pprof` ở cổng nội bộ riêng
+- [x] Bật `pg_stat_statements`, `log_min_duration_statement=200`, `auto_explain`
+- [x] Kịch bản k6 cho: login, list tasks, tạo task (ghi lại p95, RPS, error rate làm baseline)
+- [x] `net/http/pprof` ở cổng nội bộ riêng
 
 ### 8.2 Tối ưu DB
 
-- [ ] `EXPLAIN (ANALYZE, BUFFERS)` cho các query chính, thêm/sửa index, tạo index bằng `CONCURRENTLY`
-- [ ] Rà soát N+1, giảm số round-trip (dùng JOIN hoặc `pgx.Batch`)
-- [ ] Chỉnh pool size và ghi lại kết quả trước/sau
+- [x] `EXPLAIN (ANALYZE, BUFFERS)` cho các query chính, thêm/sửa index, tạo index bằng `CONCURRENTLY`
+- [x] Rà soát N+1, giảm số round-trip (dùng JOIN hoặc `pgx.Batch`)
+- [x] Chỉnh pool size và ghi lại kết quả trước/sau
 
 ### 8.3 Cache
 
-- [ ] Thêm Redis vào Compose, dùng `go-redis/v9`
-- [ ] Cache-aside cho dữ liệu đọc nhiều (danh sách tag, thống kê project), có TTL và invalidate khi ghi
-- [ ] `singleflight` chống cache stampede
-- [ ] Chuyển rate limiter sang Redis để chạy được nhiều instance
-- [ ] `gin-contrib/gzip` nén response, thử thêm ETag cho GET
+- [x] Thêm Redis vào Compose, dùng `go-redis/v9`
+- [x] Cache-aside cho dữ liệu đọc nhiều (danh sách tag, thống kê project), có TTL và invalidate khi ghi
+- [x] `singleflight` chống cache stampede
+- [x] Chuyển rate limiter sang Redis để chạy được nhiều instance
+- [x] `gin-contrib/gzip` nén response, thử thêm ETag cho GET
 
 ### 8.4 Benchmark
 
-- [ ] `go test -bench` + `benchstat` cho hàm nóng
-- [ ] Chỉ thử `-tags=jsoniter` / `sonic` nếu profile cho thấy JSON là nút thắt
+- [x] `go test -bench` + `benchstat` cho hàm nóng
+- [x] Chỉ thử `-tags=jsoniter` / `sonic` nếu profile cho thấy JSON là nút thắt
 
 **DoD**
 
-- [ ] Có bảng so sánh trước/sau (p95, RPS) trong `docs/performance.md`
+- [x] Có bảng so sánh trước/sau (p95, RPS) trong `docs/performance.md`
 
 ## Phase 9: CI/CD và đóng gói
 
