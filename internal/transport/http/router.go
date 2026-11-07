@@ -17,6 +17,7 @@ import (
 
 	_ "task-manager-api/docs/swagger" // docs is imported for side-effect Swagger registration
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	swaggerFiles "github.com/swaggo/files"
@@ -67,6 +68,8 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		middleware.SecurityHeaders(deps.Config.AppEnv == "production"),
 		middleware.CORS(deps.Config.CORSAllowedOrigins),
 		middleware.Timeout(deps.Config.RequestTimeout),
+		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz"})),
+		middleware.ETag(),
 		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
 	)

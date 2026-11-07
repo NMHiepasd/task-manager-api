@@ -94,7 +94,7 @@ func TestProjectService_CreateProject(t *testing.T) {
 		},
 	}
 
-	service := NewProjectService(mock)
+	service := NewProjectService(mock, nil)
 	res, err := service.CreateProject(context.Background(), ownerID, CreateProjectInput{
 		Name:        "Marketing Campaign",
 		Description: "Q4 Marketing campaign",
@@ -124,7 +124,7 @@ func TestProjectService_GetProjectByID(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		res, err := service.GetProjectByID(context.Background(), ownerID, projectID)
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -138,7 +138,7 @@ func TestProjectService_GetProjectByID(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		res, err := service.GetProjectByID(context.Background(), ownerID, projectID)
 		require.ErrorIs(t, err, ErrProjectNotFound)
 		require.Nil(t, res)
@@ -156,7 +156,7 @@ func TestProjectService_GetProjectByID(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		res, err := service.GetProjectByID(context.Background(), ownerID, projectID)
 		require.ErrorIs(t, err, ErrProjectNotFound)
 		require.Nil(t, res)
@@ -181,7 +181,7 @@ func TestProjectService_ListProjects(t *testing.T) {
 		},
 	}
 
-	service := NewProjectService(mock)
+	service := NewProjectService(mock, nil)
 	res, err := service.ListProjects(context.Background(), ownerID, PaginationParams{
 		Page:  1,
 		Limit: 10,
@@ -201,7 +201,7 @@ func TestProjectService_ListProjects(t *testing.T) {
 			}, nil
 		},
 	}
-	svcKeyset := NewProjectService(mockKeyset)
+	svcKeyset := NewProjectService(mockKeyset, nil)
 	resKeyset, err := svcKeyset.ListProjects(context.Background(), ownerID, PaginationParams{
 		Cursor: "MjAyNi0xMS0wNlQxNjo1Mzo1My40NTAwMjVafDAxYTFiMWM3LWYyYWEtNzk5Zi1hY2FmLWMwNDM5OTZlOGE4OQ",
 		Limit:  10,
@@ -238,7 +238,7 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		res, err := service.UpdateProject(context.Background(), ownerID, projectID, UpdateProjectInput{
 			Name:    "New Name",
 			Version: 1,
@@ -262,7 +262,7 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		// Client sends stale version 1
 		res, err := service.UpdateProject(context.Background(), ownerID, projectID, UpdateProjectInput{
 			Name:    "Stale Update",
@@ -295,7 +295,7 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		err := service.DeleteProject(context.Background(), ownerID, projectID)
 
 		require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mock)
+		service := NewProjectService(mock, nil)
 		err := service.DeleteProject(context.Background(), ownerID, projectID)
 		require.ErrorIs(t, err, ErrProjectNotFound)
 	})

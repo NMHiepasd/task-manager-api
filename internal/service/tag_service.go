@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"task-manager-api/internal/cache"
 	"task-manager-api/internal/repository"
 	"time"
 
@@ -33,12 +34,16 @@ type TagService interface {
 }
 
 type tagService struct {
-	repo repository.Querier
+	repo  repository.Querier
+	cache cache.Cache
 }
 
 // NewTagService constructs a new TagService instance.
-func NewTagService(repo repository.Querier) TagService {
-	return &tagService{repo: repo}
+func NewTagService(repo repository.Querier, cacheStore cache.Cache) TagService {
+	if cacheStore == nil {
+		cacheStore = cache.NewNoopCache()
+	}
+	return &tagService{repo: repo, cache: cacheStore}
 }
 
 // CreateTag creates or upserts a tag for the user.
@@ -58,20 +63,33 @@ func (s *tagService) CreateTag(ctx context.Context, userID uuid.UUID, input Crea
 		return nil, fmt.Errorf("failed to create tag: %w", err)
 	}
 
+	// Invalidate user tags cache
+	_ = s.cache.Delete(ctx, fmt.Sprintf("user:%s:tags", userID))
+
 	return s.mapTag(tag), nil
 }
 
 // ListTags lists all tags owned by the user.
 func (s *tagService) ListTags(ctx context.Context, userID uuid.UUID) ([]TagResponse, error) {
-	tags, err := s.repo.ListTagsByUser(ctx, userID)
+	cacheKey := fmt.Sprintf("user:%s:tags", userID)
+	var res []TagResponse
+
+	err := s.cache.Remember(ctx, cacheKey, 30*time.Minute, &res, func(fetchCtx context.Context) (any, error) {
+		tags, err := s.repo.ListTagsByUser(fetchCtx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list tags: %w", err)
+		}
+
+		mapped := make([]TagResponse, len(tags))
+		for i, t := range tags {
+			mapped[i] = *s.mapTag(t)
+		}
+		return mapped, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list tags: %w", err)
+		return nil, err
 	}
 
-	res := make([]TagResponse, len(tags))
-	for i, t := range tags {
-		res[i] = *s.mapTag(t)
-	}
 	return res, nil
 }
 
@@ -83,6 +101,10 @@ func (s *tagService) DeleteTag(ctx context.Context, userID uuid.UUID, tagID uuid
 	}); err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
 	}
+
+	// Invalidate user tags cache
+	_ = s.cache.Delete(ctx, fmt.Sprintf("user:%s:tags", userID))
+
 	return nil
 }
 

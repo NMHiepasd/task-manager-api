@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"task-manager-api/internal/cache"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/pagination"
@@ -71,12 +72,16 @@ type ProjectService interface {
 }
 
 type projectService struct {
-	repo repository.Querier
+	repo  repository.Querier
+	cache cache.Cache
 }
 
 // NewProjectService constructs a new ProjectService.
-func NewProjectService(repo repository.Querier) ProjectService {
-	return &projectService{repo: repo}
+func NewProjectService(repo repository.Querier, cacheStore cache.Cache) ProjectService {
+	if cacheStore == nil {
+		cacheStore = cache.NewNoopCache()
+	}
+	return &projectService{repo: repo, cache: cacheStore}
 }
 
 // CreateProject creates a project for the authenticated owner.
@@ -103,19 +108,29 @@ func (s *projectService) CreateProject(ctx context.Context, ownerID uuid.UUID, i
 
 // GetProjectByID retrieves a single project, verifying ownership.
 func (s *projectService) GetProjectByID(ctx context.Context, ownerID uuid.UUID, projectID uuid.UUID) (*ProjectResponse, error) {
-	project, err := s.repo.GetProjectByID(ctx, projectID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrProjectNotFound
+	cacheKey := fmt.Sprintf("project:%s:%s", ownerID, projectID)
+	var resp ProjectResponse
+
+	err := s.cache.Remember(ctx, cacheKey, 15*time.Minute, &resp, func(fetchCtx context.Context) (any, error) {
+		project, err := s.repo.GetProjectByID(fetchCtx, projectID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrProjectNotFound
+			}
+			return nil, fmt.Errorf("failed to query project: %w", err)
 		}
-		return nil, fmt.Errorf("failed to query project: %w", err)
+
+		if project.OwnerID != ownerID {
+			return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
+		}
+
+		return s.mapProject(project), nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if project.OwnerID != ownerID {
-		return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
-	}
-
-	return s.mapProject(project), nil
+	return &resp, nil
 }
 
 // ListProjects retrieves paginated projects owned by the user using keyset cursor or offset.
@@ -263,6 +278,9 @@ func (s *projectService) UpdateProject(ctx context.Context, ownerID uuid.UUID, p
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
+	// Invalidate project cache
+	_ = s.cache.Delete(ctx, fmt.Sprintf("project:%s:%s", ownerID, projectID))
+
 	return s.mapProject(updated), nil
 }
 
@@ -286,6 +304,9 @@ func (s *projectService) DeleteProject(ctx context.Context, ownerID uuid.UUID, p
 	}); err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
 	}
+
+	// Invalidate project cache
+	_ = s.cache.Delete(ctx, fmt.Sprintf("project:%s:%s", ownerID, projectID))
 
 	return nil
 }

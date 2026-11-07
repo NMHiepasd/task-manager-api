@@ -58,7 +58,7 @@ func TestTagService_CreateTag(t *testing.T) {
 		},
 	}
 
-	svc := NewTagService(mock)
+	svc := NewTagService(mock, nil)
 	res, err := svc.CreateTag(context.Background(), userID, CreateTagInput{
 		Name: "Backend",
 	})
@@ -82,7 +82,7 @@ func TestTagService_ListTags(t *testing.T) {
 		},
 	}
 
-	svc := NewTagService(mock)
+	svc := NewTagService(mock, nil)
 	tags, err := svc.ListTags(context.Background(), userID)
 
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestTagService_DeleteTag(t *testing.T) {
 		},
 	}
 
-	svc := NewTagService(mock)
+	svc := NewTagService(mock, nil)
 	err := svc.DeleteTag(context.Background(), userID, tagID)
 	require.NoError(t, err)
 	require.True(t, deleted)

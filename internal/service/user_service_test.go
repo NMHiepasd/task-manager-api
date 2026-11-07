@@ -27,7 +27,7 @@ func TestUserService_GetProfile_Success(t *testing.T) {
 		},
 	}
 
-	userService := NewUserService(mock)
+	userService := NewUserService(mock, nil)
 	profile, err := userService.GetProfile(context.Background(), userID)
 
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestUserService_GetProfile_NotFound(t *testing.T) {
 		},
 	}
 
-	userService := NewUserService(mock)
+	userService := NewUserService(mock, nil)
 	profile, err := userService.GetProfile(context.Background(), uuid.New())
 
 	require.ErrorIs(t, err, ErrUserNotFound)

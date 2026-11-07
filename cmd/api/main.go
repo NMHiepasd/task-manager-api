@@ -92,10 +92,10 @@ func main() {
 	store := repository.NewStore(pool)
 	passwordHasher := hasher.NewBcryptHasher(12)
 	authService := service.NewAuthService(store, passwordHasher, tokenMaker, cfg.JWTExpiration, cfg.JWTRefreshExpiration)
-	userService := service.NewUserService(store)
-	projectService := service.NewProjectService(store)
+	userService := service.NewUserService(store, cacheStore)
+	projectService := service.NewProjectService(store, cacheStore)
 	taskService := service.NewTaskService(store)
-	tagService := service.NewTagService(store)
+	tagService := service.NewTagService(store, cacheStore)
 
 	// 6. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
