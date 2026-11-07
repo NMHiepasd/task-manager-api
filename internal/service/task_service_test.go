@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,12 +18,36 @@ type mockTaskQuerier struct {
 	createTaskFn      func(ctx context.Context, arg repository.CreateTaskParams) (repository.Task, error)
 	getTaskByIDFn     func(ctx context.Context, id uuid.UUID) (repository.Task, error)
 	listTasksFn       func(ctx context.Context, arg repository.ListTasksParams) ([]repository.Task, error)
+	listTasksKeysetFn func(ctx context.Context, arg repository.ListTasksKeysetParams) ([]repository.Task, error)
 	countTasksFn      func(ctx context.Context, arg repository.CountTasksParams) (int64, error)
 	updateTaskFn      func(ctx context.Context, arg repository.UpdateTaskParams) (repository.Task, error)
 	softDeleteTaskFn  func(ctx context.Context, id uuid.UUID) error
 	getProjectByIDFn  func(ctx context.Context, id uuid.UUID) (repository.Project, error)
 	getTagsForTaskFn  func(ctx context.Context, taskID uuid.UUID) ([]repository.Tag, error)
 	getTagsForTasksFn func(ctx context.Context, taskIDs []uuid.UUID) ([]repository.GetTagsForTasksRow, error)
+	clearTaskTagsFn   func(ctx context.Context, taskID uuid.UUID) error
+	addTagToTaskFn    func(ctx context.Context, arg repository.AddTagToTaskParams) error
+}
+
+func (m *mockTaskQuerier) ClearTaskTags(ctx context.Context, taskID uuid.UUID) error {
+	if m.clearTaskTagsFn != nil {
+		return m.clearTaskTagsFn(ctx, taskID)
+	}
+	return nil
+}
+
+func (m *mockTaskQuerier) AddTagToTask(ctx context.Context, arg repository.AddTagToTaskParams) error {
+	if m.addTagToTaskFn != nil {
+		return m.addTagToTaskFn(ctx, arg)
+	}
+	return nil
+}
+
+func (m *mockTaskQuerier) ListTasksKeyset(ctx context.Context, arg repository.ListTasksKeysetParams) ([]repository.Task, error) {
+	if m.listTasksKeysetFn != nil {
+		return m.listTasksKeysetFn(ctx, arg)
+	}
+	return nil, nil
 }
 
 func (m *mockTaskQuerier) CreateTask(ctx context.Context, arg repository.CreateTaskParams) (repository.Task, error) {
@@ -281,5 +306,147 @@ func TestTaskService_DeleteTask(t *testing.T) {
 		err := svc.DeleteTask(context.Background(), userID, taskID)
 		require.NoError(t, err)
 		require.True(t, deleted)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mock := &mockTaskQuerier{}
+		svc := NewTaskService(mock)
+		err := svc.DeleteTask(context.Background(), userID, taskID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+}
+
+func TestTaskService_ListTasks(t *testing.T) {
+	userID := uuid.New()
+	taskID1 := uuid.New()
+	taskID2 := uuid.New()
+
+	t.Run("OffsetPagination_Success", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			countTasksFn: func(_ context.Context, _ repository.CountTasksParams) (int64, error) {
+				return 2, nil
+			},
+			listTasksFn: func(_ context.Context, _ repository.ListTasksParams) ([]repository.Task, error) {
+				return []repository.Task{
+					{ID: taskID1, CreatorID: userID, Title: "Task 1", Status: "todo", Priority: "medium", CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+					{ID: taskID2, CreatorID: userID, Title: "Task 2", Status: "done", Priority: "high", CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+				}, nil
+			},
+			getTagsForTasksFn: func(_ context.Context, _ []uuid.UUID) ([]repository.GetTagsForTasksRow, error) {
+				return nil, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.ListTasks(context.Background(), userID, ListTasksFilter{
+			Page:  1,
+			Limit: 10,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, int64(2), res.TotalItems)
+		assert.Len(t, res.Items, 2)
+	})
+
+	t.Run("KeysetPagination_Success", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			listTasksKeysetFn: func(_ context.Context, _ repository.ListTasksKeysetParams) ([]repository.Task, error) {
+				return []repository.Task{
+					{ID: taskID1, CreatorID: userID, Title: "Task 1", Status: "todo", Priority: "medium", CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+				}, nil
+			},
+			getTagsForTasksFn: func(_ context.Context, _ []uuid.UUID) ([]repository.GetTagsForTasksRow, error) {
+				return nil, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.ListTasks(context.Background(), userID, ListTasksFilter{
+			Cursor: "MjAyNi0xMS0wNlQxNjo1Mzo1My40NTAwMjVafDAxYTFiMWM3LWYyYWEtNzk5Zi1hY2FmLWMwNDM5OTZlOGE4OQ",
+			Limit:  10,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Len(t, res.Items, 1)
+	})
+}
+
+func TestTaskService_ListProjectTasks(t *testing.T) {
+	userID := uuid.New()
+	projectID := uuid.New()
+
+	t.Run("Success_UserOwnsProject", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: userID}, nil
+			},
+			countTasksFn: func(_ context.Context, _ repository.CountTasksParams) (int64, error) {
+				return 1, nil
+			},
+			listTasksFn: func(_ context.Context, _ repository.ListTasksParams) ([]repository.Task, error) {
+				return []repository.Task{
+					{ID: uuid.New(), CreatorID: userID, Title: "Project Task 1", Status: "todo", Priority: "medium", CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+				}, nil
+			},
+			getTagsForTasksFn: func(_ context.Context, _ []uuid.UUID) ([]repository.GetTagsForTasksRow, error) {
+				return nil, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.ListProjectTasks(context.Background(), userID, projectID, ListTasksFilter{Limit: 10})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Len(t, res.Items, 1)
+	})
+
+	t.Run("AntiIDOR_ProjectNotOwned", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: uuid.New()}, nil // different owner
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.ListProjectTasks(context.Background(), userID, projectID, ListTasksFilter{Limit: 10})
+		require.ErrorIs(t, err, ErrProjectNotFound)
+	})
+}
+
+func TestTaskService_SetTaskTags(t *testing.T) {
+	userID := uuid.New()
+	taskID := uuid.New()
+	tagID := uuid.New()
+
+	t.Run("Success", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{ID: id, CreatorID: userID}, nil
+			},
+			clearTaskTagsFn: func(_ context.Context, _ uuid.UUID) error {
+				return nil
+			},
+			addTagToTaskFn: func(_ context.Context, _ repository.AddTagToTaskParams) error {
+				return nil
+			},
+			getTagsForTaskFn: func(_ context.Context, _ uuid.UUID) ([]repository.Tag, error) {
+				return []repository.Tag{
+					{ID: tagID, UserID: userID, Name: "backend", Color: "#3b82f6"},
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		tags, err := svc.SetTaskTags(context.Background(), userID, taskID, []uuid.UUID{tagID})
+		require.NoError(t, err)
+		require.Len(t, tags, 1)
+		assert.Equal(t, "backend", tags[0].Name)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mock := &mockTaskQuerier{}
+		svc := NewTaskService(mock)
+		_, err := svc.SetTaskTags(context.Background(), userID, taskID, []uuid.UUID{tagID})
+		require.ErrorIs(t, err, ErrTaskNotFound)
 	})
 }

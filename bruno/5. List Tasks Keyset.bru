@@ -1,0 +1,15 @@
+meta {
+  name: List Tasks Keyset
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks?limit=10
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

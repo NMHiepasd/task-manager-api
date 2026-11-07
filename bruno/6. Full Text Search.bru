@@ -1,0 +1,15 @@
+meta {
+  name: Full Text Search
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks?q=docker
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

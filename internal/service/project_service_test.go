@@ -17,9 +17,17 @@ type mockProjectQuerier struct {
 	createProjectFn        func(ctx context.Context, arg repository.CreateProjectParams) (repository.Project, error)
 	getProjectByIDFn       func(ctx context.Context, id uuid.UUID) (repository.Project, error)
 	listProjectsByOwnerFn  func(ctx context.Context, arg repository.ListProjectsByOwnerParams) ([]repository.Project, error)
+	listProjectsKeysetFn   func(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error)
 	countProjectsByOwnerFn func(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	updateProjectFn        func(ctx context.Context, arg repository.UpdateProjectParams) (repository.Project, error)
 	softDeleteProjectFn    func(ctx context.Context, arg repository.SoftDeleteProjectParams) error
+}
+
+func (m *mockProjectQuerier) ListProjectsKeyset(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error) {
+	if m.listProjectsKeysetFn != nil {
+		return m.listProjectsKeysetFn(ctx, arg)
+	}
+	return nil, nil
 }
 
 func (m *mockProjectQuerier) CreateProject(ctx context.Context, arg repository.CreateProjectParams) (repository.Project, error) {
@@ -184,6 +192,23 @@ func TestProjectService_ListProjects(t *testing.T) {
 	require.Equal(t, int64(25), res.TotalItems)
 	require.Equal(t, int32(3), res.TotalPages) // ceil(25 / 10) = 3
 	require.Len(t, res.Items, 2)
+
+	// Keyset pagination
+	mockKeyset := &mockProjectQuerier{
+		listProjectsKeysetFn: func(_ context.Context, _ repository.ListProjectsKeysetParams) ([]repository.Project, error) {
+			return []repository.Project{
+				{ID: uuid.New(), OwnerID: ownerID, Name: "P1", Version: 1, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+			}, nil
+		},
+	}
+	svcKeyset := NewProjectService(mockKeyset)
+	resKeyset, err := svcKeyset.ListProjects(context.Background(), ownerID, PaginationParams{
+		Cursor: "MjAyNi0xMS0wNlQxNjo1Mzo1My40NTAwMjVafDAxYTFiMWM3LWYyYWEtNzk5Zi1hY2FmLWMwNDM5OTZlOGE4OQ",
+		Limit:  10,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resKeyset)
+	require.Len(t, resKeyset.Items, 1)
 }
 
 func TestProjectService_UpdateProject(t *testing.T) {

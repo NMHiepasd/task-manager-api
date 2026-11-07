@@ -30,19 +30,19 @@ taskmgr/
 
 **Mục tiêu:** có bộ khung để mọi commit sau đều được lint, format, kiểm tra tự động.
 
-- [ ] Tạo repo GitHub, `go mod init`, chọn Go version tối thiểu và ghi vào `go.mod`
-- [ ] Tạo cấu trúc thư mục như trên
-- [ ] `.gitignore` (có `.env`, `bin/`, `tmp/`) và `.env.example`
-- [ ] Makefile với các target: `run`, `build`, `test`, `lint`, `migrate-up`, `migrate-down`, `sqlc`, `docker-up`
-- [ ] `.golangci.yml` bật: `govet`, `staticcheck`, `errcheck`, `gosec`, `gofumpt`, `revive`, `bodyclose`, `sqlclosecheck`
-- [ ] Cài `air` (hot reload) và `lefthook` (pre-commit chạy lint + test nhanh)
-- [ ] Quy ước Conventional Commits (`feat:`, `fix:`, `chore:`)
-- [ ] README khung và thư mục `docs/adr/` với ADR-001 "Vì sao chọn Gin + sqlc + pgx"
+- [x] Tạo repo GitHub, `go mod init`, chọn Go version tối thiểu và ghi vào `go.mod`
+- [x] Tạo cấu trúc thư mục như trên
+- [x] `.gitignore` (có `.env`, `bin/`, `tmp/`) và `.env.example`
+- [x] Makefile với các target: `run`, `build`, `test`, `lint`, `migrate-up`, `migrate-down`, `sqlc`, `docker-up`
+- [x] `.golangci.yml` bật: `govet`, `staticcheck`, `errcheck`, `gosec`, `gofumpt`, `revive`, `bodyclose`, `sqlclosecheck`
+- [x] Cài `air` (hot reload) và `lefthook` (pre-commit chạy lint + test nhanh)
+- [x] Quy ước Conventional Commits (`feat:`, `fix:`, `chore:`)
+- [x] README khung và thư mục `docs/adr/` với ADR-001 "Vì sao chọn Gin + sqlc + pgx"
 
 **DoD**
 
-- [ ] `make lint` và `make test` chạy được (dù chưa có test)
-- [ ] Commit đầu tiên đã lên GitHub
+- [x] `make lint` và `make test` chạy được (dù chưa có test)
+- [x] Commit đầu tiên đã lên GitHub
 
 ## Phase 1: Khung ứng dụng, Docker, Database
 
@@ -50,60 +50,60 @@ taskmgr/
 
 ### 1.1 Config và logger
 
-- [ ] `caarlos0/env/v11` đọc env vào struct (`APP_PORT`, `DB_URL`, `JWT_SECRET`, `GIN_MODE`, ...), validate khi khởi động, thiếu là fail ngay
-- [ ] `log/slog` với JSON handler, level theo env
+- [x] `caarlos0/env/v11` đọc env vào struct (`APP_PORT`, `DB_URL`, `JWT_SECRET`, `GIN_MODE`, ...), validate khi khởi động, thiếu là fail ngay
+- [x] `log/slog` với JSON handler, level theo env
 
 ### 1.2 Database
 
-- [ ] Docker Compose: service `postgres` (có healthcheck, volume) và `api` (depends\_on healthy)
-- [ ] `pgx/v5/pgxpool`: cấu hình `MaxConns`, `MinConns`, `MaxConnLifetime`, `HealthCheckPeriod`
-- [ ] `golang-migrate`: migration đầu tiên tạo extension và bảng `users`
-- [ ] Thiết kế schema và vẽ ERD (dbdiagram.io hoặc Mermaid): `users`, `projects`, `tasks`, `tags`, `task_tags`, `refresh_tokens`
-- [ ] Khóa chính UUID (`google/uuid`, ưu tiên v7)
-- [ ] Dùng `timestamptz`, các cột `created_at`, `updated_at`, `deleted_at`, và cột `version` (optimistic lock)
-- [ ] Constraint: `NOT NULL`, `CHECK` cho status, `UNIQUE (lower(email))`
-- [ ] Cấu hình `sqlc.yaml` (engine postgresql, sql\_package `pgx/v5`), viết thử 1-2 query và sinh code
+- [x] Docker Compose: service `postgres` (có healthcheck, volume) và `api` (depends_on healthy)
+- [x] `pgx/v5/pgxpool`: cấu hình `MaxConns`, `MinConns`, `MaxConnLifetime`, `HealthCheckPeriod`
+- [x] `golang-migrate`: migration đầu tiên tạo extension và bảng `users`
+- [x] Thiết kế schema và vẽ ERD (dbdiagram.io hoặc Mermaid): `users`, `projects`, `tasks`, `tags`, `task_tags`, `refresh_tokens`
+- [x] Khóa chính UUID (`google/uuid`, ưu tiên v7)
+- [x] Dùng `timestamptz`, các cột `created_at`, `updated_at`, `deleted_at`, và cột `version` (optimistic lock)
+- [x] Constraint: `NOT NULL`, `CHECK` cho status, `UNIQUE (lower(email))`
+- [x] Cấu hình `sqlc.yaml` (engine postgresql, sql_package `pgx/v5`), viết thử 1-2 query và sinh code
 
 ### 1.3 HTTP server khung
 
-- [ ] `gin.New()`, `gin.SetMode` theo config
-- [ ] Hàm `NewRouter(deps) *gin.Engine` (để test được)
-- [ ] `http.Server` riêng với `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`
-- [ ] Graceful shutdown bằng `signal.NotifyContext` + `server.Shutdown`
-- [ ] `/healthz` (liveness) và `/readyz` (ping DB)
-- [ ] `SetTrustedProxies`
+- [x] `gin.New()`, `gin.SetMode` theo config
+- [x] Hàm `NewRouter(deps) *gin.Engine` (để test được)
+- [x] `http.Server` riêng với `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`
+- [x] Graceful shutdown bằng `signal.NotifyContext` + `server.Shutdown`
+- [x] `/healthz` (liveness) và `/readyz` (ping DB)
+- [x] `SetTrustedProxies`
 
 ### 1.4 Dockerfile
 
-- [ ] Multi-stage: build với `golang:<version>`, chạy với `distroless` hoặc `alpine`, non-root user
-- [ ] Build flag: `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=..."`
+- [x] Multi-stage: build với `golang:<version>`, chạy với `distroless` hoặc `alpine`, non-root user
+- [x] Build flag: `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=..."`
 
 **DoD**
 
-- [ ] `docker compose up` chạy thành công
-- [ ] `curl /readyz` trả 200
-- [ ] `make migrate-up` / `make migrate-down` hoạt động
-- [ ] Shutdown bằng Ctrl+C không làm mất request đang chạy
+- [x] `docker compose up` chạy thành công
+- [x] `curl /readyz` trả 200
+- [x] `make migrate-up` / `make migrate-down` hoạt động
+- [x] Shutdown bằng Ctrl+C không làm mất request đang chạy
 
 ## Phase 2: Middleware nền và xử lý lỗi thống nhất
 
 **Mục tiêu:** mọi request đều có ID, log chuẩn, lỗi trả đúng một format.
 
-- [ ] Middleware request ID (`gin-contrib/requestid` hoặc tự viết), gắn vào log và header response
-- [ ] Middleware logger `slog`: method, path, status, latency, request\_id, client\_ip, bỏ qua `/healthz`
-- [ ] Middleware recovery tùy chỉnh: log stack, trả JSON 500 chung chung
-- [ ] Error model trong `domain/`: `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrValidation`
-- [ ] Error-handling middleware: handler gọi `c.Error(err)`, middleware map error sang status + body theo RFC 9457 (`type`, `title`, `status`, `detail`, `code`, `request_id`)
-- [ ] `NoRoute`, `NoMethod` (`HandleMethodNotAllowed = true`) trả JSON cùng format
-- [ ] Hàm chuyển `validator.ValidationErrors` thành danh sách lỗi theo field
-- [ ] Giới hạn body bằng `http.MaxBytesReader`
-- [ ] Tắt `RedirectTrailingSlash` / `RedirectFixedPath` và ghi vào ADR
-- [ ] Tạo group `/api/v1`
+- [x] Middleware request ID (`gin-contrib/requestid` hoặc tự viết), gắn vào log và header response
+- [x] Middleware logger `slog`: method, path, status, latency, request_id, client_ip, bỏ qua `/healthz`
+- [x] Middleware recovery tùy chỉnh: log stack, trả JSON 500 chung chung
+- [x] Error model trong `domain/`: `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrValidation`
+- [x] Error-handling middleware: handler gọi `c.Error(err)`, middleware map error sang status + body theo RFC 9457 (`type`, `title`, `status`, `detail`, `code`, `request_id`)
+- [x] `NoRoute`, `NoMethod` (`HandleMethodNotAllowed = true`) trả JSON cùng format
+- [x] Hàm chuyển `validator.ValidationErrors` thành danh sách lỗi theo field
+- [x] Giới hạn body bằng `http.MaxBytesReader`
+- [x] Tắt `RedirectTrailingSlash` / `RedirectFixedPath` và ghi vào ADR
+- [x] Tạo group `/api/v1`
 
 **DoD**
 
-- [ ] Gọi route không tồn tại, gửi JSON sai, gây panic thử: đều ra response cùng cấu trúc
-- [ ] Có `request_id` trong log của các trường hợp trên
+- [x] Gọi route không tồn tại, gửi JSON sai, gây panic thử: đều ra response cùng cấu trúc
+- [x] Có `request_id` trong log của các trường hợp trên
 
 ## Phase 3: Xác thực và phân quyền
 
@@ -111,23 +111,23 @@ taskmgr/
 
 **Endpoint:** `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /me`
 
-- [ ] Tầng `service/auth`: interface + implementation, nhận repository qua constructor
-- [ ] Hash mật khẩu bằng `bcrypt` (cost >= 12) hoặc `argon2id`
-- [ ] JWT bằng `golang-jwt/jwt/v5`: access token ngắn (10-15 phút), kiểm tra `alg`, `exp`, `iss`, `aud`
-- [ ] Refresh token: sinh chuỗi ngẫu nhiên (`crypto/rand`), lưu hash trong DB, rotation mỗi lần refresh, revoke khi logout
-- [ ] Middleware `AuthRequired`: parse Bearer token, set `userID` vào context bằng key hằng số, helper `CurrentUserID(c)`
-- [ ] Thông báo lỗi đăng nhập chung chung, không lộ email có tồn tại hay không
-- [ ] DTO riêng cho request/response (không bind thẳng vào model)
-- [ ] Rate limit riêng cho `/auth/login` và `/auth/register` (`x/time/rate` hoặc `ulule/limiter`)
-- [ ] Validator rule: email, độ dài/độ mạnh mật khẩu
-- [ ] (Tùy chọn) RBAC đơn giản: cột `role`, middleware `RequireRole("admin")`
+- [x] Tầng `service/auth`: interface + implementation, nhận repository qua constructor
+- [x] Hash mật khẩu bằng `bcrypt` (cost >= 12) hoặc `argon2id`
+- [x] JWT bằng `golang-jwt/jwt/v5`: access token ngắn (10-15 phút), kiểm tra `alg`, `exp`, `iss`, `aud`
+- [x] Refresh token: sinh chuỗi ngẫu nhiên (`crypto/rand`), lưu hash trong DB, rotation mỗi lần refresh, revoke khi logout
+- [x] Middleware `AuthRequired`: parse Bearer token, set `userID` vào context bằng key hằng số, helper `CurrentUserID(c)`
+- [x] Thông báo lỗi đăng nhập chung chung, không lộ email có tồn tại hay không
+- [x] DTO riêng cho request/response (không bind thẳng vào model)
+- [x] Rate limit riêng cho `/auth/login` và `/auth/register` (`x/time/rate` hoặc `ulule/limiter`)
+- [x] Validator rule: email, độ dài/độ mạnh mật khẩu
+- [x] (Tùy chọn) RBAC đơn giản: cột `role`, middleware `RequireRole("admin")`
 
 **DoD**
 
-- [ ] Test đăng ký trùng email
-- [ ] Test sai mật khẩu
-- [ ] Test token hết hạn
-- [ ] Test refresh token dùng lại lần hai bị từ chối
+- [x] Test đăng ký trùng email
+- [x] Test sai mật khẩu
+- [x] Test token hết hạn
+- [x] Test refresh token dùng lại lần hai bị từ chối
 
 ## Phase 4: Domain chính: Projects, Tasks, Tags
 
@@ -135,55 +135,55 @@ taskmgr/
 
 ### 4.1 Projects
 
-- [ ] `POST/GET/PATCH/DELETE /projects`
+- [x] `POST/GET/PATCH/DELETE /projects`
 
 ### 4.2 Tasks
 
-- [ ] `POST/GET/PATCH/DELETE /tasks` và `GET /projects/:id/tasks`
-- [ ] Các trường: `title`, `description`, `status`, `priority`, `due_date`, `project_id`
+- [x] `POST/GET/PATCH/DELETE /tasks` và `GET /projects/:id/tasks`
+- [x] Các trường: `title`, `description`, `status`, `priority`, `due_date`, `project_id`
 
 ### 4.3 Tags
 
-- [ ] CRUD tag
-- [ ] `PUT /tasks/:id/tags` (quan hệ nhiều-nhiều)
+- [x] CRUD tag
+- [x] `PUT /tasks/:id/tags` (quan hệ nhiều-nhiều)
 
 ### 4.4 Task kỹ thuật chung
 
-- [ ] Viết query trong `db/queries/*.sql`, chạy `sqlc generate`
-- [ ] Mọi query đều có `WHERE user_id = $1` (chống IDOR); resource không thuộc về user thì trả 404 thay vì 403
-- [ ] Soft delete và partial index `WHERE deleted_at IS NULL`
-- [ ] Optimistic locking: `UPDATE ... WHERE id=$1 AND version=$2`, 0 row thì trả 409 Conflict
-- [ ] Transaction cho thao tác nhiều bước (helper `WithTx(ctx, fn)`)
-- [ ] Keyset pagination: `?cursor=...&limit=20`, trả `next_cursor`, giới hạn `limit` tối đa
-- [ ] Lọc và sắp xếp: `status`, `priority`, `due_before`, `tag`, `q` (thử `ILIKE` trước, sau đó nâng lên full-text search `tsvector` + GIN index)
-- [ ] Binding bằng `ShouldBindJSON`, `ShouldBindQuery`, `ShouldBindUri`
-- [ ] Custom validator (ví dụ `due_date` không ở quá khứ, status hợp lệ)
-- [ ] Truyền `c.Request.Context()` xuống mọi query
-- [ ] Thêm index theo pattern truy vấn (composite `(user_id, status, due_date)`, ...)
+- [x] Viết query trong `db/queries/*.sql`, chạy `sqlc generate`
+- [x] Mọi query đều có `WHERE user_id = $1` (chống IDOR); resource không thuộc về user thì trả 404 thay vì 403
+- [x] Soft delete và partial index `WHERE deleted_at IS NULL`
+- [x] Optimistic locking: `UPDATE ... WHERE id=$1 AND version=$2`, 0 row thì trả 409 Conflict
+- [x] Transaction cho thao tác nhiều bước (helper `WithTx(ctx, fn)`)
+- [x] Keyset pagination: `?cursor=...&limit=20`, trả `next_cursor`, giới hạn `limit` tối đa
+- [x] Lọc và sắp xếp: `status`, `priority`, `due_before`, `tag`, `q` (thử `ILIKE` trước, sau đó nâng lên full-text search `tsvector` + GIN index)
+- [x] Binding bằng `ShouldBindJSON`, `ShouldBindQuery`, `ShouldBindUri`
+- [x] Custom validator (ví dụ `due_date` không ở quá khứ, status hợp lệ)
+- [x] Truyền `c.Request.Context()` xuống mọi query
+- [x] Thêm index theo pattern truy vấn (composite `(user_id, status, due_date)`, ...)
 - [ ] Seed data script (`gofakeit`) tạo khoảng 100k task để phase tối ưu có dữ liệu thử
 
 **DoD**
 
-- [ ] User A không đọc/sửa/xóa được dữ liệu của user B (có test chứng minh)
-- [ ] Hai request sửa đồng thời cho ra một 409
+- [x] User A không đọc/sửa/xóa được dữ liệu của user B (có test chứng minh)
+- [x] Hai request sửa đồng thời cho ra một 409
 
 ## Phase 5: Testing
 
 Làm xen kẽ từ Phase 2, chốt ở phase này.
 
-- [ ] Unit test service bằng `testify` + mock (`uber-go/mock` hoặc `mockery`), dùng table-driven test
-- [ ] Integration test repository với `testcontainers-go` (Postgres thật, chạy migration trước), tách bằng build tag `//go:build integration`
-- [ ] HTTP test với `httptest` + `NewRouter()`, đặt `gin.SetMode(gin.TestMode)` trong `TestMain`
-- [ ] Test các case bảo mật: IDOR, token giả/hết hạn, mass assignment
-- [ ] `go test -race ./...` luôn bật trong CI; thêm `goleak` cho package có goroutine
-- [ ] Coverage mục tiêu hợp lý (khoảng 70% cho service, không chạy theo con số)
-- [ ] Fuzz test cho hàm parse cursor/validate input (`go test -fuzz`)
-- [ ] Collection Bruno hoặc Hurl để test thủ công và smoke test, commit vào repo
-- [ ] Target Makefile: `test`, `test-integration`, `test-race`, `cover`
+- [x] Unit test service bằng `testify` + mock (`uber-go/mock` hoặc `mockery`), dùng table-driven test
+- [x] Integration test repository với `testcontainers-go` (Postgres thật, chạy migration trước), tách bằng build tag `//go:build integration`
+- [x] HTTP test với `httptest` + `NewRouter()`, đặt `gin.SetMode(gin.TestMode)` trong `TestMain`
+- [x] Test các case bảo mật: IDOR, token giả/hết hạn, mass assignment
+- [x] `go test -race ./...` luôn bật trong CI; thêm `goleak` cho package có goroutine
+- [x] Coverage mục tiêu hợp lý (khoảng 70% cho service, không chạy theo con số)
+- [x] Fuzz test cho hàm parse cursor/validate input (`go test -fuzz`)
+- [x] Collection Bruno hoặc Hurl để test thủ công và smoke test, commit vào repo
+- [x] Target Makefile: `test`, `test-integration`, `test-race`, `cover`
 
 **DoD**
 
-- [ ] `make test-integration` chạy được trên máy sạch chỉ cần Docker
+- [x] `make test-integration` chạy được trên máy sạch chỉ cần Docker
 
 ## Phase 6: Tài liệu API
 
@@ -199,15 +199,15 @@ Làm xen kẽ từ Phase 2, chốt ở phase này.
 
 ## Phase 7: Hardening bảo mật và độ tin cậy
 
-- [ ] `gin-contrib/cors` cấu hình whitelist origin cụ thể
-- [ ] `gin-contrib/secure` thêm security headers
-- [ ] Rate limit toàn cục theo IP/user (kết hợp Redis ở phase sau)
+- [x] `gin-contrib/cors` cấu hình whitelist origin cụ thể
+- [x] `gin-contrib/secure` thêm security headers
+- [x] Rate limit toàn cục theo IP/user (kết hợp Redis ở phase sau)
 - [ ] Idempotency-Key cho `POST /tasks` (bảng DB hoặc Redis, TTL 24h)
 - [ ] Timeout cho request (`context.WithTimeout`) và cho query DB
 - [ ] Rà soát theo OWASP API Security Top 10, ghi kết quả vào `docs/security.md`
 - [ ] Chạy `govulncheck`, `gosec`, `gitleaks`, `trivy image` và sửa các cảnh báo
-- [ ] Rà soát log: không có mật khẩu/token/email thô
-- [ ] Quản lý secret: không hardcode, `.env` không commit
+- [x] Rà soát log: không có mật khẩu/token/email thô
+- [x] Quản lý secret: không hardcode, `.env` không commit
 
 **DoD**
 

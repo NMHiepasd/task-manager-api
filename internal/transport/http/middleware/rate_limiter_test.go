@@ -8,8 +8,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 	"golang.org/x/time/rate"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestIPRateLimiter(t *testing.T) {
 	gin.SetMode(gin.TestMode)

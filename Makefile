@@ -1,4 +1,4 @@
-.PHONY: help run build test lint migrate-up migrate-down sqlc docker-up docker-down
+.PHONY: help run build test test-race test-integration test-fuzz cover lint migrate-up migrate-down sqlc docker-up docker-down
 
 # Default target
 .DEFAULT_GOAL := help
@@ -10,15 +10,19 @@ help: ## Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  run           Run the application locally"
-	@echo "  build         Build the binary executable into bin/"
-	@echo "  test          Run unit and integration tests"
-	@echo "  lint          Run golangci-lint on the codebase"
-	@echo "  migrate-up    Apply all pending database migrations"
-	@echo "  migrate-down  Rollback the most recent database migration"
-	@echo "  sqlc          Generate type-safe Go database code from SQL queries"
-	@echo "  docker-up     Start Docker containers (PostgreSQL, Adminer)"
-	@echo "  docker-down   Stop and remove Docker containers"
+	@echo "  run               Run the application locally"
+	@echo "  build             Build the binary executable into bin/"
+	@echo "  test              Run fast unit tests"
+	@echo "  test-race         Run unit tests with race detection"
+	@echo "  test-integration  Run repository integration tests with testcontainers"
+	@echo "  test-fuzz         Run fuzz tests on cursor pagination"
+	@echo "  cover             Generate test coverage profile and HTML report"
+	@echo "  lint              Run golangci-lint on the codebase"
+	@echo "  migrate-up        Apply all pending database migrations"
+	@echo "  migrate-down      Rollback the most recent database migration"
+	@echo "  sqlc              Generate type-safe Go database code from SQL queries"
+	@echo "  docker-up         Start Docker containers (PostgreSQL, Adminer)"
+	@echo "  docker-down       Stop and remove Docker containers"
 
 run: ## Run the API server locally
 	go run ./cmd/api
@@ -26,8 +30,22 @@ run: ## Run the API server locally
 build: ## Build API binary
 	go build -ldflags="-w -s" -o bin/api ./cmd/api
 
-test: ## Run unit and integration tests
-	go test -v -race -coverprofile=coverage.out ./...
+test: ## Run unit tests
+	go test -v -short ./...
+
+test-race: ## Run unit tests with race detector
+	go test -v -race -short ./...
+
+test-integration: ## Run integration tests with Testcontainers
+	go test -v -tags=integration -timeout 180s ./internal/repository/...
+
+test-fuzz: ## Run fuzz tests
+	go test -fuzz=FuzzDecodeCursor -fuzztime=5s ./pkg/pagination/...
+
+cover: ## Generate test coverage report
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated at coverage.html"
 
 lint: ## Run golangci-lint
 	MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/app" -w //app golangci/golangci-lint:latest golangci-lint run ./...
