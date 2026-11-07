@@ -31,6 +31,9 @@ var (
 	ErrTagNotFound            = fmt.Errorf("%w: tag not found", ErrNotFound)
 	ErrPayloadTooLarge        = fmt.Errorf("%w: request payload exceeds size limit", ErrValidation)
 	ErrRateLimitExceeded      = errors.New("rate limit exceeded; please wait before retrying")
+	ErrTimeout                = errors.New("request processing timed out")
+	ErrIdempotencyConflict    = fmt.Errorf("%w: concurrent request with the same idempotency key is currently processing", ErrConflict)
+	ErrIdempotencyMismatch    = fmt.Errorf("%w: idempotency key was previously used with different request parameters", ErrConflict)
 )
 
 // InvalidParam describes a single invalid request field for RFC 9457.

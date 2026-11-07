@@ -304,6 +304,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-004: Keyset Pagination, Full-Text Search, and Anti-IDOR Strategy](docs/adr/0004-keyset-pagination-fts-anti-idor.md)**
 - **[ADR-005: Testing Strategy with Testcontainers, Fuzzing, and Goleak](docs/adr/0005-testing-strategy-and-testcontainers.md)**
 - **[ADR-006: API Documentation with OpenAPI 3.0 and Swagger UI](docs/adr/0006-api-documentation-and-swagger.md)**
+- **[ADR-007: Idempotency-Key Header and Request Timeout Strategy](docs/adr/0007-idempotency-key-and-request-timeout.md)**
 
 ---
 

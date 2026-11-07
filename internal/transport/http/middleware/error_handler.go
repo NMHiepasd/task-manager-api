@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,6 +120,11 @@ func ErrorHandler(logger *slog.Logger) gin.HandlerFunc {
 			status = http.StatusTooManyRequests
 			code = "RATE_LIMIT_EXCEEDED"
 			detail = err.Error()
+
+		case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, domain.ErrTimeout):
+			status = http.StatusGatewayTimeout
+			code = "GATEWAY_TIMEOUT"
+			detail = "The request processing exceeded the maximum allowed time"
 
 		default:
 			logger.Error("Unhandled error in request pipeline",

@@ -168,6 +168,22 @@ func (m *mockQuerier) UpdateUser(context.Context, repository.UpdateUserParams) (
 	return repository.User{}, nil
 }
 
+func (m *mockQuerier) CreateIdempotencyKey(context.Context, repository.CreateIdempotencyKeyParams) error {
+	return nil
+}
+
+func (m *mockQuerier) DeleteOldIdempotencyKeys(context.Context, pgtype.Timestamptz) error {
+	return nil
+}
+
+func (m *mockQuerier) GetIdempotencyKey(context.Context, repository.GetIdempotencyKeyParams) (repository.IdempotencyKey, error) {
+	return repository.IdempotencyKey{}, nil
+}
+
+func (m *mockQuerier) UpdateIdempotencyKeyResponse(context.Context, repository.UpdateIdempotencyKeyResponseParams) error {
+	return nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

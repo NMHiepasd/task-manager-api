@@ -31,8 +31,10 @@ type Config struct {
 	DBMaxConnLifetime   time.Duration `env:"DB_MAX_CONN_LIFETIME" envDefault:"1h"`
 	DBMaxConnIdleTime   time.Duration `env:"DB_MAX_CONN_IDLE_TIME" envDefault:"30m"`
 	DBHealthCheckPeriod time.Duration `env:"DB_HEALTH_CHECK_PERIOD" envDefault:"1m"`
+	DBStatementTimeout  time.Duration `env:"DB_STATEMENT_TIMEOUT" envDefault:"10s"`
 
-	// HTTP Server Timeouts
+	// HTTP Server & Middleware Timeouts
+	RequestTimeout          time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
 	ServerReadHeaderTimeout time.Duration `env:"SERVER_READ_HEADER_TIMEOUT" envDefault:"5s"`
 	ServerReadTimeout       time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
 	ServerWriteTimeout      time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"10s"`

@@ -23,6 +23,14 @@ func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	poolConfig.MaxConnIdleTime = cfg.DBMaxConnIdleTime
 	poolConfig.HealthCheckPeriod = cfg.DBHealthCheckPeriod
 
+	// Configure server-side statement timeout to prevent runaway queries
+	if cfg.DBStatementTimeout > 0 {
+		if poolConfig.ConnConfig.RuntimeParams == nil {
+			poolConfig.ConnConfig.RuntimeParams = make(map[string]string)
+		}
+		poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = fmt.Sprintf("%d", cfg.DBStatementTimeout.Milliseconds())
+	}
+
 	// Establish connection pool
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

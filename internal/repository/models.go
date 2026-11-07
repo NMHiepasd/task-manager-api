@@ -9,6 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type IdempotencyKey struct {
+	Key          string             `json:"key"`
+	UserID       uuid.UUID          `json:"user_id"`
+	RequestPath  string             `json:"request_path"`
+	ParamsHash   string             `json:"params_hash"`
+	ResponseCode pgtype.Int4        `json:"response_code"`
+	ResponseBody []byte             `json:"response_body"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	LockedAt     pgtype.Timestamptz `json:"locked_at"`
+}
+
 type Project struct {
 	ID          uuid.UUID          `json:"id"`
 	OwnerID     uuid.UUID          `json:"owner_id"`

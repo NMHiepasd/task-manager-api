@@ -202,16 +202,16 @@ Làm xen kẽ từ Phase 2, chốt ở phase này.
 - [x] `gin-contrib/cors` cấu hình whitelist origin cụ thể
 - [x] `gin-contrib/secure` thêm security headers
 - [x] Rate limit toàn cục theo IP/user (kết hợp Redis ở phase sau)
-- [ ] Idempotency-Key cho `POST /tasks` (bảng DB hoặc Redis, TTL 24h)
-- [ ] Timeout cho request (`context.WithTimeout`) và cho query DB
-- [ ] Rà soát theo OWASP API Security Top 10, ghi kết quả vào `docs/security.md`
-- [ ] Chạy `govulncheck`, `gosec`, `gitleaks`, `trivy image` và sửa các cảnh báo
+- [x] Idempotency-Key cho `POST /tasks` (bảng DB hoặc Redis, TTL 24h)
+- [x] Timeout cho request (`context.WithTimeout`) và cho query DB
+- [x] Rà soát theo OWASP API Security Top 10, ghi kết quả vào `docs/security.md`
+- [x] Chạy `govulncheck`, `gosec`, `gitleaks`, `trivy image` và sửa các cảnh báo
 - [x] Rà soát log: không có mật khẩu/token/email thô
 - [x] Quản lý secret: không hardcode, `.env` không commit
 
 **DoD**
 
-- [ ] Các công cụ quét không còn lỗi mức High/Critical
+- [x] Các công cụ quét không còn lỗi mức High/Critical
 
 ## Phase 8: Cache và tối ưu hiệu năng
 

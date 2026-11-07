@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/domain"
+	"task-manager-api/internal/repository"
 	"task-manager-api/internal/service"
 	"task-manager-api/internal/transport/http/handler"
 	"task-manager-api/internal/transport/http/middleware"
@@ -59,6 +60,7 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		middleware.Recovery(deps.Logger),
 		middleware.SecurityHeaders(deps.Config.AppEnv == "production"),
 		middleware.CORS(deps.Config.CORSAllowedOrigins),
+		middleware.Timeout(deps.Config.RequestTimeout),
 		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
 	)
@@ -151,7 +153,11 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			taskGroup := v1.Group("/tasks")
 			taskGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
-				taskGroup.POST("", taskHandler.Create)
+				if deps.DBPool != nil {
+					taskGroup.POST("", middleware.Idempotency(repository.New(deps.DBPool)), taskHandler.Create)
+				} else {
+					taskGroup.POST("", taskHandler.Create)
+				}
 				taskGroup.GET("", taskHandler.List)
 				taskGroup.GET("/:id", taskHandler.GetByID)
 				taskGroup.PUT("/:id", taskHandler.Update)

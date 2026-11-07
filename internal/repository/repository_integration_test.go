@@ -6,11 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -68,11 +71,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Apply schema migrations
-	migrationFiles := []string{
-		filepath.Join("..", "..", "migrations", "000001_create_initial_schema.up.sql"),
-		filepath.Join("..", "..", "migrations", "000002_add_fts_and_indexes.up.sql"),
+	// Apply schema migrations automatically
+	migrationFiles, err := filepath.Glob(filepath.Join("..", "..", "migrations", "*.up.sql"))
+	if err != nil || len(migrationFiles) == 0 {
+		fmt.Fprintf(os.Stderr, "failed to find migrations: %v\n", err)
+		_ = pgContainer.Terminate(ctx)
+		os.Exit(1)
 	}
+	sort.Strings(migrationFiles)
 
 	for _, file := range migrationFiles {
 		sqlBytes, err := os.ReadFile(file)
@@ -406,4 +412,64 @@ func TestIntegration_TransactionWithTx_RollbackAndCommit(t *testing.T) {
 	for _, tg := range tagsAfterRollback {
 		assert.NotEqual(t, tag3.ID, tg.ID)
 	}
+}
+
+func TestIdempotencyKeys_Integration(t *testing.T) {
+	ctx := context.Background()
+
+	user, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        fmt.Sprintf("idempotent-%s@example.com", uuid.NewString()),
+		PasswordHash: "hashed-pw",
+		FullName:     "Idempotent User",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	key := uuid.NewString()
+	paramsHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+	// 1. Create key
+	err = testStore.CreateIdempotencyKey(ctx, repository.CreateIdempotencyKeyParams{
+		Key:         key,
+		UserID:      user.ID,
+		RequestPath: "/api/v1/tasks",
+		ParamsHash:  paramsHash,
+	})
+	require.NoError(t, err)
+
+	// 2. Duplicate key creation should return 23505 unique violation
+	err = testStore.CreateIdempotencyKey(ctx, repository.CreateIdempotencyKeyParams{
+		Key:         key,
+		UserID:      user.ID,
+		RequestPath: "/api/v1/tasks",
+		ParamsHash:  paramsHash,
+	})
+	require.Error(t, err)
+
+	// 3. Update response
+	respBody := []byte(`{"id":"task-123","status":"created"}`)
+	err = testStore.UpdateIdempotencyKeyResponse(ctx, repository.UpdateIdempotencyKeyResponseParams{
+		Key:          key,
+		UserID:       user.ID,
+		ResponseCode: pgtype.Int4{Int32: http.StatusCreated, Valid: true},
+		ResponseBody: respBody,
+	})
+	require.NoError(t, err)
+
+	// 4. Retrieve key
+	saved, err := testStore.GetIdempotencyKey(ctx, repository.GetIdempotencyKeyParams{
+		Key:    key,
+		UserID: user.ID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, key, saved.Key)
+	assert.Equal(t, user.ID, saved.UserID)
+	assert.True(t, saved.ResponseCode.Valid)
+	assert.Equal(t, int32(http.StatusCreated), saved.ResponseCode.Int32)
+	assert.Equal(t, respBody, saved.ResponseBody)
+
+	// 5. Cleanup
+	future := pgtype.Timestamptz{Time: time.Now().Add(1 * time.Hour), Valid: true}
+	err = testStore.DeleteOldIdempotencyKeys(ctx, future)
+	require.NoError(t, err)
 }
