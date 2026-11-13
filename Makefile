@@ -1,4 +1,4 @@
-.PHONY: help run build test test-race test-integration test-fuzz bench load-test cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
+.PHONY: help run build test test-race test-integration test-fuzz test-migrations bench load-test cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
 
 # Default target
 .DEFAULT_GOAL := help
@@ -61,10 +61,19 @@ swagger: ## Generate Swagger API documentation
 	swag init -g cmd/api/main.go -o docs/swagger --parseInternal --parseDependency
 
 migrate-up: ## Run database migrations up
-	docker exec -i task_manager_db psql -U postgres -d task_manager -c "$$(cat migrations/000001_create_initial_schema.up.sql)"
+	@for file in $$(ls -1 migrations/*.up.sql | sort); do \
+		echo "Applying $$file..."; \
+		docker exec -i task_manager_db psql -U postgres -d task_manager -v ON_ERROR_STOP=1 < $$file; \
+	done
 
 migrate-down: ## Rollback migrations
-	docker exec -i task_manager_db psql -U postgres -d task_manager -c "$$(cat migrations/000001_create_initial_schema.down.sql)"
+	@for file in $$(ls -1 migrations/*.down.sql | sort -r); do \
+		echo "Rolling back $$file..."; \
+		docker exec -i task_manager_db psql -U postgres -d task_manager -v ON_ERROR_STOP=1 < $$file; \
+	done
+
+test-migrations: ## Test schema migrations up, down, and up again
+	bash scripts/test-migrations.sh
 
 sqlc: ## Generate type-safe Go code with sqlc
 	MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w //src sqlc/sqlc:latest generate
