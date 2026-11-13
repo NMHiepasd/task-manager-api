@@ -473,3 +473,116 @@ func TestIdempotencyKeys_Integration(t *testing.T) {
 	err = testStore.DeleteOldIdempotencyKeys(ctx, future)
 	require.NoError(t, err)
 }
+
+func TestStore_ListTasksDueSoon(t *testing.T) {
+	ctx := context.Background()
+	user, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        fmt.Sprintf("duesoon-%s@example.com", uuid.NewString()),
+		PasswordHash: "hashed-pw",
+		FullName:     "Due Soon User",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	project, err := testStore.CreateProject(ctx, repository.CreateProjectParams{
+		OwnerID:     user.ID,
+		Name:        "Due Soon Project",
+		Description: "Due Soon Desc",
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	// Task 1: Due in 2 hours (should be included)
+	task1, err := testStore.CreateTask(ctx, repository.CreateTaskParams{
+		ProjectID:   pgtype.UUID{Bytes: project.ID, Valid: true},
+		CreatorID:   user.ID,
+		AssigneeID:  pgtype.UUID{Bytes: user.ID, Valid: true},
+		Title:       "Task Due in 2h",
+		Description: "Task description",
+		Status:      "todo",
+		Priority:    "high",
+		DueDate:     pgtype.Timestamptz{Time: now.Add(2 * time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Task 2: Due in 48 hours (should NOT be included in 24h window)
+	_, err = testStore.CreateTask(ctx, repository.CreateTaskParams{
+		ProjectID:   pgtype.UUID{Bytes: project.ID, Valid: true},
+		CreatorID:   user.ID,
+		AssigneeID:  pgtype.UUID{Bytes: user.ID, Valid: true},
+		Title:       "Task Due in 48h",
+		Description: "Task description",
+		Status:      "todo",
+		Priority:    "low",
+		DueDate:     pgtype.Timestamptz{Time: now.Add(48 * time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Task 3: Already completed (should NOT be included)
+	_, err = testStore.CreateTask(ctx, repository.CreateTaskParams{
+		ProjectID:   pgtype.UUID{Bytes: project.ID, Valid: true},
+		CreatorID:   user.ID,
+		AssigneeID:  pgtype.UUID{Bytes: user.ID, Valid: true},
+		Title:       "Completed Task",
+		Description: "Task description",
+		Status:      "completed",
+		Priority:    "medium",
+		DueDate:     pgtype.Timestamptz{Time: now.Add(1 * time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Query tasks due within next 24 hours
+	threshold := pgtype.Timestamptz{Time: now.Add(24 * time.Hour), Valid: true}
+	dueTasks, err := testStore.ListTasksDueSoon(ctx, repository.ListTasksDueSoonParams{
+		DueDate: threshold,
+		Limit:   50,
+	})
+	require.NoError(t, err)
+
+	var found bool
+	for _, dt := range dueTasks {
+		if dt.ID == task1.ID {
+			found = true
+			assert.Equal(t, task1.Title, dt.Title)
+			assert.Equal(t, user.Email, dt.RecipientEmail)
+			assert.Equal(t, user.FullName, dt.RecipientName)
+		}
+	}
+	assert.True(t, found, "Expected task1 to be found in ListTasksDueSoon")
+}
+
+func TestStore_DeleteExpiredRefreshTokens(t *testing.T) {
+	ctx := context.Background()
+	user, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        fmt.Sprintf("expiredtok-%s@example.com", uuid.NewString()),
+		PasswordHash: "hashed-pw",
+		FullName:     "Expired Tok User",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	// 1. Create active token
+	_, err = testStore.CreateRefreshToken(ctx, repository.CreateRefreshTokenParams{
+		UserID:    user.ID,
+		TokenHash: fmt.Sprintf("active-hash-%s", uuid.New().String()),
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// 2. Create expired token
+	expiredHash := fmt.Sprintf("expired-hash-%s", uuid.New().String())
+	_, err = testStore.CreateRefreshToken(ctx, repository.CreateRefreshTokenParams{
+		UserID:    user.ID,
+		TokenHash: expiredHash,
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// 3. Delete expired tokens
+	err = testStore.DeleteExpiredRefreshTokens(ctx)
+	require.NoError(t, err)
+
+	// 4. Verify expired token is gone
+	_, err = testStore.GetRefreshTokenByHash(ctx, expiredHash)
+	assert.Error(t, err)
+}

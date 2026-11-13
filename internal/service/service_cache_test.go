@@ -201,6 +201,10 @@ func (m *mockQuerierWithHooks) UpdateIdempotencyKeyResponse(context.Context, rep
 	return nil
 }
 
+func (m *mockQuerierWithHooks) ListTasksDueSoon(context.Context, repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error) {
+	return nil, nil
+}
+
 func (m *mockQuerierWithHooks) CreateUser(context.Context, repository.CreateUserParams) (repository.User, error) {
 	return repository.User{}, nil
 }

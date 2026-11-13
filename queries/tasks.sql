@@ -86,3 +86,26 @@ RETURNING *;
 UPDATE tasks
 SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: ListTasksDueSoon :many
+SELECT 
+    t.id,
+    t.title,
+    t.description,
+    t.status,
+    t.priority,
+    t.due_date,
+    t.creator_id,
+    t.assignee_id,
+    u.email AS recipient_email,
+    u.full_name AS recipient_name
+FROM tasks t
+JOIN users u ON u.id = COALESCE(t.assignee_id, t.creator_id)
+WHERE t.deleted_at IS NULL
+  AND t.status IN ('todo', 'in_progress')
+  AND t.due_date IS NOT NULL
+  AND t.due_date > CURRENT_TIMESTAMP
+  AND t.due_date <= $1
+ORDER BY t.due_date ASC
+LIMIT $2;
+

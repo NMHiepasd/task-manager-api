@@ -93,6 +93,10 @@ func (m *mockIdempotencyQuerier) DeleteOldIdempotencyKeys(context.Context, pgtyp
 	return nil
 }
 
+func (m *mockIdempotencyQuerier) ListTasksDueSoon(context.Context, repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error) {
+	return nil, nil
+}
+
 func (m *mockIdempotencyQuerier) CreateUser(context.Context, repository.CreateUserParams) (repository.User, error) {
 	return repository.User{}, nil
 }

@@ -184,6 +184,10 @@ func (m *mockQuerier) UpdateIdempotencyKeyResponse(context.Context, repository.U
 	return nil
 }
 
+func (m *mockQuerier) ListTasksDueSoon(context.Context, repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error) {
+	return nil, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

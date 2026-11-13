@@ -39,6 +39,7 @@ type Querier interface {
 	ListTagsByUser(ctx context.Context, userID uuid.UUID) ([]Tag, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error)
+	ListTasksDueSoon(ctx context.Context, arg ListTasksDueSoonParams) ([]ListTasksDueSoonRow, error)
 	ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error

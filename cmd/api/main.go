@@ -27,6 +27,7 @@ import (
 	"task-manager-api/internal/database"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/service"
+	"task-manager-api/internal/worker"
 	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
 	"task-manager-api/pkg/metrics"
@@ -34,6 +35,7 @@ import (
 	"task-manager-api/pkg/tracer"
 	"time"
 
+	"github.com/hibiken/asynq"
 	transportHttp "task-manager-api/internal/transport/http"
 )
 
@@ -114,7 +116,45 @@ func main() {
 	taskService := service.NewTaskService(store)
 	tagService := service.NewTagService(store, cacheStore)
 
-	// 8. Initialize HTTP router with dependencies
+	// 8. Initialize Asynq background worker and scheduler (if enabled)
+	if cfg.WorkerEnabled {
+		redisOpt, err := asynq.ParseRedisURI(cfg.RedisURL)
+		if err != nil {
+			log.Warn("Failed to parse Redis URI for background worker", "error", err)
+		} else {
+			distributor := worker.NewRedisTaskDistributor(redisOpt)
+			defer func() {
+				if err := distributor.Close(); err != nil {
+					log.Warn("Error closing task distributor", "error", err)
+				}
+			}()
+
+			processor := worker.NewRedisTaskProcessor(redisOpt, cfg, store, distributor, log)
+			if err := processor.Start(); err != nil {
+				log.Error("Failed to start background task processor", "error", err)
+			} else {
+				defer processor.Shutdown()
+			}
+
+			scheduler, err := worker.NewScheduler(redisOpt, cfg, log)
+			if err != nil {
+				log.Error("Failed to initialize background task scheduler", "error", err)
+			} else {
+				if err := scheduler.Start(); err != nil {
+					log.Error("Failed to start background task scheduler", "error", err)
+				} else {
+					defer scheduler.Shutdown()
+				}
+			}
+			log.Info("Background task worker and cron scheduler initialized successfully",
+				"concurrency", cfg.WorkerConcurrency,
+				"cleanup_cron", cfg.CleanupCronSchedule,
+				"deadline_cron", cfg.DeadlineReminderCronSchedule,
+			)
+		}
+	}
+
+	// 9. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config:         cfg,
 		Logger:         log,

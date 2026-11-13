@@ -15,8 +15,7 @@ import (
 func InitTracer(_ context.Context, serviceName, environment string) (*sdktrace.TracerProvider, func(context.Context) error, error) {
 	res, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+		resource.NewSchemaless(
 			semconv.ServiceNameKey.String(serviceName),
 			semconv.DeploymentEnvironmentKey.String(environment),
 		),

@@ -45,6 +45,12 @@ type Config struct {
 	RedisDB         int           `env:"REDIS_DB" envDefault:"0"`
 	CacheDefaultTTL time.Duration `env:"CACHE_DEFAULT_TTL" envDefault:"15m"`
 
+	// Background Worker & Asynq
+	WorkerEnabled                bool   `env:"WORKER_ENABLED" envDefault:"true"`
+	WorkerConcurrency            int    `env:"WORKER_CONCURRENCY" envDefault:"10"`
+	CleanupCronSchedule          string `env:"CLEANUP_CRON_SCHEDULE" envDefault:"@every 6h"`
+	DeadlineReminderCronSchedule string `env:"DEADLINE_REMINDER_CRON_SCHEDULE" envDefault:"@hourly"`
+
 	// HTTP Server & Middleware Timeouts
 	RequestTimeout          time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
 	ServerReadHeaderTimeout time.Duration `env:"SERVER_READ_HEADER_TIMEOUT" envDefault:"5s"`

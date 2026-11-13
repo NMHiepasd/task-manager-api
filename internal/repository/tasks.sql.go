@@ -253,6 +253,78 @@ func (q *Queries) ListTasksByCreator(ctx context.Context, arg ListTasksByCreator
 	return items, nil
 }
 
+const listTasksDueSoon = `-- name: ListTasksDueSoon :many
+SELECT 
+    t.id,
+    t.title,
+    t.description,
+    t.status,
+    t.priority,
+    t.due_date,
+    t.creator_id,
+    t.assignee_id,
+    u.email AS recipient_email,
+    u.full_name AS recipient_name
+FROM tasks t
+JOIN users u ON u.id = COALESCE(t.assignee_id, t.creator_id)
+WHERE t.deleted_at IS NULL
+  AND t.status IN ('todo', 'in_progress')
+  AND t.due_date IS NOT NULL
+  AND t.due_date > CURRENT_TIMESTAMP
+  AND t.due_date <= $1
+ORDER BY t.due_date ASC
+LIMIT $2
+`
+
+type ListTasksDueSoonParams struct {
+	DueDate pgtype.Timestamptz `json:"due_date"`
+	Limit   int32              `json:"limit"`
+}
+
+type ListTasksDueSoonRow struct {
+	ID             uuid.UUID          `json:"id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Status         string             `json:"status"`
+	Priority       string             `json:"priority"`
+	DueDate        pgtype.Timestamptz `json:"due_date"`
+	CreatorID      uuid.UUID          `json:"creator_id"`
+	AssigneeID     pgtype.UUID        `json:"assignee_id"`
+	RecipientEmail string             `json:"recipient_email"`
+	RecipientName  string             `json:"recipient_name"`
+}
+
+func (q *Queries) ListTasksDueSoon(ctx context.Context, arg ListTasksDueSoonParams) ([]ListTasksDueSoonRow, error) {
+	rows, err := q.db.Query(ctx, listTasksDueSoon, arg.DueDate, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTasksDueSoonRow{}
+	for rows.Next() {
+		var i ListTasksDueSoonRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+			&i.CreatorID,
+			&i.AssigneeID,
+			&i.RecipientEmail,
+			&i.RecipientName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksKeyset = `-- name: ListTasksKeyset :many
 SELECT id, project_id, creator_id, assignee_id, title, description, status, priority, due_date, version, created_at, updated_at, deleted_at FROM tasks
 WHERE deleted_at IS NULL

@@ -277,6 +277,20 @@ The service includes production-grade observability out-of-the-box using **Prome
 
 ---
 
+## Background Jobs & Task Scheduling (`asynq`)
+
+Asynchronous task processing and recurring jobs are powered by **Asynq** backed by Redis:
+- **Priority Queues**:
+  - `critical` (weight 6): High-priority alerts and notifications (`task:deadline_reminder`).
+  - `default` (weight 3): Recurring scanner tasks (`task:scan_due_tasks`).
+  - `low` (weight 1): Periodic database maintenance (`task:cleanup_expired_tokens`).
+- **Recurring Jobs**:
+  - **Expired Refresh Tokens Pruning**: Scheduled periodically (`CLEANUP_CRON_SCHEDULE`, default `@every 6h`) to clean expired tokens from PostgreSQL.
+  - **Upcoming Task Deadline Reminder**: Scheduled periodically (`DEADLINE_REMINDER_CRON_SCHEDULE`, default `@hourly`) to detect tasks approaching deadline within 24 hours and fan out individual alert tasks.
+- **Resilience**: Configurable concurrency, automatic exponential backoff retries, and graceful worker draining on SIGTERM/SIGINT.
+
+---
+
 ## Testing Strategy
 
 The repository employs a multi-tiered automated testing regimen:
@@ -336,6 +350,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-008: Caching Strategy and Performance Optimization](docs/adr/0008-caching-strategy-and-performance-optimization.md)**
 - **[ADR-009: CI/CD Pipeline, Security Scanning, and Container Registry Packaging](docs/adr/0009-ci-cd-pipeline-and-container-packaging.md)**
 - **[ADR-010: Observability Strategy (Prometheus RED Metrics, OpenTelemetry Tracing, and Grafana)](docs/adr/0010-observability-prometheus-and-opentelemetry.md)**
+- **[ADR-011: Background Jobs and Asynchronous Task Processing with Asynq and Redis](docs/adr/0011-background-jobs-with-asynq-and-redis.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---
