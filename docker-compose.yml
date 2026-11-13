@@ -43,6 +43,8 @@ services:
       DB_MAX_CONN_IDLE_TIME: 30m
       DB_HEALTH_CHECK_PERIOD: 1m
       REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_AUTH_LIMIT: ${RATE_LIMIT_AUTH_LIMIT:-100}
+      RATE_LIMIT_API_LIMIT: ${RATE_LIMIT_API_LIMIT:-10000}
     depends_on:
       db:
         condition: service_healthy
