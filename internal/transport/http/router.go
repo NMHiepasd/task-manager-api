@@ -13,9 +13,12 @@ import (
 	"task-manager-api/internal/service"
 	"task-manager-api/internal/transport/http/handler"
 	"task-manager-api/internal/transport/http/middleware"
+	"task-manager-api/pkg/metrics"
 	"task-manager-api/pkg/token"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"golang.org/x/time/rate"
 
 	_ "task-manager-api/docs/swagger" // docs is imported for side-effect Swagger registration
@@ -33,6 +36,7 @@ type RouterDependencies struct {
 	Logger         *slog.Logger
 	DBPool         *pgxpool.Pool
 	Cache          cache.Cache
+	Metrics        *metrics.Metrics
 	AuthService    service.AuthService
 	UserService    service.UserService
 	ProjectService service.ProjectService
@@ -65,17 +69,27 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 
 	// Attach standard global middlewares
 	router.Use(
+		otelgin.Middleware("task-manager-api"),
 		middleware.RequestID(),
 		middleware.StructuredLogger(deps.Logger),
 		middleware.Recovery(deps.Logger),
 		middleware.SecurityHeaders(deps.Config.AppEnv == "production"),
 		middleware.CORS(deps.Config.CORSAllowedOrigins),
 		middleware.Timeout(deps.Config.RequestTimeout),
-		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz", "/debug/pprof"})),
+		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz", "/debug/pprof", "/metrics"})),
 		middleware.ETag(),
 		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
 	)
+
+	// Attach Prometheus RED metrics middleware if provided
+	if deps.Metrics != nil {
+		if deps.DBPool != nil {
+			deps.Metrics.RegisterDBPoolStats(deps.DBPool)
+		}
+		router.Use(middleware.Prometheus(deps.Metrics))
+		router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(deps.Metrics.Registry, promhttp.HandlerOpts{})))
+	}
 
 	// NoRoute handler: RFC 9457 404
 	router.NoRoute(func(c *gin.Context) {

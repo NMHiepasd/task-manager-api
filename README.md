@@ -251,6 +251,32 @@ docker compose up --build -d
 
 ---
 
+## Observability & Monitoring
+
+The service includes production-grade observability out-of-the-box using **Prometheus**, **OpenTelemetry**, and **Grafana**:
+
+### 1. Prometheus Metrics (`/metrics`)
+- **RED Method**: Request rate, error rates, and duration percentiles (`taskmanager_http_requests_total`, `taskmanager_http_request_duration_seconds`).
+- **Bounded Cardinality**: Route paths are normalized to Gin route templates (e.g. `/api/v1/tasks/:id`) using `c.FullPath()`.
+- **Database Connection Pool Metrics**: Real-time stats on `pgxpool.Pool` (total, idle, acquired, max connections).
+- Scrape endpoint available at: **[http://localhost:8080/metrics](http://localhost:8080/metrics)**
+- Prometheus UI: **[http://localhost:9090](http://localhost:9090)**
+
+### 2. OpenTelemetry Distributed Tracing
+- Tracing provider initialized with standard resource attributes (`service.name=task-manager-api`).
+- Standard W3C TraceContext propagation across HTTP boundaries (`traceparent` header).
+- Middleware integration via `otelgin`.
+
+### 3. Grafana Dashboards
+- Pre-provisioned Prometheus datasource and operational dashboard at: **[http://localhost:3001](http://localhost:3001)** (credentials: `admin` / `admin`).
+- Pre-configured panels:
+  - **HTTP Request Rate** (Requests/sec by HTTP status)
+  - **Latency Percentiles** (p50, p95, p99)
+  - **In-Flight Requests**
+  - **PostgreSQL Pool Health** (Acquired vs Idle vs Max connections)
+
+---
+
 ## Testing Strategy
 
 The repository employs a multi-tiered automated testing regimen:
@@ -309,6 +335,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-007: Idempotency-Key Header and Request Timeout Strategy](docs/adr/0007-idempotency-key-and-request-timeout.md)**
 - **[ADR-008: Caching Strategy and Performance Optimization](docs/adr/0008-caching-strategy-and-performance-optimization.md)**
 - **[ADR-009: CI/CD Pipeline, Security Scanning, and Container Registry Packaging](docs/adr/0009-ci-cd-pipeline-and-container-packaging.md)**
+- **[ADR-010: Observability Strategy (Prometheus RED Metrics, OpenTelemetry Tracing, and Grafana)](docs/adr/0010-observability-prometheus-and-opentelemetry.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

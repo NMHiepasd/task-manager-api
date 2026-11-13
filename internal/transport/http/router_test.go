@@ -12,8 +12,10 @@ import (
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
 	"task-manager-api/internal/transport/http/middleware"
+	"task-manager-api/pkg/metrics"
 	"task-manager-api/pkg/token"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -223,4 +225,29 @@ func TestRouter_PProf(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Types of profiles available:")
+}
+
+func TestRouter_Metrics(t *testing.T) {
+	appMetrics := metrics.NewMetrics()
+	cfg := &config.Config{
+		AppEnv:  "test",
+		GinMode: "test",
+	}
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config:  cfg,
+		Logger:  log,
+		Metrics: appMetrics,
+	})
+
+	// Pre-record an observation so CounterVec emits the metric family
+	appMetrics.ObserveRequest("GET", "/api/v1/test", 200, 5*time.Millisecond, 256)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "taskmanager_http_in_flight_requests")
+	assert.Contains(t, rec.Body.String(), "taskmanager_http_requests_total")
 }

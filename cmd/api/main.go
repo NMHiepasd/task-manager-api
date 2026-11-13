@@ -29,7 +29,9 @@ import (
 	"task-manager-api/internal/service"
 	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
+	"task-manager-api/pkg/metrics"
 	"task-manager-api/pkg/token"
+	"task-manager-api/pkg/tracer"
 	"time"
 
 	transportHttp "task-manager-api/internal/transport/http"
@@ -82,7 +84,22 @@ func main() {
 		log.Info("Redis cache connection established", "url", cfg.RedisURL)
 	}
 
-	// 5. Initialize repository, services, and token maker
+	// 5. Initialize OpenTelemetry tracing
+	_, tracerCleanup, err := tracer.InitTracer(ctx, "task-manager-api", cfg.AppEnv)
+	if err != nil {
+		log.Warn("Failed to initialize OpenTelemetry tracer", "error", err)
+	} else {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = tracerCleanup(shutdownCtx)
+		}()
+	}
+
+	// 6. Initialize Prometheus RED metrics
+	appMetrics := metrics.NewMetrics()
+
+	// 7. Initialize repository, services, and token maker
 	tokenMaker, err := token.NewJWTMaker(cfg.JWTSecret)
 	if err != nil {
 		log.Error("Failed to initialize JWT token maker", "error", err)
@@ -97,12 +114,13 @@ func main() {
 	taskService := service.NewTaskService(store)
 	tagService := service.NewTagService(store, cacheStore)
 
-	// 6. Initialize HTTP router with dependencies
+	// 8. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config:         cfg,
 		Logger:         log,
 		DBPool:         pool,
 		Cache:          cacheStore,
+		Metrics:        appMetrics,
 		AuthService:    authService,
 		UserService:    userService,
 		ProjectService: projectService,

@@ -266,8 +266,8 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 ## Phase 10: Nâng cấp (tùy chọn)
 
 - [ ] Background job (nhắc deadline, dọn token hết hạn): `river` (Postgres) hoặc `asynq` (Redis)
-- [ ] Metrics: `prometheus/client_golang` + Grafana (latency, RPS, error rate)
-- [ ] Tracing: OpenTelemetry + `otelgin` + `otelpgx`
+- [x] Metrics: `prometheus/client_golang` + Grafana (latency, RPS, error rate)
+- [x] Tracing: OpenTelemetry + `otelgin` + `otelpgx`
 - [ ] Alerting: Alertmanager hoặc Grafana Alerting
 - [ ] Kiểm thử API tự động từ spec: `schemathesis`
 - [ ] Tính năng thêm: comment, file đính kèm (S3/MinIO), chia sẻ project, webhook
