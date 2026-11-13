@@ -222,6 +222,46 @@ func (m *mockIdempotencyQuerier) UpdateUser(context.Context, repository.UpdateUs
 	return repository.User{}, nil
 }
 
+func (m *mockIdempotencyQuerier) AddProjectMember(context.Context, repository.AddProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockIdempotencyQuerier) CountProjectMembers(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) CountProjectsByMember(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteProjectMember(context.Context, repository.DeleteProjectMemberParams) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) GetProjectMember(context.Context, repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockIdempotencyQuerier) GetProjectMemberWithUser(context.Context, repository.GetProjectMemberWithUserParams) (repository.GetProjectMemberWithUserRow, error) {
+	return repository.GetProjectMemberWithUserRow{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ListProjectMembers(context.Context, uuid.UUID) ([]repository.ListProjectMembersRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) ListProjectsByMember(context.Context, repository.ListProjectsByMemberParams) ([]repository.ListProjectsByMemberRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) ListProjectsByMemberKeyset(context.Context, repository.ListProjectsByMemberKeysetParams) ([]repository.ListProjectsByMemberKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) UpdateProjectMemberRole(context.Context, repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

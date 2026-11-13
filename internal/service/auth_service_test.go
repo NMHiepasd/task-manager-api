@@ -188,6 +188,46 @@ func (m *mockQuerier) ListTasksDueSoon(context.Context, repository.ListTasksDueS
 	return nil, nil
 }
 
+func (m *mockQuerier) AddProjectMember(context.Context, repository.AddProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockQuerier) CountProjectMembers(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) CountProjectsByMember(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) DeleteProjectMember(context.Context, repository.DeleteProjectMemberParams) error {
+	return nil
+}
+
+func (m *mockQuerier) GetProjectMember(context.Context, repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockQuerier) GetProjectMemberWithUser(context.Context, repository.GetProjectMemberWithUserParams) (repository.GetProjectMemberWithUserRow, error) {
+	return repository.GetProjectMemberWithUserRow{}, nil
+}
+
+func (m *mockQuerier) ListProjectMembers(context.Context, uuid.UUID) ([]repository.ListProjectMembersRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListProjectsByMember(context.Context, repository.ListProjectsByMemberParams) ([]repository.ListProjectsByMemberRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListProjectsByMemberKeyset(context.Context, repository.ListProjectsByMemberKeysetParams) ([]repository.ListProjectsByMemberKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) UpdateProjectMemberRole(context.Context, repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

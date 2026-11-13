@@ -308,3 +308,43 @@ func (m *mockQuerierWithHooks) SoftDeleteUser(context.Context, uuid.UUID) error 
 func (m *mockQuerierWithHooks) UpdateUser(context.Context, repository.UpdateUserParams) (repository.User, error) {
 	return repository.User{}, nil
 }
+
+func (m *mockQuerierWithHooks) AddProjectMember(context.Context, repository.AddProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockQuerierWithHooks) CountProjectMembers(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) CountProjectsByMember(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) DeleteProjectMember(context.Context, repository.DeleteProjectMemberParams) error {
+	return nil
+}
+
+func (m *mockQuerierWithHooks) GetProjectMember(context.Context, repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}
+
+func (m *mockQuerierWithHooks) GetProjectMemberWithUser(context.Context, repository.GetProjectMemberWithUserParams) (repository.GetProjectMemberWithUserRow, error) {
+	return repository.GetProjectMemberWithUserRow{}, nil
+}
+
+func (m *mockQuerierWithHooks) ListProjectMembers(context.Context, uuid.UUID) ([]repository.ListProjectMembersRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) ListProjectsByMember(context.Context, repository.ListProjectsByMemberParams) ([]repository.ListProjectsByMemberRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) ListProjectsByMemberKeyset(context.Context, repository.ListProjectsByMemberKeysetParams) ([]repository.ListProjectsByMemberKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) UpdateProjectMemberRole(context.Context, repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+	return repository.ProjectMember{}, nil
+}

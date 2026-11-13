@@ -25,6 +25,17 @@ type UpdateProjectRequest struct {
 	Version     int32  `json:"version" binding:"required,min=1"`
 }
 
+// AddProjectMemberRequest defines input payload for adding a project member.
+type AddProjectMemberRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Role  string `json:"role" binding:"required,oneof=editor viewer"`
+}
+
+// UpdateProjectMemberRoleRequest defines input payload for updating a member's role.
+type UpdateProjectMemberRoleRequest struct {
+	Role string `json:"role" binding:"required,oneof=editor viewer"`
+}
+
 // ListProjectsQuery specifies query parameters for listing projects.
 type ListProjectsQuery struct {
 	Cursor string `form:"cursor"`
@@ -248,5 +259,207 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Project deleted successfully",
+	})
+}
+
+// AddMember adds a collaborator to the project by email.
+// @Summary      Add project member
+// @Description  Add a collaborator to the project by email with role editor or viewer. Only project owner can perform this.
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Param        payload body AddProjectMemberRequest true "Member payload"
+// @Success      201 {object} service.ProjectMemberResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      403 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      409 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/projects/{id}/members [post]
+func (h *ProjectHandler) AddMember(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	var req AddProjectMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	member, err := h.projectService.AddMember(c.Request.Context(), userID, projectID, service.AddProjectMemberInput{
+		Email: req.Email,
+		Role:  req.Role,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, member)
+}
+
+// ListMembers lists all collaborators in a project.
+// @Summary      List project members
+// @Description  List all members of a project. Caller must be a project member.
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Success      200 {array} service.ProjectMemberResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/projects/{id}/members [get]
+func (h *ProjectHandler) ListMembers(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	members, err := h.projectService.ListMembers(c.Request.Context(), userID, projectID)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, members)
+}
+
+// UpdateMemberRole updates a member's role in the project.
+// @Summary      Update member role
+// @Description  Update a collaborator's role in the project (editor or viewer). Only project owner can perform this.
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Param        userId path string true "User UUID of collaborator"
+// @Param        payload body UpdateProjectMemberRoleRequest true "Role payload"
+// @Success      200 {object} service.ProjectMemberResponse
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      403 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/projects/{id}/members/{userId} [patch]
+func (h *ProjectHandler) UpdateMemberRole(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	targetUserID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "userId", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	var req UpdateProjectMemberRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	updated, err := h.projectService.UpdateMemberRole(c.Request.Context(), userID, projectID, targetUserID, service.UpdateProjectMemberRoleInput{
+		Role: req.Role,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
+}
+
+// RemoveMember removes a collaborator from the project or allows a member to leave.
+// @Summary      Remove project member
+// @Description  Remove a collaborator from the project (owner can remove members, members can remove themselves).
+// @Tags         projects
+// @Produce      json
+// @Produce      application/problem+json
+// @Security     BearerAuth
+// @Param        id path string true "Project UUID"
+// @Param        userId path string true "User UUID of collaborator"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} ProblemDetails
+// @Failure      401 {object} ProblemDetails
+// @Failure      403 {object} ProblemDetails
+// @Failure      404 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
+// @Router       /api/v1/projects/{id}/members/{userId} [delete]
+func (h *ProjectHandler) RemoveMember(c *gin.Context) {
+	userID, err := middleware.GetAuthUserID(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "id", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	targetUserID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		_ = c.Error(domain.ValidationErrors{
+			Message: "Invalid UUID format in path parameter",
+			Params:  []domain.InvalidParam{{Name: "userId", Reason: "must be a valid UUID"}},
+		})
+		return
+	}
+
+	if err := h.projectService.RemoveMember(c.Request.Context(), userID, projectID, targetUserID); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Project member removed successfully",
 	})
 }

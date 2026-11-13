@@ -45,3 +45,29 @@ RETURNING *;
 UPDATE projects
 SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL;
+
+-- name: ListProjectsByMember :many
+SELECT p.id, p.owner_id, p.name, p.description, p.color, p.version, p.created_at, p.updated_at, p.deleted_at,
+       pm.role AS member_role
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $2 OFFSET $3;
+
+-- name: ListProjectsByMemberKeyset :many
+SELECT p.id, p.owner_id, p.name, p.description, p.color, p.version, p.created_at, p.updated_at, p.deleted_at,
+       pm.role AS member_role
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL
+  AND (sqlc.narg('cursor_created_at')::timestamptz IS NULL OR (p.created_at, p.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $2;
+
+-- name: CountProjectsByMember :one
+SELECT count(*)
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL;
+

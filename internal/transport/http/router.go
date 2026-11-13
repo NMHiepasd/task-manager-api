@@ -220,6 +220,10 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				projectGroup.PUT("/:id", projectHandler.Update)
 				projectGroup.PATCH("/:id", projectHandler.Update)
 				projectGroup.DELETE("/:id", projectHandler.Delete)
+				projectGroup.POST("/:id/members", projectHandler.AddMember)
+				projectGroup.GET("/:id/members", projectHandler.ListMembers)
+				projectGroup.PATCH("/:id/members/:userId", projectHandler.UpdateMemberRole)
+				projectGroup.DELETE("/:id/members/:userId", projectHandler.RemoveMember)
 				if deps.TaskService != nil {
 					taskHandler := handler.NewTaskHandler(deps.TaskService)
 					projectGroup.GET("/:id/tasks", taskHandler.ListProjectTasks)

@@ -366,6 +366,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-011: Background Jobs and Asynchronous Task Processing with Asynq and Redis](docs/adr/0011-background-jobs-with-asynq-and-redis.md)**
 - **[ADR-012: Alerting Strategy with Prometheus Alert Rules and Alertmanager](docs/adr/0012-alerting-strategy-with-prometheus-and-alertmanager.md)**
 - **[ADR-013: Automated API Contract and Property-Based Fuzz Testing with Schemathesis](docs/adr/0013-automated-api-contract-and-property-fuzz-testing-with-schemathesis.md)**
+- **[ADR-014: Project Sharing and Role-Based Access Control (RBAC)](docs/adr/0014-project-sharing-and-collaboration-rbac.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

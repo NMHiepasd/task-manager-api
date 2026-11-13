@@ -270,7 +270,11 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 - [x] Tracing: OpenTelemetry + `otelgin` + `otelpgx`
 - [x] Alerting: Alertmanager hoặc Grafana Alerting
 - [x] Kiểm thử API tự động từ spec: `schemathesis`
-- [ ] Tính năng thêm: comment, file đính kèm (S3/MinIO), chia sẻ project, webhook
+- [/] Tính năng thêm:
+  - [x] Chia sẻ project & Phân quyền thành viên (Project Sharing & Collaborators RBAC: Owner, Editor, Viewer)
+  - [ ] Comment trên Task
+  - [ ] File đính kèm (S3/MinIO)
+  - [ ] Webhook hệ thống
 
 ## Nguyên tắc xuyên suốt
 

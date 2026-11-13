@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countProjectsByMember = `-- name: CountProjectsByMember :one
+SELECT count(*)
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL
+`
+
+func (q *Queries) CountProjectsByMember(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countProjectsByMember, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countProjectsByOwner = `-- name: CountProjectsByOwner :one
 SELECT count(*) FROM projects
 WHERE owner_id = $1 AND deleted_at IS NULL
@@ -85,6 +99,133 @@ func (q *Queries) GetProjectByID(ctx context.Context, id uuid.UUID) (Project, er
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const listProjectsByMember = `-- name: ListProjectsByMember :many
+SELECT p.id, p.owner_id, p.name, p.description, p.color, p.version, p.created_at, p.updated_at, p.deleted_at,
+       pm.role AS member_role
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListProjectsByMemberParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+type ListProjectsByMemberRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OwnerID     uuid.UUID          `json:"owner_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Color       string             `json:"color"`
+	Version     int32              `json:"version"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	MemberRole  string             `json:"member_role"`
+}
+
+func (q *Queries) ListProjectsByMember(ctx context.Context, arg ListProjectsByMemberParams) ([]ListProjectsByMemberRow, error) {
+	rows, err := q.db.Query(ctx, listProjectsByMember, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectsByMemberRow{}
+	for rows.Next() {
+		var i ListProjectsByMemberRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.MemberRole,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectsByMemberKeyset = `-- name: ListProjectsByMemberKeyset :many
+SELECT p.id, p.owner_id, p.name, p.description, p.color, p.version, p.created_at, p.updated_at, p.deleted_at,
+       pm.role AS member_role
+FROM projects p
+JOIN project_members pm ON pm.project_id = p.id
+WHERE pm.user_id = $1 AND p.deleted_at IS NULL
+  AND ($3::timestamptz IS NULL OR (p.created_at, p.id) < ($3::timestamptz, $4::uuid))
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $2
+`
+
+type ListProjectsByMemberKeysetParams struct {
+	UserID          uuid.UUID          `json:"user_id"`
+	Limit           int32              `json:"limit"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+}
+
+type ListProjectsByMemberKeysetRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OwnerID     uuid.UUID          `json:"owner_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Color       string             `json:"color"`
+	Version     int32              `json:"version"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	MemberRole  string             `json:"member_role"`
+}
+
+func (q *Queries) ListProjectsByMemberKeyset(ctx context.Context, arg ListProjectsByMemberKeysetParams) ([]ListProjectsByMemberKeysetRow, error) {
+	rows, err := q.db.Query(ctx, listProjectsByMemberKeyset,
+		arg.UserID,
+		arg.Limit,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectsByMemberKeysetRow{}
+	for rows.Next() {
+		var i ListProjectsByMemberKeysetRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Color,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.MemberRole,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProjectsByOwner = `-- name: ListProjectsByOwner :many

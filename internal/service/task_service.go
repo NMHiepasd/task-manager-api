@@ -150,7 +150,7 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 			}
 			return nil, fmt.Errorf("failed to verify project: %w", err)
 		}
-		if project.OwnerID != userID {
+		if project.OwnerID != userID && !s.checkProjectAccess(ctx, *input.ProjectID, userID, "owner", "editor") {
 			return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 		}
 		pID = pgtype.UUID{Bytes: *input.ProjectID, Valid: true}
@@ -237,13 +237,10 @@ func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID 
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	// Verify permission: creator or assignee
+	// Verify permission: creator, assignee, or project collaborator
 	hasAccess := task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID)
 	if !hasAccess && task.ProjectID.Valid {
-		project, err := s.repo.GetProjectByID(ctx, task.ProjectID.Bytes)
-		if err == nil && project.OwnerID == userID {
-			hasAccess = true
-		}
+		hasAccess = s.checkProjectAccess(ctx, task.ProjectID.Bytes, userID, "owner", "editor", "viewer")
 	}
 
 	if !hasAccess {
@@ -471,7 +468,11 @@ func (s *taskService) SetTaskTags(ctx context.Context, userID uuid.UUID, taskID 
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	if task.CreatorID != userID && (!task.AssigneeID.Valid || task.AssigneeID.Bytes != userID) {
+	hasAccess := task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID)
+	if !hasAccess && task.ProjectID.Valid {
+		hasAccess = s.checkProjectAccess(ctx, task.ProjectID.Bytes, userID, "owner", "editor")
+	}
+	if !hasAccess {
 		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
@@ -546,7 +547,11 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 		return nil, fmt.Errorf("failed to check existing task: %w", err)
 	}
 
-	if existing.CreatorID != userID && (!existing.AssigneeID.Valid || existing.AssigneeID.Bytes != userID) {
+	hasAccess := existing.CreatorID == userID || (existing.AssigneeID.Valid && existing.AssigneeID.Bytes == userID)
+	if !hasAccess && existing.ProjectID.Valid {
+		hasAccess = s.checkProjectAccess(ctx, existing.ProjectID.Bytes, userID, "owner", "editor")
+	}
+	if !hasAccess {
 		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
@@ -630,7 +635,11 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 		return fmt.Errorf("failed to find task before deletion: %w", err)
 	}
 
-	if existing.CreatorID != userID {
+	hasAccess := existing.CreatorID == userID
+	if !hasAccess && existing.ProjectID.Valid {
+		hasAccess = s.checkProjectAccess(ctx, existing.ProjectID.Bytes, userID, "owner", "editor")
+	}
+	if !hasAccess {
 		return ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
@@ -639,6 +648,29 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 	}
 
 	return nil
+}
+
+func (s *taskService) checkProjectAccess(ctx context.Context, projectID uuid.UUID, userID uuid.UUID, allowedRoles ...string) bool {
+	member, err := s.repo.GetProjectMember(ctx, repository.GetProjectMemberParams{
+		ProjectID: projectID,
+		UserID:    userID,
+	})
+	if err != nil {
+		project, pErr := s.repo.GetProjectByID(ctx, projectID)
+		if pErr == nil && project.OwnerID == userID {
+			return true
+		}
+		return false
+	}
+	if len(allowedRoles) == 0 {
+		return true
+	}
+	for _, r := range allowedRoles {
+		if member.Role == r {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *taskService) mapTask(t repository.Task, tags []repository.Tag) *TaskResponse {
