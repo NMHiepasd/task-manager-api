@@ -1,0 +1,38 @@
+groups:
+  - name: task-manager-api-alerts
+    rules:
+      - alert: APIDown
+        expr: up{job="task-manager-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Task Manager API service is down"
+          description: "Task Manager API (instance {{ $labels.instance }}) has been unreachable for more than 30 seconds."
+
+      - alert: HighHTTPErrorRate
+        expr: (sum(rate(taskmanager_http_requests_total{status=~"5.."}[1m])) / sum(rate(taskmanager_http_requests_total[1m]))) * 100 > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx error rate detected"
+          description: "HTTP 5xx server error rate is {{ $value | printf \"%.2f\" }}% (> 5%) over the last 1 minute."
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(taskmanager_http_request_duration_seconds_bucket[1m])) by (le)) > 0.2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated p95 HTTP request latency"
+          description: "P95 request latency is {{ $value | printf \"%.3f\" }}s (> 200ms) over the last 1 minute."
+
+      - alert: PostgresPoolNearExhaustion
+        expr: (taskmanager_db_pool_acquired_conns / taskmanager_db_pool_max_conns) * 100 > 80
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connection pool near exhaustion"
+          description: "PostgreSQL connection pool utilization is {{ $value | printf \"%.2f\" }}% (> 80% of max connections)."

@@ -275,6 +275,15 @@ The service includes production-grade observability out-of-the-box using **Prome
   - **In-Flight Requests**
   - **PostgreSQL Pool Health** (Acquired vs Idle vs Max connections)
 
+### 4. Alertmanager & Alert Rules
+- **Declarative Alert Rules (`deploy/prometheus/alerts.yml`)**: Evaluated continuously every 5 seconds by Prometheus:
+  - `APIDown` (Critical: instance down for > 30s)
+  - `HighHTTPErrorRate` (Critical: 5xx server errors > 5% for 1m)
+  - `HighLatencyP95` (Warning: p95 latency > 200ms for 1m)
+  - `PostgresPoolNearExhaustion` (Warning: DB connection pool utilization > 80% for 1m)
+- **Alertmanager UI**: **[http://localhost:9093](http://localhost:9093)**
+- **Grafana Alerting**: Pre-configured Alertmanager datasource viewable at **[http://localhost:3001/alerting](http://localhost:3001/alerting)**
+
 ---
 
 ## Background Jobs & Task Scheduling (`asynq`)
@@ -351,6 +360,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-009: CI/CD Pipeline, Security Scanning, and Container Registry Packaging](docs/adr/0009-ci-cd-pipeline-and-container-packaging.md)**
 - **[ADR-010: Observability Strategy (Prometheus RED Metrics, OpenTelemetry Tracing, and Grafana)](docs/adr/0010-observability-prometheus-and-opentelemetry.md)**
 - **[ADR-011: Background Jobs and Asynchronous Task Processing with Asynq and Redis](docs/adr/0011-background-jobs-with-asynq-and-redis.md)**
+- **[ADR-012: Alerting Strategy with Prometheus Alert Rules and Alertmanager](docs/adr/0012-alerting-strategy-with-prometheus-and-alertmanager.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

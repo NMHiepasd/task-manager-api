@@ -81,6 +81,18 @@ services:
     networks:
       - task_network
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: task_manager_alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - task_network
+
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: task_manager_prometheus
@@ -89,8 +101,11 @@ services:
       - "9090:9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     depends_on:
+      alertmanager:
+        condition: service_started
       api:
         condition: service_healthy
     networks:
@@ -111,6 +126,7 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+      - alertmanager
     networks:
       - task_network
 
@@ -118,6 +134,8 @@ volumes:
   pgdata:
     driver: local
   prometheus_data:
+    driver: local
+  alertmanager_data:
     driver: local
   grafana_data:
     driver: local

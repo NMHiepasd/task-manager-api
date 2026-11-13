@@ -268,7 +268,7 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 - [x] Background job (nhắc deadline, dọn token hết hạn): `river` (Postgres) hoặc `asynq` (Redis)
 - [x] Metrics: `prometheus/client_golang` + Grafana (latency, RPS, error rate)
 - [x] Tracing: OpenTelemetry + `otelgin` + `otelpgx`
-- [ ] Alerting: Alertmanager hoặc Grafana Alerting
+- [x] Alerting: Alertmanager hoặc Grafana Alerting
 - [ ] Kiểm thử API tự động từ spec: `schemathesis`
 - [ ] Tính năng thêm: comment, file đính kèm (S3/MinIO), chia sẻ project, webhook
 
