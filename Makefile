@@ -1,4 +1,4 @@
-.PHONY: help run build test test-race test-integration test-fuzz test-migrations bench load-test cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
+.PHONY: help run build test test-race test-integration test-fuzz test-migrations bench load-test schemathesis cover lint swagger migrate-up migrate-down sqlc docker-up docker-down
 
 # Default target
 .DEFAULT_GOAL := help
@@ -16,6 +16,7 @@ help: ## Show this help message
 	@echo "  test-race         Run unit tests with race detection"
 	@echo "  test-integration  Run repository integration tests with testcontainers"
 	@echo "  test-fuzz         Run fuzz tests on cursor pagination"
+	@echo "  schemathesis      Run OpenAPI contract & property-based fuzz tests via Schemathesis"
 	@echo "  cover             Generate test coverage profile and HTML report"
 	@echo "  lint              Run golangci-lint on the codebase"
 	@echo "  swagger           Generate Swagger OpenAPI documentation"
@@ -48,6 +49,9 @@ bench: ## Run microbenchmarks on hot paths
 
 load-test: ## Run k6 load testing script
 	k6 run scripts/k6/load-test.js
+
+schemathesis: ## Run automated OpenAPI contract and fuzz testing via Schemathesis
+	bash scripts/run-schemathesis.sh
 
 cover: ## Generate test coverage report
 	go test -coverprofile=coverage.out ./...

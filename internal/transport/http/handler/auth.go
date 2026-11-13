@@ -116,6 +116,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success      200 {object} service.TokenResponse
 // @Failure      400 {object} ProblemDetails
 // @Failure      401 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
 // @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
@@ -143,6 +144,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 // @Param        payload body LogoutRequest true "Logout payload"
 // @Success      200 {object} map[string]string
 // @Failure      400 {object} ProblemDetails
+// @Failure      429 {object} ProblemDetails
 // @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req LogoutRequest

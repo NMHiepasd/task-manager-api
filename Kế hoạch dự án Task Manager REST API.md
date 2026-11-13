@@ -269,7 +269,7 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 - [x] Metrics: `prometheus/client_golang` + Grafana (latency, RPS, error rate)
 - [x] Tracing: OpenTelemetry + `otelgin` + `otelpgx`
 - [x] Alerting: Alertmanager hoặc Grafana Alerting
-- [ ] Kiểm thử API tự động từ spec: `schemathesis`
+- [x] Kiểm thử API tự động từ spec: `schemathesis`
 - [ ] Tính năng thêm: comment, file đính kèm (S3/MinIO), chia sẻ project, webhook
 
 ## Nguyên tắc xuyên suốt

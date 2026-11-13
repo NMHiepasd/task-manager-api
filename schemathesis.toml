@@ -1,0 +1,12 @@
+workers = 4
+suppress-health-check = ["all"]
+
+[generation]
+mode = "all"
+allow-x00 = false
+
+[phases.coverage]
+enabled = true
+
+[phases.fuzzing]
+enabled = true

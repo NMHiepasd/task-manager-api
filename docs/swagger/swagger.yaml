@@ -398,6 +398,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
       summary: Revoke session / Logout
       tags:
       - auth
@@ -428,6 +432,10 @@ paths:
             $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
           schema:
             $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
       summary: Rotate refresh token

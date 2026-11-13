@@ -317,7 +317,10 @@ make test-integration
 # 4. Run fuzz testing on cursor pagination
 make test-fuzz
 
-# 5. Generate coverage report
+# 5. Run automated OpenAPI contract and property fuzz testing via Schemathesis
+make schemathesis
+
+# 6. Generate coverage report
 make cover
 ```
 
@@ -335,6 +338,7 @@ make cover
 | `make test-fuzz` | Run property fuzz tests against cursor serialization/deserialization |
 | `make bench` | Run microbenchmarks on hot paths (pagination, JWT, Redis cache) |
 | `make load-test` | Execute k6 concurrent load testing script |
+| `make schemathesis` | Execute property-based API contract and fuzz tests from OpenAPI spec |
 | `make cover` | Produce HTML code coverage profile |
 | `make lint` | Run `golangci-lint` with strict security and style rules |
 | `make swagger` | Generate Swagger OpenAPI specifications via `swaggo/swag` |
@@ -361,6 +365,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-010: Observability Strategy (Prometheus RED Metrics, OpenTelemetry Tracing, and Grafana)](docs/adr/0010-observability-prometheus-and-opentelemetry.md)**
 - **[ADR-011: Background Jobs and Asynchronous Task Processing with Asynq and Redis](docs/adr/0011-background-jobs-with-asynq-and-redis.md)**
 - **[ADR-012: Alerting Strategy with Prometheus Alert Rules and Alertmanager](docs/adr/0012-alerting-strategy-with-prometheus-and-alertmanager.md)**
+- **[ADR-013: Automated API Contract and Property-Based Fuzz Testing with Schemathesis](docs/adr/0013-automated-api-contract-and-property-fuzz-testing-with-schemathesis.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

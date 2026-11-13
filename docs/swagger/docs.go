@@ -114,6 +114,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                        }
                     }
                 }
             }
@@ -158,6 +164,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
                         }
