@@ -1,0 +1,15 @@
+{
+    # Global options
+    admin off
+}
+
+{$DOMAIN:localhost} {
+    encode gzip zstd
+
+    # Route all traffic to API backend
+    reverse_proxy api:8080 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

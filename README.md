@@ -308,6 +308,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-006: API Documentation with OpenAPI 3.0 and Swagger UI](docs/adr/0006-api-documentation-and-swagger.md)**
 - **[ADR-007: Idempotency-Key Header and Request Timeout Strategy](docs/adr/0007-idempotency-key-and-request-timeout.md)**
 - **[ADR-008: Caching Strategy and Performance Optimization](docs/adr/0008-caching-strategy-and-performance-optimization.md)**
+- **[ADR-009: CI/CD Pipeline, Security Scanning, and Container Registry Packaging](docs/adr/0009-ci-cd-pipeline-and-container-packaging.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

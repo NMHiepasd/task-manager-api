@@ -248,20 +248,20 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 
 ## Phase 9: CI/CD và đóng gói
 
-- [ ] GitHub Actions: `lint`, `test -race` (service Postgres/Redis hoặc testcontainers), `govulncheck`, `docker build`, `trivy`, push image lên GHCR
-- [ ] Image tag theo commit SHA/semver, không dùng `latest`
-- [ ] Cache module Go trong CI
-- [ ] Test migration up/down trên DB sạch trong CI
-- [ ] Dependabot hoặc Renovate
-- [ ] `docker-compose.prod.yml` + Caddy (TLS tự động), secret qua env/Docker secrets
-- [ ] Script backup `pg_dump` định kỳ và thử restore thật một lần, ghi lại các bước
-- [ ] Deploy thử lên VPS giá rẻ
-- [ ] Badge CI và `CHANGELOG` bằng `git-cliff`
+- [x] GitHub Actions: `lint`, `test -race` (service Postgres/Redis hoặc testcontainers), `govulncheck`, `docker build`, `trivy`, push image lên GHCR
+- [x] Image tag theo commit SHA/semver, không dùng `latest`
+- [x] Cache module Go trong CI
+- [x] Test migration up/down trên DB sạch trong CI
+- [x] Dependabot hoặc Renovate
+- [x] `docker-compose.prod.yml` + Caddy (TLS tự động), secret qua env/Docker secrets
+- [x] Script backup `pg_dump` định kỳ và thử restore thật một lần, ghi lại các bước
+- [x] Deploy thử lên VPS giá rẻ
+- [x] Badge CI và `CHANGELOG` bằng `git-cliff`
 
 **DoD**
 
-- [ ] Push lên `main` tự build và scan
-- [ ] Có thể deploy lại bằng một lệnh
+- [x] Push lên `main` tự build và scan
+- [x] Có thể deploy lại bằng một lệnh
 
 ## Phase 10: Nâng cấp (tùy chọn)
 
