@@ -80,8 +80,12 @@ erDiagram
     USERS ||--o{ TASKS : "owns"
     USERS ||--o{ TAGS : "creates"
     PROJECTS ||--o{ TASKS : "contains"
+    PROJECTS ||--o{ PROJECT_MEMBERS : "collaborates"
+    USERS ||--o{ PROJECT_MEMBERS : "joined as"
     TASKS ||--o{ TASK_TAGS : "tagged with"
     TAGS ||--o{ TASK_TAGS : "applied to"
+    TASKS ||--o{ TASK_COMMENTS : "has"
+    USERS ||--o{ TASK_COMMENTS : "authors"
 
     USERS {
         uuid id PK
@@ -128,6 +132,24 @@ erDiagram
     TASK_TAGS {
         uuid task_id PK,FK
         uuid tag_id PK,FK
+    }
+
+    PROJECT_MEMBERS {
+        uuid id PK
+        uuid project_id FK
+        uuid user_id FK
+        varchar role
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    TASK_COMMENTS {
+        uuid id PK
+        uuid task_id FK
+        uuid user_id FK
+        text content
+        timestamptz created_at
+        timestamptz updated_at
     }
 ```
 
@@ -367,6 +389,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-012: Alerting Strategy with Prometheus Alert Rules and Alertmanager](docs/adr/0012-alerting-strategy-with-prometheus-and-alertmanager.md)**
 - **[ADR-013: Automated API Contract and Property-Based Fuzz Testing with Schemathesis](docs/adr/0013-automated-api-contract-and-property-fuzz-testing-with-schemathesis.md)**
 - **[ADR-014: Project Sharing and Role-Based Access Control (RBAC)](docs/adr/0014-project-sharing-and-collaboration-rbac.md)**
+- **[ADR-015: Task Comments Architecture, Access Control, and Moderation](docs/adr/0015-task-comments-architecture-and-moderation.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

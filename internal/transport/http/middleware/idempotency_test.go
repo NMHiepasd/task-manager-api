@@ -262,6 +262,34 @@ func (m *mockIdempotencyQuerier) UpdateProjectMemberRole(context.Context, reposi
 	return repository.ProjectMember{}, nil
 }
 
+func (m *mockIdempotencyQuerier) CountTaskComments(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) CreateTaskComment(context.Context, repository.CreateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteTaskComment(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) GetTaskCommentByID(context.Context, uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
+	return repository.GetTaskCommentByIDRow{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ListTaskComments(context.Context, repository.ListTaskCommentsParams) ([]repository.ListTaskCommentsRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) ListTaskCommentsKeyset(context.Context, repository.ListTaskCommentsKeysetParams) ([]repository.ListTaskCommentsKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) UpdateTaskComment(context.Context, repository.UpdateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

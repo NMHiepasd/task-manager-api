@@ -228,6 +228,34 @@ func (m *mockQuerier) UpdateProjectMemberRole(context.Context, repository.Update
 	return repository.ProjectMember{}, nil
 }
 
+func (m *mockQuerier) CountTaskComments(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) CreateTaskComment(context.Context, repository.CreateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}
+
+func (m *mockQuerier) DeleteTaskComment(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockQuerier) GetTaskCommentByID(context.Context, uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
+	return repository.GetTaskCommentByIDRow{}, nil
+}
+
+func (m *mockQuerier) ListTaskComments(context.Context, repository.ListTaskCommentsParams) ([]repository.ListTaskCommentsRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListTaskCommentsKeyset(context.Context, repository.ListTaskCommentsKeysetParams) ([]repository.ListTaskCommentsKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) UpdateTaskComment(context.Context, repository.UpdateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

@@ -26,4 +26,6 @@ var (
 	ErrInvalidTaskStatus          = domain.ErrInvalidTaskStatus
 	ErrInvalidTaskPriority        = domain.ErrInvalidTaskPriority
 	ErrTagNotFound                = domain.ErrTagNotFound
+	ErrCommentNotFound            = domain.ErrCommentNotFound
+	ErrEmptyCommentContent        = domain.ErrEmptyCommentContent
 )

@@ -13,6 +13,15 @@ definitions:
     - email
     - role
     type: object
+  internal_transport_http_handler.CreateCommentRequest:
+    properties:
+      content:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+    - content
+    type: object
   internal_transport_http_handler.CreateProjectRequest:
     properties:
       color:
@@ -146,6 +155,15 @@ definitions:
           type: string
         type: array
     type: object
+  internal_transport_http_handler.UpdateCommentRequest:
+    properties:
+      content:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+    - content
+    type: object
   internal_transport_http_handler.UpdateProjectMemberRoleRequest:
     properties:
       role:
@@ -219,6 +237,44 @@ definitions:
         type: string
       reason:
         type: string
+    type: object
+  task-manager-api_internal_service.CommentResponse:
+    properties:
+      author:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      task_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  task-manager-api_internal_service.PaginatedCommentsResponse:
+    properties:
+      has_more:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+        type: array
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
     type: object
   task-manager-api_internal_service.PaginatedProjectsResponse:
     properties:
@@ -1366,6 +1422,210 @@ paths:
       summary: Update task
       tags:
       - tasks
+  /api/v1/tasks/{id}/comments:
+    get:
+      description: List comments on a task with keyset or page offset pagination.
+        Caller must have access to the task.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Keyset cursor token
+        in: query
+        name: cursor
+        type: string
+      - default: 1
+        description: Page number (offset-based)
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.PaginatedCommentsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List task comments
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Add a comment to an existing task. Caller must have access to the
+        task.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Comment payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.CreateCommentRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Create task comment
+      tags:
+      - comments
+  /api/v1/tasks/{id}/comments/{commentId}:
+    delete:
+      description: Delete a task comment. Can be performed by the author, task creator,
+        or project owner.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Comment UUID
+        in: path
+        name: commentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete task comment
+      tags:
+      - comments
+    patch:
+      consumes:
+      - application/json
+      description: Update the content of a task comment. Only the author can update
+        their comment.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Comment UUID
+        in: path
+        name: commentId
+        required: true
+        type: string
+      - description: Comment update payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_http_handler.UpdateCommentRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update task comment
+      tags:
+      - comments
   /api/v1/tasks/{id}/tags:
     put:
       consumes:

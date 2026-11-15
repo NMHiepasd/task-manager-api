@@ -35,6 +35,8 @@ var (
 	ErrInvalidTaskStatus          = fmt.Errorf("%w: invalid task status; allowed: todo, in_progress, completed, cancelled", ErrValidation)
 	ErrInvalidTaskPriority        = fmt.Errorf("%w: invalid task priority; allowed: low, medium, high, urgent", ErrValidation)
 	ErrTagNotFound                = fmt.Errorf("%w: tag not found", ErrNotFound)
+	ErrCommentNotFound            = fmt.Errorf("%w: comment not found", ErrNotFound)
+	ErrEmptyCommentContent        = fmt.Errorf("%w: comment content cannot be empty", ErrValidation)
 	ErrPayloadTooLarge            = fmt.Errorf("%w: request payload exceeds size limit", ErrValidation)
 	ErrRateLimitExceeded          = errors.New("rate limit exceeded; please wait before retrying")
 	ErrTimeout                    = errors.New("request processing timed out")

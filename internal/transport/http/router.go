@@ -41,6 +41,7 @@ type RouterDependencies struct {
 	UserService    service.UserService
 	ProjectService service.ProjectService
 	TaskService    service.TaskService
+	CommentService service.CommentService
 	TagService     service.TagService
 	TokenMaker     token.Maker
 }
@@ -248,6 +249,13 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				taskGroup.PATCH("/:id", taskHandler.Update)
 				taskGroup.DELETE("/:id", taskHandler.Delete)
 				taskGroup.PUT("/:id/tags", taskHandler.SetTags)
+				if deps.CommentService != nil {
+					commentHandler := handler.NewCommentHandler(deps.CommentService)
+					taskGroup.POST("/:id/comments", commentHandler.Create)
+					taskGroup.GET("/:id/comments", commentHandler.List)
+					taskGroup.PATCH("/:id/comments/:commentId", commentHandler.Update)
+					taskGroup.DELETE("/:id/comments/:commentId", commentHandler.Delete)
+				}
 			}
 		}
 

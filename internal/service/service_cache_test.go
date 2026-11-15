@@ -348,3 +348,31 @@ func (m *mockQuerierWithHooks) ListProjectsByMemberKeyset(context.Context, repos
 func (m *mockQuerierWithHooks) UpdateProjectMemberRole(context.Context, repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
 	return repository.ProjectMember{}, nil
 }
+
+func (m *mockQuerierWithHooks) CountTaskComments(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) CreateTaskComment(context.Context, repository.CreateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}
+
+func (m *mockQuerierWithHooks) DeleteTaskComment(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockQuerierWithHooks) GetTaskCommentByID(context.Context, uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
+	return repository.GetTaskCommentByIDRow{}, nil
+}
+
+func (m *mockQuerierWithHooks) ListTaskComments(context.Context, repository.ListTaskCommentsParams) ([]repository.ListTaskCommentsRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) ListTaskCommentsKeyset(context.Context, repository.ListTaskCommentsKeysetParams) ([]repository.ListTaskCommentsKeysetRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) UpdateTaskComment(context.Context, repository.UpdateTaskCommentParams) (repository.TaskComment, error) {
+	return repository.TaskComment{}, nil
+}

@@ -114,6 +114,7 @@ func main() {
 	userService := service.NewUserService(store, cacheStore)
 	projectService := service.NewProjectService(store, cacheStore)
 	taskService := service.NewTaskService(store)
+	commentService := service.NewCommentService(store)
 	tagService := service.NewTagService(store, cacheStore)
 
 	// 8. Initialize Asynq background worker and scheduler (if enabled)
@@ -165,6 +166,7 @@ func main() {
 		UserService:    userService,
 		ProjectService: projectService,
 		TaskService:    taskService,
+		CommentService: commentService,
 		TagService:     tagService,
 		TokenMaker:     tokenMaker,
 	})

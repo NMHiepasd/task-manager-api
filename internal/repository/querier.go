@@ -18,17 +18,20 @@ type Querier interface {
 	CountProjectMembers(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsByMember(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountProjectsByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error)
+	CountTaskComments(ctx context.Context, taskID uuid.UUID) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) error
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
+	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
+	DeleteTaskComment(ctx context.Context, id uuid.UUID) error
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
@@ -38,6 +41,7 @@ type Querier interface {
 	GetTagsForTask(ctx context.Context, taskID uuid.UUID) ([]Tag, error)
 	GetTagsForTasks(ctx context.Context, dollar_1 []uuid.UUID) ([]GetTagsForTasksRow, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
+	GetTaskCommentByID(ctx context.Context, id uuid.UUID) (GetTaskCommentByIDRow, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ListProjectMembersRow, error)
@@ -46,6 +50,8 @@ type Querier interface {
 	ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error)
 	ListProjectsKeyset(ctx context.Context, arg ListProjectsKeysetParams) ([]Project, error)
 	ListTagsByUser(ctx context.Context, userID uuid.UUID) ([]Tag, error)
+	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
+	ListTaskCommentsKeyset(ctx context.Context, arg ListTaskCommentsKeysetParams) ([]ListTaskCommentsKeysetRow, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListTasksByCreator(ctx context.Context, arg ListTasksByCreatorParams) ([]Task, error)
 	ListTasksDueSoon(ctx context.Context, arg ListTasksDueSoonParams) ([]ListTasksDueSoonRow, error)
@@ -61,6 +67,7 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProjectMemberRole(ctx context.Context, arg UpdateProjectMemberRoleParams) (ProjectMember, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
+	UpdateTaskComment(ctx context.Context, arg UpdateTaskCommentParams) (TaskComment, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 

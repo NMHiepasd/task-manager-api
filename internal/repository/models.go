@@ -76,6 +76,15 @@ type Task struct {
 	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type TaskComment struct {
+	ID        uuid.UUID          `json:"id"`
+	TaskID    uuid.UUID          `json:"task_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Content   string             `json:"content"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TaskTag struct {
 	TaskID uuid.UUID `json:"task_id"`
 	TagID  uuid.UUID `json:"tag_id"`
