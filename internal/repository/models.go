@@ -76,6 +76,17 @@ type Task struct {
 	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type TaskAttachment struct {
+	ID          uuid.UUID          `json:"id"`
+	TaskID      uuid.UUID          `json:"task_id"`
+	UserID      uuid.UUID          `json:"user_id"`
+	FileName    string             `json:"file_name"`
+	FileSize    int64              `json:"file_size"`
+	ContentType string             `json:"content_type"`
+	StorageKey  string             `json:"storage_key"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type TaskComment struct {
 	ID        uuid.UUID          `json:"id"`
 	TaskID    uuid.UUID          `json:"task_id"`

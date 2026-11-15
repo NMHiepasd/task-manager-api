@@ -376,3 +376,19 @@ func (m *mockQuerierWithHooks) ListTaskCommentsKeyset(context.Context, repositor
 func (m *mockQuerierWithHooks) UpdateTaskComment(context.Context, repository.UpdateTaskCommentParams) (repository.TaskComment, error) {
 	return repository.TaskComment{}, nil
 }
+
+func (m *mockQuerierWithHooks) CreateTaskAttachment(context.Context, repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockQuerierWithHooks) GetTaskAttachmentByID(context.Context, uuid.UUID) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockQuerierWithHooks) ListTaskAttachmentsByTaskID(context.Context, uuid.UUID) ([]repository.TaskAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) DeleteTaskAttachment(context.Context, uuid.UUID) error {
+	return nil
+}

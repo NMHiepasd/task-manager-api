@@ -28,4 +28,8 @@ var (
 	ErrTagNotFound                = domain.ErrTagNotFound
 	ErrCommentNotFound            = domain.ErrCommentNotFound
 	ErrEmptyCommentContent        = domain.ErrEmptyCommentContent
+	ErrAttachmentNotFound         = domain.ErrAttachmentNotFound
+	ErrFileTooLarge               = domain.ErrFileTooLarge
+	ErrInvalidFileType            = domain.ErrInvalidFileType
+	ErrEmptyFile                  = domain.ErrEmptyFile
 )

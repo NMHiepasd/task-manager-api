@@ -273,7 +273,7 @@ Làm theo vòng: đo, tìm nút thắt, sửa, đo lại.
 - [/] Tính năng thêm:
   - [x] Chia sẻ project & Phân quyền thành viên (Project Sharing & Collaborators RBAC: Owner, Editor, Viewer)
   - [x] Comment trên Task
-  - [ ] File đính kèm (S3/MinIO)
+  - [x] File đính kèm (S3/MinIO)
   - [ ] Webhook hệ thống
 
 ## Nguyên tắc xuyên suốt

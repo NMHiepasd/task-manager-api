@@ -290,6 +290,22 @@ func (m *mockIdempotencyQuerier) UpdateTaskComment(context.Context, repository.U
 	return repository.TaskComment{}, nil
 }
 
+func (m *mockIdempotencyQuerier) CreateTaskAttachment(context.Context, repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockIdempotencyQuerier) GetTaskAttachmentByID(context.Context, uuid.UUID) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ListTaskAttachmentsByTaskID(context.Context, uuid.UUID) ([]repository.TaskAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteTaskAttachment(context.Context, uuid.UUID) error {
+	return nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

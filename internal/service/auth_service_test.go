@@ -240,6 +240,22 @@ func (m *mockQuerier) DeleteTaskComment(context.Context, uuid.UUID) error {
 	return nil
 }
 
+func (m *mockQuerier) CreateTaskAttachment(context.Context, repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockQuerier) GetTaskAttachmentByID(context.Context, uuid.UUID) (repository.TaskAttachment, error) {
+	return repository.TaskAttachment{}, nil
+}
+
+func (m *mockQuerier) ListTaskAttachmentsByTaskID(context.Context, uuid.UUID) ([]repository.TaskAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) DeleteTaskAttachment(context.Context, uuid.UUID) error {
+	return nil
+}
+
 func (m *mockQuerier) GetTaskCommentByID(context.Context, uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
 	return repository.GetTaskCommentByIDRow{}, nil
 }

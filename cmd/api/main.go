@@ -31,6 +31,7 @@ import (
 	"task-manager-api/pkg/hasher"
 	"task-manager-api/pkg/logger"
 	"task-manager-api/pkg/metrics"
+	"task-manager-api/pkg/storage"
 	"task-manager-api/pkg/token"
 	"task-manager-api/pkg/tracer"
 	"time"
@@ -117,6 +118,29 @@ func main() {
 	commentService := service.NewCommentService(store)
 	tagService := service.NewTagService(store, cacheStore)
 
+	// Initialize Object Storage (MinIO / S3)
+	storageClient, err := storage.NewMinIOClient(
+		cfg.S3Endpoint,
+		cfg.S3AccessKey,
+		cfg.S3SecretKey,
+		cfg.S3BucketName,
+		cfg.S3Region,
+		cfg.S3UseSSL,
+	)
+	var attachmentService service.AttachmentService
+	if err != nil {
+		log.Warn("Failed to initialize object storage client", "error", err)
+	} else {
+		ensureCtx, ensureCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := storageClient.EnsureBucket(ensureCtx); err != nil {
+			log.Warn("Failed to ensure object storage bucket exists", "bucket", cfg.S3BucketName, "error", err)
+		} else {
+			log.Info("Object storage initialized and bucket ready", "bucket", cfg.S3BucketName, "endpoint", cfg.S3Endpoint)
+		}
+		ensureCancel()
+		attachmentService = service.NewAttachmentService(store, storageClient, cfg.MaxUploadSizeMB)
+	}
+
 	// 8. Initialize Asynq background worker and scheduler (if enabled)
 	if cfg.WorkerEnabled {
 		redisOpt, err := asynq.ParseRedisURI(cfg.RedisURL)
@@ -157,18 +181,19 @@ func main() {
 
 	// 9. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
-		Config:         cfg,
-		Logger:         log,
-		DBPool:         pool,
-		Cache:          cacheStore,
-		Metrics:        appMetrics,
-		AuthService:    authService,
-		UserService:    userService,
-		ProjectService: projectService,
-		TaskService:    taskService,
-		CommentService: commentService,
-		TagService:     tagService,
-		TokenMaker:     tokenMaker,
+		Config:            cfg,
+		Logger:            log,
+		DBPool:            pool,
+		Cache:             cacheStore,
+		Metrics:           appMetrics,
+		AuthService:       authService,
+		UserService:       userService,
+		ProjectService:    projectService,
+		TaskService:       taskService,
+		CommentService:    commentService,
+		AttachmentService: attachmentService,
+		TagService:        tagService,
+		TokenMaker:        tokenMaker,
 	})
 
 	// 5. Configure HTTP server with production-grade timeouts

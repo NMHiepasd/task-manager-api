@@ -57,6 +57,15 @@ type Config struct {
 	ServerReadTimeout       time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
 	ServerWriteTimeout      time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"10s"`
 	ServerIdleTimeout       time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"60s"`
+
+	// Object Storage (MinIO / S3)
+	S3Endpoint      string `env:"S3_ENDPOINT" envDefault:"localhost:9000"`
+	S3AccessKey     string `env:"S3_ACCESS_KEY" envDefault:"minioadmin"`
+	S3SecretKey     string `env:"S3_SECRET_KEY" envDefault:"minioadmin"`
+	S3BucketName    string `env:"S3_BUCKET_NAME" envDefault:"task-attachments"`
+	S3UseSSL        bool   `env:"S3_USE_SSL" envDefault:"false"`
+	S3Region        string `env:"S3_REGION" envDefault:"us-east-1"`
+	MaxUploadSizeMB int64  `env:"MAX_UPLOAD_SIZE_MB" envDefault:"10"`
 }
 
 // Load parses environment variables into Config and validates required fields.

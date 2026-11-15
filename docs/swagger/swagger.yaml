@@ -238,6 +238,23 @@ definitions:
       reason:
         type: string
     type: object
+  task-manager-api_internal_service.AttachmentResponse:
+    properties:
+      content_type:
+        type: string
+      created_at:
+        type: string
+      file_name:
+        type: string
+      file_size:
+        type: integer
+      id:
+        type: string
+      task_id:
+        type: string
+      user_id:
+        type: string
+    type: object
   task-manager-api_internal_service.CommentResponse:
     properties:
       author:
@@ -1422,6 +1439,166 @@ paths:
       summary: Update task
       tags:
       - tasks
+  /api/v1/tasks/{id}/attachments:
+    get:
+      description: Lists all attachments attached to the given task. Caller must have
+        read access.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/task-manager-api_internal_service.AttachmentResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List task attachments
+      tags:
+      - attachments
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a file attachment to a task. Caller must have write access
+        (Owner or Editor) to the task/project.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/task-manager-api_internal_service.AttachmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Upload task attachment
+      tags:
+      - attachments
+  /api/v1/tasks/{id}/attachments/{attachmentId}:
+    delete:
+      description: Removes an attachment from a task. Caller must be the uploader,
+        task creator, or project owner.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Attachment UUID
+        in: path
+        name: attachmentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "204":
+          description: Attachment deleted
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete task attachment
+      tags:
+      - attachments
+    get:
+      description: Streams attachment content or returns a temporary presigned URL
+        if ?presigned=true.
+      parameters:
+      - description: Task UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Attachment UUID
+        in: path
+        name: attachmentId
+        required: true
+        type: string
+      - description: Return temporary presigned URL instead of streaming
+        in: query
+        name: presigned
+        type: boolean
+      produces:
+      - application/octet-stream
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: Attachment file stream
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Download task attachment
+      tags:
+      - attachments
   /api/v1/tasks/{id}/comments:
     get:
       description: List comments on a task with keyset or page offset pagination.

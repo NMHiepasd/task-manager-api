@@ -25,12 +25,14 @@ type Querier interface {
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
+	CreateTaskAttachment(ctx context.Context, arg CreateTaskAttachmentParams) (TaskAttachment, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
+	DeleteTaskAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteTaskComment(ctx context.Context, id uuid.UUID) error
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
@@ -40,6 +42,7 @@ type Querier interface {
 	GetTagByID(ctx context.Context, id uuid.UUID) (Tag, error)
 	GetTagsForTask(ctx context.Context, taskID uuid.UUID) ([]Tag, error)
 	GetTagsForTasks(ctx context.Context, dollar_1 []uuid.UUID) ([]GetTagsForTasksRow, error)
+	GetTaskAttachmentByID(ctx context.Context, id uuid.UUID) (TaskAttachment, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskCommentByID(ctx context.Context, id uuid.UUID) (GetTaskCommentByIDRow, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
@@ -50,6 +53,7 @@ type Querier interface {
 	ListProjectsByOwner(ctx context.Context, arg ListProjectsByOwnerParams) ([]Project, error)
 	ListProjectsKeyset(ctx context.Context, arg ListProjectsKeysetParams) ([]Project, error)
 	ListTagsByUser(ctx context.Context, userID uuid.UUID) ([]Tag, error)
+	ListTaskAttachmentsByTaskID(ctx context.Context, taskID uuid.UUID) ([]TaskAttachment, error)
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	ListTaskCommentsKeyset(ctx context.Context, arg ListTaskCommentsKeysetParams) ([]ListTaskCommentsKeysetRow, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)

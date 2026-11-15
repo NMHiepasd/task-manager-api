@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/pprof"
+	"strings"
 	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/domain"
@@ -32,18 +33,19 @@ import (
 
 // RouterDependencies encapsulates all dependencies required to construct the HTTP router.
 type RouterDependencies struct {
-	Config         *config.Config
-	Logger         *slog.Logger
-	DBPool         *pgxpool.Pool
-	Cache          cache.Cache
-	Metrics        *metrics.Metrics
-	AuthService    service.AuthService
-	UserService    service.UserService
-	ProjectService service.ProjectService
-	TaskService    service.TaskService
-	CommentService service.CommentService
-	TagService     service.TagService
-	TokenMaker     token.Maker
+	Config            *config.Config
+	Logger            *slog.Logger
+	DBPool            *pgxpool.Pool
+	Cache             cache.Cache
+	Metrics           *metrics.Metrics
+	AuthService       service.AuthService
+	UserService       service.UserService
+	ProjectService    service.ProjectService
+	TaskService       service.TaskService
+	CommentService    service.CommentService
+	AttachmentService service.AttachmentService
+	TagService        service.TagService
+	TokenMaker        token.Maker
 }
 
 // NewRouter constructs and configures the Gin engine with all routes and RFC 9457 error handling.
@@ -68,6 +70,27 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	// Disable trusted proxies by default for security
 	_ = router.SetTrustedProxies(nil)
 
+	maxUploadBytes := int64(10 * 1024 * 1024)
+	if deps.Config != nil && deps.Config.MaxUploadSizeMB > 0 {
+		maxUploadBytes = deps.Config.MaxUploadSizeMB * 1024 * 1024
+	}
+
+	// Dynamic request body size limit: 2MB for standard endpoints, maxUploadBytes for file uploads
+	router.Use(func(c *gin.Context) {
+		limit := int64(2 << 20)
+		if strings.HasSuffix(c.Request.URL.Path, "/attachments") && c.Request.Method == http.MethodPost {
+			limit = maxUploadBytes
+		}
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
+
+		if c.Writer.Status() == http.StatusRequestEntityTooLarge {
+			_ = c.Error(domain.ErrPayloadTooLarge)
+		}
+	})
+
 	// Attach standard global middlewares
 	router.Use(
 		otelgin.Middleware("task-manager-api"),
@@ -79,7 +102,6 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		middleware.Timeout(deps.Config.RequestTimeout),
 		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz", "/debug/pprof", "/metrics"})),
 		middleware.ETag(),
-		middleware.MaxBytes(2<<20), // 2MB request body ceiling
 		middleware.ErrorHandler(deps.Logger),
 	)
 
@@ -255,6 +277,13 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 					taskGroup.GET("/:id/comments", commentHandler.List)
 					taskGroup.PATCH("/:id/comments/:commentId", commentHandler.Update)
 					taskGroup.DELETE("/:id/comments/:commentId", commentHandler.Delete)
+				}
+				if deps.AttachmentService != nil {
+					attachmentHandler := handler.NewAttachmentHandler(deps.AttachmentService)
+					taskGroup.POST("/:id/attachments", attachmentHandler.Upload)
+					taskGroup.GET("/:id/attachments", attachmentHandler.List)
+					taskGroup.GET("/:id/attachments/:attachmentId", attachmentHandler.Download)
+					taskGroup.DELETE("/:id/attachments/:attachmentId", attachmentHandler.Delete)
 				}
 			}
 		}

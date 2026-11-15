@@ -86,6 +86,8 @@ erDiagram
     TAGS ||--o{ TASK_TAGS : "applied to"
     TASKS ||--o{ TASK_COMMENTS : "has"
     USERS ||--o{ TASK_COMMENTS : "authors"
+    TASKS ||--o{ TASK_ATTACHMENTS : "attaches"
+    USERS ||--o{ TASK_ATTACHMENTS : "uploads"
 
     USERS {
         uuid id PK
@@ -150,6 +152,17 @@ erDiagram
         text content
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    TASK_ATTACHMENTS {
+        uuid id PK
+        uuid task_id FK
+        uuid user_id FK
+        varchar file_name
+        bigint file_size
+        varchar content_type
+        varchar storage_key UK
+        timestamptz created_at
     }
 ```
 
@@ -390,6 +403,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-013: Automated API Contract and Property-Based Fuzz Testing with Schemathesis](docs/adr/0013-automated-api-contract-and-property-fuzz-testing-with-schemathesis.md)**
 - **[ADR-014: Project Sharing and Role-Based Access Control (RBAC)](docs/adr/0014-project-sharing-and-collaboration-rbac.md)**
 - **[ADR-015: Task Comments Architecture, Access Control, and Moderation](docs/adr/0015-task-comments-architecture-and-moderation.md)**
+- **[ADR-016: Task File Attachments with MinIO / S3 Object Storage](docs/adr/0016-file-attachments-minio-s3.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---
