@@ -1,7 +1,7 @@
 # ==========================================
-# Stage 1: Build Application Binary
+# Stage 1: Build Application Binary (Pinned by immutable sha256 digest)
 # ==========================================
-FROM golang:alpine AS builder
+FROM golang:alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS builder
 
 WORKDIR /build
 
@@ -25,9 +25,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/server ./cmd/api
 
 # ==========================================
-# Stage 2: Minimal Production Runtime
+# Stage 2: Minimal Production Runtime (Pinned by immutable sha256 digest)
 # ==========================================
-FROM alpine:3.21
+FROM alpine:3.21@sha256:bc21487101ae47172509130ee1092cc273a831968d64b617776d1f69c81e42ab
 
 WORKDIR /app
 
@@ -39,7 +39,6 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Copy compiled binary from builder
 COPY --from=builder --chown=appuser:appgroup /build/bin/server /app/server
-COPY --from=builder --chown=appuser:appgroup /build/.env.example /app/.env.example
 
 # Run as non-root user
 USER appuser:appgroup

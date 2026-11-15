@@ -18,8 +18,24 @@ services:
     networks:
       - task_network_prod
 
+  migration:
+    image: migrate/migrate:v4.18.2
+    container_name: task_manager_migration_prod
+    restart: "no"
+    volumes:
+      - ./migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=postgres://${DB_USER:-postgres}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${DB_NAME:-task_manager}?sslmode=disable
+      - up
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - task_network_prod
+
   api:
-    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:-main}
+    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:-v1.0.0}
     container_name: task_manager_api_prod
     restart: unless-stopped
     expose:
@@ -43,6 +59,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
