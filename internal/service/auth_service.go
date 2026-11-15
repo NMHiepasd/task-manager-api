@@ -111,6 +111,10 @@ func (s *authService) Register(ctx context.Context, input RegisterInput) (*Token
 	return s.issueTokenPair(ctx, user)
 }
 
+// dummyBcryptHash is a precomputed valid bcrypt hash used to equalize execution time
+// when a non-existent email is provided during login, mitigating user enumeration timing attacks.
+const dummyBcryptHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+
 // Login verifies credentials and issues a fresh token pair.
 func (s *authService) Login(ctx context.Context, input LoginInput) (*TokenResponse, error) {
 	email := strings.ToLower(strings.TrimSpace(input.Email))
@@ -118,6 +122,8 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*TokenRespon
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Perform dummy hash comparison to equalize execution time (~80ms) and prevent timing attacks
+			_ = s.hasher.ComparePassword(dummyBcryptHash, input.Password)
 			return nil, ErrInvalidCredentials
 		}
 		return nil, fmt.Errorf("failed to retrieve user: %w", err)

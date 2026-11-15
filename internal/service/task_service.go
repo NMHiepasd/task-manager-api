@@ -164,6 +164,9 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 
 	var aID pgtype.UUID
 	if input.AssigneeID != nil {
+		if err := s.validateAssignee(ctx, input.ProjectID, input.AssigneeID); err != nil {
+			return nil, err
+		}
 		aID = pgtype.UUID{Bytes: *input.AssigneeID, Valid: true}
 	}
 
@@ -598,9 +601,25 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 		pID = pgtype.UUID{Bytes: *input.ProjectID, Valid: true}
 	}
 
+	var targetProjectID *uuid.UUID
+	if input.ProjectID != nil {
+		targetProjectID = input.ProjectID
+	} else if existing.ProjectID.Valid {
+		existingProjUUID := uuid.UUID(existing.ProjectID.Bytes)
+		targetProjectID = &existingProjUUID
+	}
+
 	aID := existing.AssigneeID
 	if input.AssigneeID != nil {
+		if err := s.validateAssignee(ctx, targetProjectID, input.AssigneeID); err != nil {
+			return nil, err
+		}
 		aID = pgtype.UUID{Bytes: *input.AssigneeID, Valid: true}
+	} else if input.ProjectID != nil && existing.AssigneeID.Valid {
+		existingAssigneeUUID := uuid.UUID(existing.AssigneeID.Bytes)
+		if err := s.validateAssignee(ctx, targetProjectID, &existingAssigneeUUID); err != nil {
+			return nil, err
+		}
 	}
 
 	dDate := existing.DueDate
@@ -668,6 +687,30 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 			pID = &id
 		}
 		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "task.deleted", map[string]any{"task_id": taskID})
+	}
+
+	return nil
+}
+
+func (s *taskService) validateAssignee(ctx context.Context, projectID *uuid.UUID, assigneeID *uuid.UUID) error {
+	if assigneeID == nil {
+		return nil
+	}
+
+	// Verify assignee user exists to prevent foreign key errors (HTTP 500)
+	_, err := s.repo.GetUserByID(ctx, *assigneeID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrAssigneeNotFound
+		}
+		return fmt.Errorf("failed to verify assignee user: %w", err)
+	}
+
+	// If task is within a project, verify assignee is owner or active project member
+	if projectID != nil {
+		if !s.checkProjectAccess(ctx, *projectID, *assigneeID) {
+			return ErrAssigneeNotInProject
+		}
 	}
 
 	return nil

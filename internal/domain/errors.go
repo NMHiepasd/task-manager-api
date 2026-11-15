@@ -34,6 +34,8 @@ var (
 	ErrTaskNotFound               = fmt.Errorf("%w: task not found", ErrNotFound)
 	ErrInvalidTaskStatus          = fmt.Errorf("%w: invalid task status; allowed: todo, in_progress, completed, cancelled", ErrValidation)
 	ErrInvalidTaskPriority        = fmt.Errorf("%w: invalid task priority; allowed: low, medium, high, urgent", ErrValidation)
+	ErrAssigneeNotFound           = fmt.Errorf("%w: assignee user not found", ErrValidation)
+	ErrAssigneeNotInProject       = fmt.Errorf("%w: assignee must be a member or owner of the project", ErrValidation)
 	ErrTagNotFound                = fmt.Errorf("%w: tag not found", ErrNotFound)
 	ErrCommentNotFound            = fmt.Errorf("%w: comment not found", ErrNotFound)
 	ErrEmptyCommentContent        = fmt.Errorf("%w: comment content cannot be empty", ErrValidation)

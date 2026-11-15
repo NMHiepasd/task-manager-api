@@ -23,6 +23,7 @@ type mockQuerier struct {
 	getRefreshTokenByHashFn func(ctx context.Context, tokenHash string) (repository.RefreshToken, error)
 	revokeRefreshTokenFn    func(ctx context.Context, tokenHash string) error
 	revokeAllUserTokensFn   func(ctx context.Context, userID uuid.UUID) error
+	getProjectMemberFn      func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
 }
 
 func (m *mockQuerier) CreateUser(ctx context.Context, arg repository.CreateUserParams) (repository.User, error) {
@@ -208,7 +209,10 @@ func (m *mockQuerier) DeleteProjectMember(context.Context, repository.DeleteProj
 	return nil
 }
 
-func (m *mockQuerier) GetProjectMember(context.Context, repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+func (m *mockQuerier) GetProjectMember(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+	if m.getProjectMemberFn != nil {
+		return m.getProjectMemberFn(ctx, arg)
+	}
 	return repository.ProjectMember{}, nil
 }
 
@@ -456,6 +460,43 @@ func TestAuthService_Login_InvalidCredentials(t *testing.T) {
 		Password: "WrongPassword!",
 	})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+type trackingHasher struct {
+	hasher.PasswordHasher
+	lastComparedHash string
+	compareCount     int
+}
+
+func (th *trackingHasher) ComparePassword(hashedPassword, password string) error {
+	th.lastComparedHash = hashedPassword
+	th.compareCount++
+	return th.PasswordHasher.ComparePassword(hashedPassword, password)
+}
+
+func TestAuthService_Login_TimingAttackDefense(t *testing.T) {
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{}, pgx.ErrNoRows
+		},
+	}
+
+	baseHasher := hasher.NewBcryptHasher(bcrypt.MinCost)
+	tracker := &trackingHasher{PasswordHasher: baseHasher}
+
+	tm, err := token.NewJWTMaker("12345678901234567890123456789012")
+	require.NoError(t, err)
+
+	authService := NewAuthService(mock, tracker, tm, 15*time.Minute, 7*24*time.Hour)
+
+	_, err = authService.Login(context.Background(), LoginInput{
+		Email:    "nonexistent@example.com",
+		Password: "SomePassword123!",
+	})
+
+	require.ErrorIs(t, err, ErrInvalidCredentials)
+	require.Equal(t, 1, tracker.compareCount, "ComparePassword must be called once even if user is not found")
+	require.Equal(t, dummyBcryptHash, tracker.lastComparedHash, "Must compare against dummyBcryptHash to prevent timing attack")
 }
 
 func TestAuthService_RefreshToken_Rotation(t *testing.T) {

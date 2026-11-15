@@ -177,6 +177,92 @@ func TestTaskService_CreateTask(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrProjectNotFound)
 	})
+
+	t.Run("AssigneeNotFound", func(t *testing.T) {
+		nonExistentAssignee := uuid.New()
+		mock := &mockTaskQuerier{
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: userID}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.CreateTask(context.Background(), userID, CreateTaskInput{
+			ProjectID:  &projectID,
+			AssigneeID: &nonExistentAssignee,
+			Title:      "Task with non-existent assignee",
+		})
+		require.ErrorIs(t, err, ErrAssigneeNotFound)
+	})
+
+	t.Run("AssigneeNotInProject", func(t *testing.T) {
+		externalUser := uuid.New()
+		mock := &mockTaskQuerier{
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: userID}, nil
+			},
+		}
+		mock.getUserByIDFn = func(_ context.Context, id uuid.UUID) (repository.User, error) {
+			if id == externalUser {
+				return repository.User{ID: externalUser, Email: "external@example.com"}, nil
+			}
+			return repository.User{}, pgx.ErrNoRows
+		}
+		mock.getProjectMemberFn = func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			return repository.ProjectMember{}, pgx.ErrNoRows
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.CreateTask(context.Background(), userID, CreateTaskInput{
+			ProjectID:  &projectID,
+			AssigneeID: &externalUser,
+			Title:      "Task with external assignee",
+		})
+		require.ErrorIs(t, err, ErrAssigneeNotInProject)
+	})
+
+	t.Run("Success_WithValidAssigneeMember", func(t *testing.T) {
+		memberUser := uuid.New()
+		mock := &mockTaskQuerier{
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: userID}, nil
+			},
+			createTaskFn: func(_ context.Context, arg repository.CreateTaskParams) (repository.Task, error) {
+				require.True(t, arg.AssigneeID.Valid)
+				require.Equal(t, memberUser, uuid.UUID(arg.AssigneeID.Bytes))
+				return repository.Task{
+					ID:         taskID,
+					CreatorID:  userID,
+					AssigneeID: arg.AssigneeID,
+					Title:      arg.Title,
+					Status:     arg.Status,
+					Priority:   arg.Priority,
+					Version:    1,
+					CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					UpdatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				}, nil
+			},
+		}
+		mock.getUserByIDFn = func(_ context.Context, id uuid.UUID) (repository.User, error) {
+			if id == memberUser {
+				return repository.User{ID: memberUser, Email: "member@example.com"}, nil
+			}
+			return repository.User{}, pgx.ErrNoRows
+		}
+		mock.getProjectMemberFn = func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			return repository.ProjectMember{ProjectID: arg.ProjectID, UserID: arg.UserID, Role: "member"}, nil
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.CreateTask(context.Background(), userID, CreateTaskInput{
+			ProjectID:  &projectID,
+			AssigneeID: &memberUser,
+			Title:      "Task for member",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, &memberUser, res.AssigneeID)
+	})
 }
 
 func TestTaskService_GetTaskByID(t *testing.T) {
@@ -281,6 +367,62 @@ func TestTaskService_UpdateTask(t *testing.T) {
 		require.NotNil(t, res)
 		require.Equal(t, int32(2), res.Version)
 		require.Equal(t, "completed", res.Status)
+	})
+
+	t.Run("AssigneeNotFound", func(t *testing.T) {
+		nonExistentAssignee := uuid.New()
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: userID,
+					Title:     "Task",
+					Version:   1,
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.UpdateTask(context.Background(), userID, taskID, UpdateTaskInput{
+			AssigneeID: &nonExistentAssignee,
+			Version:    1,
+		})
+		require.ErrorIs(t, err, ErrAssigneeNotFound)
+	})
+
+	t.Run("AssigneeNotInProject", func(t *testing.T) {
+		projectID := uuid.New()
+		externalUser := uuid.New()
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: userID,
+					ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+					Title:     "Project Task",
+					Version:   1,
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: userID}, nil
+			},
+		}
+		mock.getUserByIDFn = func(_ context.Context, id uuid.UUID) (repository.User, error) {
+			if id == externalUser {
+				return repository.User{ID: externalUser, Email: "external@example.com"}, nil
+			}
+			return repository.User{}, pgx.ErrNoRows
+		}
+		mock.getProjectMemberFn = func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			return repository.ProjectMember{}, pgx.ErrNoRows
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.UpdateTask(context.Background(), userID, taskID, UpdateTaskInput{
+			AssigneeID: &externalUser,
+			Version:    1,
+		})
+		require.ErrorIs(t, err, ErrAssigneeNotInProject)
 	})
 }
 
