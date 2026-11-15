@@ -6,7 +6,16 @@
 {$DOMAIN:localhost} {
     encode gzip zstd
 
-    # Route all traffic to API backend
+    # Block public access to internal observability and documentation endpoints
+    @blocked {
+        path /metrics /metrics/* /swagger /swagger/* /debug/pprof /debug/pprof/*
+    }
+    respond @blocked 403 {
+        body "Forbidden"
+        close
+    }
+
+    # Route all legitimate API traffic to backend
     reverse_proxy api:8080 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}

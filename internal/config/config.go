@@ -21,6 +21,7 @@ type Config struct {
 	JWTExpiration        time.Duration `env:"JWT_EXPIRATION" envDefault:"15m"`
 	JWTRefreshExpiration time.Duration `env:"JWT_REFRESH_EXPIRATION" envDefault:"168h"`
 	CORSAllowedOrigins   []string      `env:"CORS_ALLOWED_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://localhost:5173"`
+	TrustedProxies       []string      `env:"TRUSTED_PROXIES" envSeparator:"," envDefault:"127.0.0.1,172.28.0.0/16"`
 	RateLimitAuthRate    float64       `env:"RATE_LIMIT_AUTH_RATE" envDefault:"0.166667"` // 10 reqs per minute (~0.167 req/sec)
 	RateLimitAuthBurst   int           `env:"RATE_LIMIT_AUTH_BURST" envDefault:"5"`
 	RateLimitAuthLimit   int           `env:"RATE_LIMIT_AUTH_LIMIT" envDefault:"10"`

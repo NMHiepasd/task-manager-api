@@ -68,8 +68,12 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	router.RedirectFixedPath = false
 	router.HandleMethodNotAllowed = true
 
-	// Disable trusted proxies by default for security
-	_ = router.SetTrustedProxies(nil)
+	// Configure trusted reverse proxies (e.g. Caddy, Traefik, Docker networks)
+	if deps.Config != nil && len(deps.Config.TrustedProxies) > 0 {
+		_ = router.SetTrustedProxies(deps.Config.TrustedProxies)
+	} else {
+		_ = router.SetTrustedProxies(nil)
+	}
 
 	maxUploadBytes := int64(10 * 1024 * 1024)
 	if deps.Config != nil && deps.Config.MaxUploadSizeMB > 0 {
@@ -146,8 +150,10 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 	router.GET("/healthz", healthHandler.Liveness)
 	router.GET("/readyz", healthHandler.Readiness)
 
-	// Swagger API documentation
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger API documentation (enabled only in non-production environments)
+	if deps.Config == nil || deps.Config.AppEnv != "production" {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// Profiling endpoints (net/http/pprof) available in non-production environments
 	if deps.Config.AppEnv != "production" {

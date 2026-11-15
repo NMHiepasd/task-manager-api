@@ -251,3 +251,86 @@ func TestRouter_Metrics(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "taskmanager_http_in_flight_requests")
 	assert.Contains(t, rec.Body.String(), "taskmanager_http_requests_total")
 }
+
+func TestRouter_Swagger_EnvironmentToggle(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	// In production, Swagger should return 404 (disabled)
+	prodRouter := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config: &config.Config{
+			AppEnv:  "production",
+			GinMode: "test",
+		},
+		Logger: log,
+	})
+
+	reqProd := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	recProd := httptest.NewRecorder()
+	prodRouter.ServeHTTP(recProd, reqProd)
+	assert.Equal(t, http.StatusNotFound, recProd.Code)
+
+	// In non-production, Swagger route should be registered
+	devRouter := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config: &config.Config{
+			AppEnv:  "development",
+			GinMode: "test",
+		},
+		Logger: log,
+	})
+
+	reqDev := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
+	recDev := httptest.NewRecorder()
+	devRouter.ServeHTTP(recDev, reqDev)
+	assert.NotEqual(t, http.StatusNotFound, recDev.Code)
+}
+
+func TestRouter_TrustedProxies_RateLimitIsolation(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	tokenMaker, _ := token.NewJWTMaker("12345678901234567890123456789012")
+
+	// Proxy at 172.28.0.2 is in TrustedProxies CIDR (172.28.0.0/16)
+	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config: &config.Config{
+			AppEnv:             "test",
+			GinMode:            "test",
+			TrustedProxies:     []string{"172.28.0.0/16"},
+			RateLimitAuthRate:  1,
+			RateLimitAuthBurst: 2,
+		},
+		Logger:      log,
+		AuthService: &mockAuthService{},
+		UserService: &mockUserService{},
+		TokenMaker:  tokenMaker,
+	})
+
+	proxyAddr := "172.28.0.2:12345"
+
+	// Client A exhausts its 2 burst tokens
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Forwarded-For", "203.0.113.195")
+		req.RemoteAddr = proxyAddr
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.NotEqual(t, http.StatusTooManyRequests, rec.Code)
+	}
+
+	// 3rd request from Client A should be rate-limited (429)
+	reqA3 := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+	reqA3.Header.Set("Content-Type", "application/json")
+	reqA3.Header.Set("X-Forwarded-For", "203.0.113.195")
+	reqA3.RemoteAddr = proxyAddr
+	recA3 := httptest.NewRecorder()
+	router.ServeHTTP(recA3, reqA3)
+	assert.Equal(t, http.StatusTooManyRequests, recA3.Code)
+
+	// Client B behind the SAME proxy with DIFFERENT X-Forwarded-For must NOT be rate limited
+	reqB1 := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+	reqB1.Header.Set("Content-Type", "application/json")
+	reqB1.Header.Set("X-Forwarded-For", "198.51.100.42")
+	reqB1.RemoteAddr = proxyAddr
+	recB1 := httptest.NewRecorder()
+	router.ServeHTTP(recB1, reqB1)
+	assert.NotEqual(t, http.StatusTooManyRequests, recB1.Code, "Client B should have independent rate limit bucket")
+}
