@@ -22,6 +22,7 @@ type TaskProcessor interface {
 	Start() error
 	Shutdown()
 	ProcessCleanupExpiredTokens(ctx context.Context, task *asynq.Task) error
+	ProcessCleanupExpiredIdempotencyKeys(ctx context.Context, task *asynq.Task) error
 	ProcessScanDueTasks(ctx context.Context, task *asynq.Task) error
 	ProcessDeadlineReminder(ctx context.Context, task *asynq.Task) error
 	ProcessSendWebhook(ctx context.Context, task *asynq.Task) error
@@ -30,6 +31,7 @@ type TaskProcessor interface {
 // TaskStore defines the database access methods required by the background worker.
 type TaskStore interface {
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	DeleteOldIdempotencyKeys(ctx context.Context, cutoff pgtype.Timestamptz) error
 	ListTasksDueSoon(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
 	CreateWebhookDelivery(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
 }
@@ -92,6 +94,7 @@ func NewRedisTaskProcessor(
 
 	// Register task handlers
 	mux.HandleFunc(TypeCleanupExpiredTokens, processor.ProcessCleanupExpiredTokens)
+	mux.HandleFunc(TypeCleanupExpiredIdempotencyKeys, processor.ProcessCleanupExpiredIdempotencyKeys)
 	mux.HandleFunc(TypeScanDueTasks, processor.ProcessScanDueTasks)
 	mux.HandleFunc(TypeDeadlineReminder, processor.ProcessDeadlineReminder)
 	mux.HandleFunc(TypeSendWebhook, processor.ProcessSendWebhook)
@@ -122,6 +125,21 @@ func (p *RedisTaskProcessor) ProcessCleanupExpiredTokens(ctx context.Context, ta
 	}
 
 	p.log.Info("Expired refresh tokens cleaned up successfully")
+	return nil
+}
+
+// ProcessCleanupExpiredIdempotencyKeys deletes old idempotency keys (older than 24h) from the database.
+func (p *RedisTaskProcessor) ProcessCleanupExpiredIdempotencyKeys(ctx context.Context, task *asynq.Task) error {
+	p.log.Info("Executing expired idempotency keys cleanup job", "task_type", task.Type())
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	err := p.store.DeleteOldIdempotencyKeys(ctx, pgtype.Timestamptz{Time: cutoff, Valid: true})
+	if err != nil {
+		p.log.Error("Failed to delete expired idempotency keys", "error", err)
+		return fmt.Errorf("cleanup expired idempotency keys failed: %w", err)
+	}
+
+	p.log.Info("Expired idempotency keys cleaned up successfully")
 	return nil
 }
 

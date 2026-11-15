@@ -41,6 +41,21 @@ func (q *Queries) CreateIdempotencyKey(ctx context.Context, arg CreateIdempotenc
 	return err
 }
 
+const deleteIdempotencyKey = `-- name: DeleteIdempotencyKey :exec
+DELETE FROM idempotency_keys
+WHERE key = $1 AND user_id = $2
+`
+
+type DeleteIdempotencyKeyParams struct {
+	Key    string    `json:"key"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotencyKeyParams) error {
+	_, err := q.db.Exec(ctx, deleteIdempotencyKey, arg.Key, arg.UserID)
+	return err
+}
+
 const deleteOldIdempotencyKeys = `-- name: DeleteOldIdempotencyKeys :exec
 DELETE FROM idempotency_keys
 WHERE created_at < $1

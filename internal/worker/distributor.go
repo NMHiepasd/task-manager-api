@@ -10,6 +10,7 @@ import (
 // TaskDistributor provides an interface for enqueuing asynchronous tasks.
 type TaskDistributor interface {
 	DistributeCleanupExpiredTokens(ctx context.Context, opts ...asynq.Option) error
+	DistributeCleanupExpiredIdempotencyKeys(ctx context.Context, opts ...asynq.Option) error
 	DistributeScanDueTasks(ctx context.Context, opts ...asynq.Option) error
 	DistributeDeadlineReminder(ctx context.Context, payload DeadlineReminderPayload, opts ...asynq.Option) error
 	DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error
@@ -33,6 +34,16 @@ func (d *RedisTaskDistributor) DistributeCleanupExpiredTokens(ctx context.Contex
 	_, err := d.client.EnqueueContext(ctx, task, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue cleanup expired tokens task: %w", err)
+	}
+	return nil
+}
+
+// DistributeCleanupExpiredIdempotencyKeys enqueues an idempotency keys cleanup task.
+func (d *RedisTaskDistributor) DistributeCleanupExpiredIdempotencyKeys(ctx context.Context, opts ...asynq.Option) error {
+	task := NewCleanupExpiredIdempotencyKeysTask()
+	_, err := d.client.EnqueueContext(ctx, task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue cleanup expired idempotency keys task: %w", err)
 	}
 	return nil
 }

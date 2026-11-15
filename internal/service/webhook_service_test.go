@@ -24,6 +24,10 @@ func (m *mockWebhookDistributor) DistributeCleanupExpiredTokens(context.Context,
 	return nil
 }
 
+func (m *mockWebhookDistributor) DistributeCleanupExpiredIdempotencyKeys(context.Context, ...asynq.Option) error {
+	return nil
+}
+
 func (m *mockWebhookDistributor) DistributeScanDueTasks(context.Context, ...asynq.Option) error {
 	return nil
 }

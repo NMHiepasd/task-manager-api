@@ -24,3 +24,7 @@ WHERE key = $1 AND user_id = $2;
 -- name: DeleteOldIdempotencyKeys :exec
 DELETE FROM idempotency_keys
 WHERE created_at < $1;
+
+-- name: DeleteIdempotencyKey :exec
+DELETE FROM idempotency_keys
+WHERE key = $1 AND user_id = $2;

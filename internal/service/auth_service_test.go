@@ -176,6 +176,10 @@ func (m *mockQuerier) DeleteOldIdempotencyKeys(context.Context, pgtype.Timestamp
 	return nil
 }
 
+func (m *mockQuerier) DeleteIdempotencyKey(context.Context, repository.DeleteIdempotencyKeyParams) error {
+	return nil
+}
+
 func (m *mockQuerier) GetIdempotencyKey(context.Context, repository.GetIdempotencyKeyParams) (repository.IdempotencyKey, error) {
 	return repository.IdempotencyKey{}, nil
 }

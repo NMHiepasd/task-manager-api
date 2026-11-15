@@ -22,14 +22,22 @@ import (
 
 // mockWorkerStore mocks TaskStore for background worker tests
 type mockWorkerStore struct {
-	deleteExpiredTokensFn   func(ctx context.Context) error
-	listTasksDueSoonFn      func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
-	createWebhookDeliveryFn func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
+	deleteExpiredTokensFn      func(ctx context.Context) error
+	deleteOldIdempotencyKeysFn func(ctx context.Context, cutoff pgtype.Timestamptz) error
+	listTasksDueSoonFn         func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
+	createWebhookDeliveryFn    func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
 }
 
 func (m *mockWorkerStore) DeleteExpiredRefreshTokens(ctx context.Context) error {
 	if m.deleteExpiredTokensFn != nil {
 		return m.deleteExpiredTokensFn(ctx)
+	}
+	return nil
+}
+
+func (m *mockWorkerStore) DeleteOldIdempotencyKeys(ctx context.Context, cutoff pgtype.Timestamptz) error {
+	if m.deleteOldIdempotencyKeysFn != nil {
+		return m.deleteOldIdempotencyKeysFn(ctx, cutoff)
 	}
 	return nil
 }
@@ -55,6 +63,10 @@ type mockDistributor struct {
 }
 
 func (m *mockDistributor) DistributeCleanupExpiredTokens(context.Context, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockDistributor) DistributeCleanupExpiredIdempotencyKeys(context.Context, ...asynq.Option) error {
 	return nil
 }
 
@@ -113,6 +125,50 @@ func TestProcessCleanupExpiredTokens(t *testing.T) {
 		err := processor.ProcessCleanupExpiredTokens(context.Background(), task)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection failed")
+	})
+}
+
+func TestProcessCleanupExpiredIdempotencyKeys(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	t.Run("success", func(t *testing.T) {
+		called := false
+		store := &mockWorkerStore{
+			deleteOldIdempotencyKeysFn: func(_ context.Context, cutoff pgtype.Timestamptz) error {
+				called = true
+				assert.True(t, cutoff.Valid)
+				assert.True(t, cutoff.Time.Before(time.Now()))
+				return nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store: store,
+			log:   log,
+		}
+
+		task := asynq.NewTask(TypeCleanupExpiredIdempotencyKeys, nil)
+		err := processor.ProcessCleanupExpiredIdempotencyKeys(context.Background(), task)
+		assert.NoError(t, err)
+		assert.True(t, called)
+	})
+
+	t.Run("database error", func(t *testing.T) {
+		store := &mockWorkerStore{
+			deleteOldIdempotencyKeysFn: func(_ context.Context, _ pgtype.Timestamptz) error {
+				return errors.New("delete failed")
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store: store,
+			log:   log,
+		}
+
+		task := asynq.NewTask(TypeCleanupExpiredIdempotencyKeys, nil)
+		err := processor.ProcessCleanupExpiredIdempotencyKeys(context.Background(), task)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "delete failed")
 	})
 }
 

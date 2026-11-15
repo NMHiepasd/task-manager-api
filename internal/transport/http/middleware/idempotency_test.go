@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -85,6 +86,15 @@ func (m *mockIdempotencyQuerier) UpdateIdempotencyKeyResponse(_ context.Context,
 	rec.ResponseBody = arg.ResponseBody
 	rec.LockedAt = pgtype.Timestamptz{Valid: false}
 	m.records[k] = rec
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteIdempotencyKey(_ context.Context, arg repository.DeleteIdempotencyKeyParams) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	k := m.recordKey(arg.UserID, arg.Key)
+	delete(m.records, k)
 	return nil
 }
 
@@ -491,4 +501,113 @@ func TestIdempotency_ConcurrentInProgress(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rec.Code)
 	assert.Contains(t, rec.Body.String(), "IDEMPOTENCY_IN_PROGRESS")
 	assert.Equal(t, 0, count)
+}
+
+func TestIdempotency_FailedHandler_DeletesKeyAndAllowsRetry(t *testing.T) {
+	mock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Retryable"}`
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+
+	failOnce := true
+	callCount := 0
+	router.POST("/api/v1/retry-test", func(c *gin.Context) {
+		callCount++
+		if failOnce {
+			failOnce = false
+			_ = c.Error(errors.New("transient error"))
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "bad request"})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"status": "ok"})
+	})
+
+	// First request fails with 400
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/retry-test", bytes.NewBufferString(body))
+	req1.Header.Set("Idempotency-Key", key)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+
+	assert.Equal(t, http.StatusBadRequest, rec1.Code)
+	assert.Equal(t, 1, callCount)
+
+	// Ensure the failed request was NOT saved into idempotency store (key should be deleted)
+	_, err := mock.GetIdempotencyKey(context.Background(), repository.GetIdempotencyKeyParams{
+		Key:    key,
+		UserID: userID,
+	})
+	assert.ErrorIs(t, err, pgx.ErrNoRows, "Failed request must not leave a cached or in-progress key in store")
+
+	// Immediate retry with the SAME key must NOT return 409 Conflict, but execute cleanly and succeed!
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/retry-test", bytes.NewBufferString(body))
+	req2.Header.Set("Idempotency-Key", key)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+
+	assert.Equal(t, http.StatusCreated, rec2.Code)
+	assert.Equal(t, 2, callCount)
+	assert.Contains(t, rec2.Body.String(), "ok")
+}
+
+func TestIdempotency_PanickingHandler_CleansUpKey(t *testing.T) {
+	mock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Panic Test"}`
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+
+	shouldPanic := true
+	router.POST("/api/v1/panic-test", func(c *gin.Context) {
+		if shouldPanic {
+			shouldPanic = false
+			panic("unexpected runtime panic")
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "recovered"})
+	})
+
+	// Request 1 panics (caught by Recovery middleware returning 500)
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/panic-test", bytes.NewBufferString(body))
+	req1.Header.Set("Idempotency-Key", key)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+	assert.Equal(t, http.StatusInternalServerError, rec1.Code)
+
+	// Verify key was NOT left locked in store
+	_, err := mock.GetIdempotencyKey(context.Background(), repository.GetIdempotencyKeyParams{
+		Key:    key,
+		UserID: userID,
+	})
+	assert.ErrorIs(t, err, pgx.ErrNoRows, "Panicked request must delete key reservation")
+
+	// Request 2 with same key succeeds without 409
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/panic-test", bytes.NewBufferString(body))
+	req2.Header.Set("Idempotency-Key", key)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
+	assert.Contains(t, rec2.Body.String(), "recovered")
 }

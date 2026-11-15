@@ -31,6 +31,7 @@ type Querier interface {
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
 	CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) (WebhookDelivery, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotencyKeyParams) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error

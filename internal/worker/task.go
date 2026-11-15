@@ -20,10 +20,11 @@ const (
 const (
 	// TypeCleanupExpiredTokens identifies the background task for pruning expired refresh tokens.
 	//nolint:gosec // G101: Task identifier contains the word token, not a credential
-	TypeCleanupExpiredTokens = "task:cleanup_expired_tokens"
-	TypeScanDueTasks         = "task:scan_due_tasks"
-	TypeDeadlineReminder     = "task:deadline_reminder"
-	TypeSendWebhook          = "task:send_webhook"
+	TypeCleanupExpiredTokens          = "task:cleanup_expired_tokens"
+	TypeCleanupExpiredIdempotencyKeys = "task:cleanup_expired_idempotency_keys"
+	TypeScanDueTasks                  = "task:scan_due_tasks"
+	TypeDeadlineReminder              = "task:deadline_reminder"
+	TypeSendWebhook                   = "task:send_webhook"
 )
 
 // SendWebhookPayload defines the information needed to deliver an event to a webhook endpoint.
@@ -47,6 +48,11 @@ type DeadlineReminderPayload struct {
 // NewCleanupExpiredTokensTask creates an Asynq task to prune expired refresh tokens from the database.
 func NewCleanupExpiredTokensTask() *asynq.Task {
 	return asynq.NewTask(TypeCleanupExpiredTokens, nil, asynq.Queue(QueueLow), asynq.MaxRetry(3))
+}
+
+// NewCleanupExpiredIdempotencyKeysTask creates an Asynq task to prune expired idempotency keys from the database.
+func NewCleanupExpiredIdempotencyKeysTask() *asynq.Task {
+	return asynq.NewTask(TypeCleanupExpiredIdempotencyKeys, nil, asynq.Queue(QueueLow), asynq.MaxRetry(3))
 }
 
 // NewScanDueTasksTask creates an Asynq task to scan for tasks approaching their deadline and fan-out reminder tasks.

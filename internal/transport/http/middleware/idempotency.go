@@ -158,11 +158,37 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 		}
 		c.Writer = writer
 
+		completed := false
+		defer func() {
+			if !completed {
+				// If processing panicked or terminated abnormally without completing,
+				// delete the reserved key so subsequent retries do not get stuck in 409 IDEMPOTENCY_IN_PROGRESS.
+				delCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = querier.DeleteIdempotencyKey(delCtx, repository.DeleteIdempotencyKeyParams{
+					Key:    key,
+					UserID: userID,
+				})
+			}
+		}()
+
 		c.Next()
 
-		// Persist the terminal response for future idempotency replay
+		// If the request resulted in an error (registered in c.Errors or status >= 400 or aborted),
+		// remove the reserved key so the client can retry the operation cleanly.
+		if len(c.Errors) > 0 || c.Writer.Status() >= 400 || c.IsAborted() {
+			delCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = querier.DeleteIdempotencyKey(delCtx, repository.DeleteIdempotencyKeyParams{
+				Key:    key,
+				UserID: userID,
+			})
+			return
+		}
+
+		// Persist the terminal response for future idempotency replay (successful 2xx/3xx responses)
 		statusCode := c.Writer.Status()
-		if statusCode >= 200 && statusCode < 500 {
+		if statusCode >= 200 && statusCode < 400 {
 			updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -172,6 +198,7 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 				ResponseCode: pgtype.Int4{Int32: int32(statusCode), Valid: true},
 				ResponseBody: writer.body.Bytes(),
 			})
+			completed = true
 		}
 	}
 }

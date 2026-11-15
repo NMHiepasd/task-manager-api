@@ -17,6 +17,13 @@ func TestNewCleanupExpiredTokensTask(t *testing.T) {
 	assert.Empty(t, task.Payload())
 }
 
+func TestNewCleanupExpiredIdempotencyKeysTask(t *testing.T) {
+	task := NewCleanupExpiredIdempotencyKeysTask()
+	require.NotNil(t, task)
+	assert.Equal(t, TypeCleanupExpiredIdempotencyKeys, task.Type())
+	assert.Empty(t, task.Payload())
+}
+
 func TestNewScanDueTasksTask(t *testing.T) {
 	task := NewScanDueTasksTask()
 	require.NotNil(t, task)

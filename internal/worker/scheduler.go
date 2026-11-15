@@ -30,7 +30,15 @@ func NewScheduler(redisOpt asynq.RedisConnOpt, cfg *config.Config, log *slog.Log
 	}
 	log.Info("Registered recurring cleanup job", "entry_id", entryID, "schedule", cleanupSchedule)
 
-	// 2. Register upcoming task deadline scanner job
+	// 2. Register expired idempotency keys cleanup job
+	idempotencyCleanupTask := NewCleanupExpiredIdempotencyKeysTask()
+	entryID, err = scheduler.Register(cleanupSchedule, idempotencyCleanupTask)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register cleanup expired idempotency keys cron: %w", err)
+	}
+	log.Info("Registered recurring idempotency keys cleanup job", "entry_id", entryID, "schedule", cleanupSchedule)
+
+	// 3. Register upcoming task deadline scanner job
 	scanSchedule := cfg.DeadlineReminderCronSchedule
 	if scanSchedule == "" {
 		scanSchedule = "@hourly"
