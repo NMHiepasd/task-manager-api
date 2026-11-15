@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/webhook"
 	"testing"
 	"time"
 
@@ -342,5 +343,88 @@ func TestProcessSendWebhook(t *testing.T) {
 		err := processor.ProcessSendWebhook(context.Background(), task)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, asynq.SkipRetry))
+	})
+
+	t.Run("ssrf blocked returns SkipRetry", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		var recordedDelivery repository.CreateWebhookDeliveryParams
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				recordedDelivery = arg
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: webhook.NewSafeHTTPClient(false, 2*time.Second),
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: ts.URL, // ts.URL is 127.0.0.1, must be blocked
+			Secret:    "secret",
+			EventType: "task.created",
+			Payload:   []byte(`{"task_id":"123"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, asynq.SkipRetry))
+		assert.Equal(t, "failed", recordedDelivery.Status)
+		assert.Contains(t, recordedDelivery.ResponseBody.String, "SSRF prevention")
+	})
+
+	t.Run("redirect response is treated as failed and not followed", func(t *testing.T) {
+		redirectTargetCalled := false
+		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			redirectTargetCalled = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer targetServer.Close()
+
+		redirectingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, targetServer.URL, http.StatusFound)
+		}))
+		defer redirectingServer.Close()
+
+		var recordedDelivery repository.CreateWebhookDeliveryParams
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				recordedDelivery = arg
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: webhook.NewSafeHTTPClient(true, 2*time.Second),
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: redirectingServer.URL,
+			Secret:    "secret",
+			EventType: "task.updated",
+			Payload:   []byte(`{"task_id":"123"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.NoError(t, err, "3xx redirect is a terminal delivery failure and does not trigger retry")
+		assert.False(t, redirectTargetCalled, "should not have followed redirect")
+		assert.Equal(t, "failed", recordedDelivery.Status)
+		assert.Equal(t, int32(302), recordedDelivery.ResponseStatus.Int32)
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/webhook"
@@ -89,7 +90,7 @@ func NewRedisTaskProcessor(
 		store:       store,
 		distributor: distributor,
 		log:         log,
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		httpClient:  webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks, 10*time.Second),
 	}
 
 	// Register task handlers
@@ -232,6 +233,9 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 			ExecutionDurationMs: pgtype.Int4{Int32: durationMs, Valid: true},
 			Status:              "failed",
 		})
+		if strings.Contains(err.Error(), "SSRF prevention") {
+			return fmt.Errorf("webhook delivery blocked by SSRF protection: %w", asynq.SkipRetry)
+		}
 		return fmt.Errorf("webhook delivery failed: %w", err)
 	}
 	defer resp.Body.Close()
