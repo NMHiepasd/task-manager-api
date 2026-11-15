@@ -12,6 +12,7 @@ type TaskDistributor interface {
 	DistributeCleanupExpiredTokens(ctx context.Context, opts ...asynq.Option) error
 	DistributeScanDueTasks(ctx context.Context, opts ...asynq.Option) error
 	DistributeDeadlineReminder(ctx context.Context, payload DeadlineReminderPayload, opts ...asynq.Option) error
+	DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error
 	Close() error
 }
 
@@ -55,6 +56,19 @@ func (d *RedisTaskDistributor) DistributeDeadlineReminder(ctx context.Context, p
 	_, err = d.client.EnqueueContext(ctx, task, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue deadline reminder task: %w", err)
+	}
+	return nil
+}
+
+// DistributeSendWebhook enqueues a webhook delivery task.
+func (d *RedisTaskDistributor) DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error {
+	task, err := NewSendWebhookTask(payload)
+	if err != nil {
+		return err
+	}
+	_, err = d.client.EnqueueContext(ctx, task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue send webhook task: %w", err)
 	}
 	return nil
 }

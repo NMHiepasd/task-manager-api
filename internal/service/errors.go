@@ -32,4 +32,8 @@ var (
 	ErrFileTooLarge               = domain.ErrFileTooLarge
 	ErrInvalidFileType            = domain.ErrInvalidFileType
 	ErrEmptyFile                  = domain.ErrEmptyFile
+	ErrWebhookNotFound            = domain.ErrWebhookNotFound
+	ErrInvalidWebhookURL          = domain.ErrInvalidWebhookURL
+	ErrWebhookSSRF                = domain.ErrWebhookSSRF
+	ErrInvalidWebhookEvents       = domain.ErrInvalidWebhookEvents
 )

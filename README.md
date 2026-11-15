@@ -404,6 +404,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-014: Project Sharing and Role-Based Access Control (RBAC)](docs/adr/0014-project-sharing-and-collaboration-rbac.md)**
 - **[ADR-015: Task Comments Architecture, Access Control, and Moderation](docs/adr/0015-task-comments-architecture-and-moderation.md)**
 - **[ADR-016: Task File Attachments with MinIO / S3 Object Storage](docs/adr/0016-file-attachments-minio-s3.md)**
+- **[ADR-017: Webhook System with Asynq Background Queue and HMAC-SHA256 Signatures](docs/adr/0017-webhooks-system-asynq.md)**
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

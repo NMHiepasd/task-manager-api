@@ -36,7 +36,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.LoginRequest"
+                            "$ref": "#/definitions/handler.LoginRequest"
                         }
                     }
                 ],
@@ -44,25 +44,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TokenResponse"
+                            "$ref": "#/definitions/service.TokenResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -89,7 +89,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.LogoutRequest"
+                            "$ref": "#/definitions/handler.LogoutRequest"
                         }
                     }
                 ],
@@ -106,13 +106,13 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -139,7 +139,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.RefreshTokenRequest"
+                            "$ref": "#/definitions/handler.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -147,25 +147,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TokenResponse"
+                            "$ref": "#/definitions/service.TokenResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -192,7 +192,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.RegisterRequest"
+                            "$ref": "#/definitions/handler.RegisterRequest"
                         }
                     }
                 ],
@@ -200,25 +200,25 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TokenResponse"
+                            "$ref": "#/definitions/service.TokenResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -264,19 +264,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.PaginatedProjectsResponse"
+                            "$ref": "#/definitions/service.PaginatedProjectsResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -306,7 +306,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.CreateProjectRequest"
+                            "$ref": "#/definitions/handler.CreateProjectRequest"
                         }
                     }
                 ],
@@ -314,19 +314,19 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectResponse"
+                            "$ref": "#/definitions/service.ProjectResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -361,25 +361,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectResponse"
+                            "$ref": "#/definitions/service.ProjectResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -416,7 +416,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateProjectRequest"
+                            "$ref": "#/definitions/handler.UpdateProjectRequest"
                         }
                     }
                 ],
@@ -424,31 +424,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectResponse"
+                            "$ref": "#/definitions/service.ProjectResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -490,19 +490,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -539,7 +539,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateProjectRequest"
+                            "$ref": "#/definitions/handler.UpdateProjectRequest"
                         }
                     }
                 ],
@@ -547,31 +547,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectResponse"
+                            "$ref": "#/definitions/service.ProjectResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -608,32 +608,32 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/task-manager-api_internal_service.ProjectMemberResponse"
+                                "$ref": "#/definitions/service.ProjectMemberResponse"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -670,7 +670,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.AddProjectMemberRequest"
+                            "$ref": "#/definitions/handler.AddProjectMemberRequest"
                         }
                     }
                 ],
@@ -678,43 +678,43 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectMemberResponse"
+                            "$ref": "#/definitions/service.ProjectMemberResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -765,31 +765,31 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -833,7 +833,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateProjectMemberRoleRequest"
+                            "$ref": "#/definitions/handler.UpdateProjectMemberRoleRequest"
                         }
                     }
                 ],
@@ -841,37 +841,37 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.ProjectMemberResponse"
+                            "$ref": "#/definitions/service.ProjectMemberResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -954,25 +954,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.PaginatedTasksResponse"
+                            "$ref": "#/definitions/service.PaginatedTasksResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1000,14 +1000,14 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/task-manager-api_internal_service.TagResponse"
+                                "$ref": "#/definitions/service.TagResponse"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1037,7 +1037,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.CreateTagRequest"
+                            "$ref": "#/definitions/handler.CreateTagRequest"
                         }
                     }
                 ],
@@ -1045,19 +1045,19 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TagResponse"
+                            "$ref": "#/definitions/service.TagResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1101,19 +1101,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1195,19 +1195,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.PaginatedTasksResponse"
+                            "$ref": "#/definitions/service.PaginatedTasksResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1237,7 +1237,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.CreateTaskRequest"
+                            "$ref": "#/definitions/handler.CreateTaskRequest"
                         }
                     }
                 ],
@@ -1245,25 +1245,25 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TaskResponse"
+                            "$ref": "#/definitions/service.TaskResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1298,25 +1298,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TaskResponse"
+                            "$ref": "#/definitions/service.TaskResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1353,7 +1353,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateTaskRequest"
+                            "$ref": "#/definitions/handler.UpdateTaskRequest"
                         }
                     }
                 ],
@@ -1361,31 +1361,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TaskResponse"
+                            "$ref": "#/definitions/service.TaskResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1427,19 +1427,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1476,7 +1476,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateTaskRequest"
+                            "$ref": "#/definitions/handler.UpdateTaskRequest"
                         }
                     }
                 ],
@@ -1484,31 +1484,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.TaskResponse"
+                            "$ref": "#/definitions/service.TaskResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1545,20 +1545,20 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/task-manager-api_internal_service.AttachmentResponse"
+                                "$ref": "#/definitions/service.AttachmentResponse"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1601,37 +1601,37 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.AttachmentResponse"
+                            "$ref": "#/definitions/service.AttachmentResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1686,13 +1686,13 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1735,19 +1735,19 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1802,31 +1802,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.PaginatedCommentsResponse"
+                            "$ref": "#/definitions/service.PaginatedCommentsResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1863,7 +1863,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.CreateCommentRequest"
+                            "$ref": "#/definitions/handler.CreateCommentRequest"
                         }
                     }
                 ],
@@ -1871,31 +1871,31 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.CommentResponse"
+                            "$ref": "#/definitions/service.CommentResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -1946,31 +1946,31 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -2014,7 +2014,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.UpdateCommentRequest"
+                            "$ref": "#/definitions/handler.UpdateCommentRequest"
                         }
                     }
                 ],
@@ -2022,37 +2022,37 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.CommentResponse"
+                            "$ref": "#/definitions/service.CommentResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -2091,7 +2091,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.SetTaskTagsRequest"
+                            "$ref": "#/definitions/handler.SetTaskTagsRequest"
                         }
                     }
                 ],
@@ -2101,26 +2101,26 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/task-manager-api_internal_service.TagResponse"
+                                "$ref": "#/definitions/service.TagResponse"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -2146,19 +2146,396 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/task-manager-api_internal_service.UserResponse"
+                            "$ref": "#/definitions/service.UserResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/webhooks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all registered webhook subscriptions for the authenticated user.",
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "List webhooks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by project UUID",
+                        "name": "project_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.WebhookResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new webhook subscription for real-time system events (task, comment, attachment).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Register webhook",
+                "parameters": [
+                    {
+                        "description": "Webhook subscription configuration",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/service.WebhookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/webhooks/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves configuration details of a webhook subscription.",
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Get webhook details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.WebhookResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Permanently removes a webhook subscription.",
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Delete webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates target URL, subscribed events, or active status of a webhook.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Update webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated webhook settings",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UpdateWebhookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.WebhookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/webhooks/{id}/deliveries": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns recent delivery history, HTTP response codes, and execution duration for audit and troubleshooting.",
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "List webhook deliveries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to retrieve (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to skip (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.WebhookDeliveryResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/webhooks/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Triggers a test ping event to the subscribed webhook endpoint to verify network and HMAC connectivity.",
+                "produces": [
+                    "application/json",
+                    "application/problem+json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Test webhook ping",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -2211,7 +2588,7 @@
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "$ref": "#/definitions/internal_transport_http_handler.ProblemDetails"
+                            "$ref": "#/definitions/handler.ProblemDetails"
                         }
                     }
                 }
@@ -2219,7 +2596,18 @@
         }
     },
     "definitions": {
-        "internal_transport_http_handler.AddProjectMemberRequest": {
+        "domain.InvalidParam": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.AddProjectMemberRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -2238,7 +2626,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.CreateCommentRequest": {
+        "handler.CreateCommentRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -2251,7 +2639,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.CreateProjectRequest": {
+        "handler.CreateProjectRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -2272,7 +2660,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.CreateTagRequest": {
+        "handler.CreateTagRequest": {
             "type": "object",
             "required": [
                 "name"
@@ -2289,7 +2677,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.CreateTaskRequest": {
+        "handler.CreateTaskRequest": {
             "type": "object",
             "required": [
                 "title"
@@ -2339,7 +2727,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.LoginRequest": {
+        "handler.LoginRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -2354,7 +2742,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.LogoutRequest": {
+        "handler.LogoutRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -2365,7 +2753,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.ProblemDetails": {
+        "handler.ProblemDetails": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2380,7 +2768,7 @@
                 "invalid_params": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/task-manager-api_internal_domain.InvalidParam"
+                        "$ref": "#/definitions/domain.InvalidParam"
                     }
                 },
                 "request_id": {
@@ -2397,7 +2785,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.RefreshTokenRequest": {
+        "handler.RefreshTokenRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -2408,7 +2796,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.RegisterRequest": {
+        "handler.RegisterRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -2432,7 +2820,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.SetTaskTagsRequest": {
+        "handler.SetTaskTagsRequest": {
             "type": "object",
             "properties": {
                 "tag_ids": {
@@ -2443,7 +2831,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.UpdateCommentRequest": {
+        "handler.UpdateCommentRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -2456,7 +2844,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.UpdateProjectMemberRoleRequest": {
+        "handler.UpdateProjectMemberRoleRequest": {
             "type": "object",
             "required": [
                 "role"
@@ -2471,7 +2859,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.UpdateProjectRequest": {
+        "handler.UpdateProjectRequest": {
             "type": "object",
             "required": [
                 "version"
@@ -2496,7 +2884,7 @@
                 }
             }
         },
-        "internal_transport_http_handler.UpdateTaskRequest": {
+        "handler.UpdateTaskRequest": {
             "type": "object",
             "required": [
                 "version"
@@ -2550,18 +2938,7 @@
                 }
             }
         },
-        "task-manager-api_internal_domain.InvalidParam": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
-        "task-manager-api_internal_service.AttachmentResponse": {
+        "service.AttachmentResponse": {
             "type": "object",
             "properties": {
                 "content_type": {
@@ -2587,7 +2964,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.CommentResponse": {
+        "service.CommentResponse": {
             "type": "object",
             "properties": {
                 "author": {
@@ -2616,7 +2993,27 @@
                 }
             }
         },
-        "task-manager-api_internal_service.PaginatedCommentsResponse": {
+        "service.CreateWebhookRequest": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PaginatedCommentsResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -2625,7 +3022,7 @@
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/task-manager-api_internal_service.CommentResponse"
+                        "$ref": "#/definitions/service.CommentResponse"
                     }
                 },
                 "limit": {
@@ -2645,7 +3042,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.PaginatedProjectsResponse": {
+        "service.PaginatedProjectsResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -2654,7 +3051,7 @@
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/task-manager-api_internal_service.ProjectResponse"
+                        "$ref": "#/definitions/service.ProjectResponse"
                     }
                 },
                 "limit": {
@@ -2674,7 +3071,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.PaginatedTasksResponse": {
+        "service.PaginatedTasksResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -2683,7 +3080,7 @@
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/task-manager-api_internal_service.TaskResponse"
+                        "$ref": "#/definitions/service.TaskResponse"
                     }
                 },
                 "limit": {
@@ -2703,7 +3100,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.ProjectMemberResponse": {
+        "service.ProjectMemberResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2732,7 +3129,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.ProjectResponse": {
+        "service.ProjectResponse": {
             "type": "object",
             "properties": {
                 "color": {
@@ -2764,7 +3161,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.TagResponse": {
+        "service.TagResponse": {
             "type": "object",
             "properties": {
                 "color": {
@@ -2784,7 +3181,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.TaskResponse": {
+        "service.TaskResponse": {
             "type": "object",
             "properties": {
                 "assignee_id": {
@@ -2817,7 +3214,7 @@
                 "tags": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/task-manager-api_internal_service.TagResponse"
+                        "$ref": "#/definitions/service.TagResponse"
                     }
                 },
                 "title": {
@@ -2831,7 +3228,7 @@
                 }
             }
         },
-        "task-manager-api_internal_service.TokenResponse": {
+        "service.TokenResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -2848,11 +3245,28 @@
                     "type": "string"
                 },
                 "user": {
-                    "$ref": "#/definitions/task-manager-api_internal_service.UserResponse"
+                    "$ref": "#/definitions/service.UserResponse"
                 }
             }
         },
-        "task-manager-api_internal_service.UserResponse": {
+        "service.UpdateWebhookRequest": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UserResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2868,6 +3282,73 @@
                     "type": "string"
                 },
                 "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.WebhookDeliveryResponse": {
+            "type": "object",
+            "properties": {
+                "delivered_at": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "type": "string"
+                },
+                "execution_duration_ms": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payload": {
+                    "type": "string"
+                },
+                "response_body": {
+                    "type": "string"
+                },
+                "response_status": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "webhook_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.WebhookResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "user_id": {
                     "type": "string"
                 }
             }

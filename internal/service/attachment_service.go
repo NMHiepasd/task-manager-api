@@ -47,6 +47,12 @@ type attachmentService struct {
 	queries            repository.Querier
 	storage            storage.Client
 	maxUploadSizeBytes int64
+	dispatcher         EventDispatcher
+}
+
+// SetEventDispatcher registers an event dispatcher for webhook notifications.
+func (s *attachmentService) SetEventDispatcher(dispatcher EventDispatcher) {
+	s.dispatcher = dispatcher
 }
 
 // NewAttachmentService creates a new AttachmentService instance.
@@ -80,7 +86,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	}
 
 	// Verify task write permission
-	_, err := s.verifyTaskWriteAccess(ctx, userID, taskID)
+	task, err := s.verifyTaskWriteAccess(ctx, userID, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +115,17 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 		return nil, fmt.Errorf("failed to save attachment record: %w", err)
 	}
 
-	return toAttachmentResponse(record), nil
+	resp := toAttachmentResponse(record)
+	if s.dispatcher != nil {
+		var pID *uuid.UUID
+		if task.ProjectID.Valid {
+			id := uuid.UUID(task.ProjectID.Bytes)
+			pID = &id
+		}
+		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "attachment.uploaded", resp)
+	}
+
+	return resp, nil
 }
 
 // ListAttachments returns all attachments belonging to a task for authorized members.

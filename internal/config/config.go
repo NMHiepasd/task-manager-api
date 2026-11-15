@@ -66,6 +66,9 @@ type Config struct {
 	S3UseSSL        bool   `env:"S3_USE_SSL" envDefault:"false"`
 	S3Region        string `env:"S3_REGION" envDefault:"us-east-1"`
 	MaxUploadSizeMB int64  `env:"MAX_UPLOAD_SIZE_MB" envDefault:"10"`
+
+	// Webhooks
+	AllowLocalWebhooks bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
 }
 
 // Load parses environment variables into Config and validates required fields.

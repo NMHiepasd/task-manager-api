@@ -272,6 +272,46 @@ func (m *mockQuerier) UpdateTaskComment(context.Context, repository.UpdateTaskCo
 	return repository.TaskComment{}, nil
 }
 
+func (m *mockQuerier) CreateWebhook(context.Context, repository.CreateWebhookParams) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockQuerier) GetWebhookByID(context.Context, uuid.UUID) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockQuerier) ListWebhooksByUserID(context.Context, uuid.UUID) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListWebhooksByProjectID(context.Context, pgtype.UUID) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) UpdateWebhook(context.Context, repository.UpdateWebhookParams) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockQuerier) DeleteWebhook(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockQuerier) ListActiveWebhooksForEvent(context.Context, repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) CreateWebhookDelivery(context.Context, repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+	return repository.WebhookDelivery{}, nil
+}
+
+func (m *mockQuerier) GetWebhookDeliveryByID(context.Context, uuid.UUID) (repository.WebhookDelivery, error) {
+	return repository.WebhookDelivery{}, nil
+}
+
+func (m *mockQuerier) ListWebhookDeliveries(context.Context, repository.ListWebhookDeliveriesParams) ([]repository.WebhookDelivery, error) {
+	return nil, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

@@ -112,3 +112,27 @@ type User struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 }
+
+type Webhook struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	ProjectID pgtype.UUID        `json:"project_id"`
+	Url       string             `json:"url"`
+	Secret    string             `json:"secret"`
+	Events    []string           `json:"events"`
+	IsActive  bool               `json:"is_active"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WebhookDelivery struct {
+	ID                  uuid.UUID          `json:"id"`
+	WebhookID           uuid.UUID          `json:"webhook_id"`
+	EventType           string             `json:"event_type"`
+	Payload             []byte             `json:"payload"`
+	ResponseStatus      pgtype.Int4        `json:"response_status"`
+	ResponseBody        pgtype.Text        `json:"response_body"`
+	ExecutionDurationMs pgtype.Int4        `json:"execution_duration_ms"`
+	Status              string             `json:"status"`
+	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
+}

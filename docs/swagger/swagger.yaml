@@ -1,6 +1,13 @@
 basePath: /
 definitions:
-  internal_transport_http_handler.AddProjectMemberRequest:
+  domain.InvalidParam:
+    properties:
+      name:
+        type: string
+      reason:
+        type: string
+    type: object
+  handler.AddProjectMemberRequest:
     properties:
       email:
         type: string
@@ -13,7 +20,7 @@ definitions:
     - email
     - role
     type: object
-  internal_transport_http_handler.CreateCommentRequest:
+  handler.CreateCommentRequest:
     properties:
       content:
         maxLength: 2000
@@ -22,7 +29,7 @@ definitions:
     required:
     - content
     type: object
-  internal_transport_http_handler.CreateProjectRequest:
+  handler.CreateProjectRequest:
     properties:
       color:
         maxLength: 20
@@ -37,7 +44,7 @@ definitions:
     required:
     - name
     type: object
-  internal_transport_http_handler.CreateTagRequest:
+  handler.CreateTagRequest:
     properties:
       color:
         maxLength: 20
@@ -49,7 +56,7 @@ definitions:
     required:
     - name
     type: object
-  internal_transport_http_handler.CreateTaskRequest:
+  handler.CreateTaskRequest:
     properties:
       assignee_id:
         type: string
@@ -85,7 +92,7 @@ definitions:
     required:
     - title
     type: object
-  internal_transport_http_handler.LoginRequest:
+  handler.LoginRequest:
     properties:
       email:
         type: string
@@ -95,14 +102,14 @@ definitions:
     - email
     - password
     type: object
-  internal_transport_http_handler.LogoutRequest:
+  handler.LogoutRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  internal_transport_http_handler.ProblemDetails:
+  handler.ProblemDetails:
     properties:
       code:
         type: string
@@ -112,7 +119,7 @@ definitions:
         type: string
       invalid_params:
         items:
-          $ref: '#/definitions/task-manager-api_internal_domain.InvalidParam'
+          $ref: '#/definitions/domain.InvalidParam'
         type: array
       request_id:
         type: string
@@ -123,14 +130,14 @@ definitions:
       type:
         type: string
     type: object
-  internal_transport_http_handler.RefreshTokenRequest:
+  handler.RefreshTokenRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  internal_transport_http_handler.RegisterRequest:
+  handler.RegisterRequest:
     properties:
       email:
         maxLength: 255
@@ -148,14 +155,14 @@ definitions:
     - full_name
     - password
     type: object
-  internal_transport_http_handler.SetTaskTagsRequest:
+  handler.SetTaskTagsRequest:
     properties:
       tag_ids:
         items:
           type: string
         type: array
     type: object
-  internal_transport_http_handler.UpdateCommentRequest:
+  handler.UpdateCommentRequest:
     properties:
       content:
         maxLength: 2000
@@ -164,7 +171,7 @@ definitions:
     required:
     - content
     type: object
-  internal_transport_http_handler.UpdateProjectMemberRoleRequest:
+  handler.UpdateProjectMemberRoleRequest:
     properties:
       role:
         enum:
@@ -174,7 +181,7 @@ definitions:
     required:
     - role
     type: object
-  internal_transport_http_handler.UpdateProjectRequest:
+  handler.UpdateProjectRequest:
     properties:
       color:
         maxLength: 20
@@ -192,7 +199,7 @@ definitions:
     required:
     - version
     type: object
-  internal_transport_http_handler.UpdateTaskRequest:
+  handler.UpdateTaskRequest:
     properties:
       assignee_id:
         type: string
@@ -231,14 +238,7 @@ definitions:
     required:
     - version
     type: object
-  task-manager-api_internal_domain.InvalidParam:
-    properties:
-      name:
-        type: string
-      reason:
-        type: string
-    type: object
-  task-manager-api_internal_service.AttachmentResponse:
+  service.AttachmentResponse:
     properties:
       content_type:
         type: string
@@ -255,7 +255,7 @@ definitions:
       user_id:
         type: string
     type: object
-  task-manager-api_internal_service.CommentResponse:
+  service.CommentResponse:
     properties:
       author:
         type: string
@@ -274,13 +274,26 @@ definitions:
       user_id:
         type: string
     type: object
-  task-manager-api_internal_service.PaginatedCommentsResponse:
+  service.CreateWebhookRequest:
+    properties:
+      events:
+        items:
+          type: string
+        type: array
+      project_id:
+        type: string
+      secret:
+        type: string
+      url:
+        type: string
+    type: object
+  service.PaginatedCommentsResponse:
     properties:
       has_more:
         type: boolean
       items:
         items:
-          $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+          $ref: '#/definitions/service.CommentResponse'
         type: array
       limit:
         type: integer
@@ -293,13 +306,13 @@ definitions:
       total_pages:
         type: integer
     type: object
-  task-manager-api_internal_service.PaginatedProjectsResponse:
+  service.PaginatedProjectsResponse:
     properties:
       has_more:
         type: boolean
       items:
         items:
-          $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+          $ref: '#/definitions/service.ProjectResponse'
         type: array
       limit:
         type: integer
@@ -312,13 +325,13 @@ definitions:
       total_pages:
         type: integer
     type: object
-  task-manager-api_internal_service.PaginatedTasksResponse:
+  service.PaginatedTasksResponse:
     properties:
       has_more:
         type: boolean
       items:
         items:
-          $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+          $ref: '#/definitions/service.TaskResponse'
         type: array
       limit:
         type: integer
@@ -331,7 +344,7 @@ definitions:
       total_pages:
         type: integer
     type: object
-  task-manager-api_internal_service.ProjectMemberResponse:
+  service.ProjectMemberResponse:
     properties:
       created_at:
         type: string
@@ -350,7 +363,7 @@ definitions:
       user_id:
         type: string
     type: object
-  task-manager-api_internal_service.ProjectResponse:
+  service.ProjectResponse:
     properties:
       color:
         type: string
@@ -371,7 +384,7 @@ definitions:
       version:
         type: integer
     type: object
-  task-manager-api_internal_service.TagResponse:
+  service.TagResponse:
     properties:
       color:
         type: string
@@ -384,7 +397,7 @@ definitions:
       user_id:
         type: string
     type: object
-  task-manager-api_internal_service.TaskResponse:
+  service.TaskResponse:
     properties:
       assignee_id:
         type: string
@@ -406,7 +419,7 @@ definitions:
         type: string
       tags:
         items:
-          $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+          $ref: '#/definitions/service.TagResponse'
         type: array
       title:
         type: string
@@ -415,7 +428,7 @@ definitions:
       version:
         type: integer
     type: object
-  task-manager-api_internal_service.TokenResponse:
+  service.TokenResponse:
     properties:
       access_token:
         type: string
@@ -427,9 +440,20 @@ definitions:
       token_type:
         type: string
       user:
-        $ref: '#/definitions/task-manager-api_internal_service.UserResponse'
+        $ref: '#/definitions/service.UserResponse'
     type: object
-  task-manager-api_internal_service.UserResponse:
+  service.UpdateWebhookRequest:
+    properties:
+      events:
+        items:
+          type: string
+        type: array
+      is_active:
+        type: boolean
+      url:
+        type: string
+    type: object
+  service.UserResponse:
     properties:
       created_at:
         type: string
@@ -440,6 +464,50 @@ definitions:
       id:
         type: string
       role:
+        type: string
+    type: object
+  service.WebhookDeliveryResponse:
+    properties:
+      delivered_at:
+        type: string
+      event_type:
+        type: string
+      execution_duration_ms:
+        type: integer
+      id:
+        type: string
+      payload:
+        type: string
+      response_body:
+        type: string
+      response_status:
+        type: integer
+      status:
+        type: string
+      webhook_id:
+        type: string
+    type: object
+  service.WebhookResponse:
+    properties:
+      created_at:
+        type: string
+      events:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      is_active:
+        type: boolean
+      project_id:
+        type: string
+      secret:
+        type: string
+      updated_at:
+        type: string
+      url:
+        type: string
+      user_id:
         type: string
     type: object
 host: localhost:8080
@@ -465,7 +533,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.LoginRequest'
+          $ref: '#/definitions/handler.LoginRequest'
       produces:
       - application/json
       - application/problem+json
@@ -473,19 +541,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+            $ref: '#/definitions/service.TokenResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       summary: Authenticate user
       tags:
       - auth
@@ -500,7 +568,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.LogoutRequest'
+          $ref: '#/definitions/handler.LogoutRequest'
       produces:
       - application/json
       - application/problem+json
@@ -514,11 +582,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       summary: Revoke session / Logout
       tags:
       - auth
@@ -534,7 +602,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.RefreshTokenRequest'
+          $ref: '#/definitions/handler.RefreshTokenRequest'
       produces:
       - application/json
       - application/problem+json
@@ -542,19 +610,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+            $ref: '#/definitions/service.TokenResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       summary: Rotate refresh token
       tags:
       - auth
@@ -569,7 +637,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.RegisterRequest'
+          $ref: '#/definitions/handler.RegisterRequest'
       produces:
       - application/json
       - application/problem+json
@@ -577,19 +645,19 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TokenResponse'
+            $ref: '#/definitions/service.TokenResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       summary: Register a new user
       tags:
       - auth
@@ -616,15 +684,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.PaginatedProjectsResponse'
+            $ref: '#/definitions/service.PaginatedProjectsResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List projects
@@ -640,7 +708,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.CreateProjectRequest'
+          $ref: '#/definitions/handler.CreateProjectRequest'
       produces:
       - application/json
       - application/problem+json
@@ -648,15 +716,15 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+            $ref: '#/definitions/service.ProjectResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Create project
@@ -684,15 +752,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Delete project
@@ -713,19 +781,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+            $ref: '#/definitions/service.ProjectResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Get project by ID
@@ -747,7 +815,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateProjectRequest'
+          $ref: '#/definitions/handler.UpdateProjectRequest'
       produces:
       - application/json
       - application/problem+json
@@ -755,23 +823,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+            $ref: '#/definitions/service.ProjectResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update project
@@ -793,7 +861,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateProjectRequest'
+          $ref: '#/definitions/handler.UpdateProjectRequest'
       produces:
       - application/json
       - application/problem+json
@@ -801,23 +869,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectResponse'
+            $ref: '#/definitions/service.ProjectResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update project
@@ -840,24 +908,24 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/task-manager-api_internal_service.ProjectMemberResponse'
+              $ref: '#/definitions/service.ProjectMemberResponse'
             type: array
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List project members
@@ -879,7 +947,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.AddProjectMemberRequest'
+          $ref: '#/definitions/handler.AddProjectMemberRequest'
       produces:
       - application/json
       - application/problem+json
@@ -887,31 +955,31 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectMemberResponse'
+            $ref: '#/definitions/service.ProjectMemberResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Add project member
@@ -945,23 +1013,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Remove project member
@@ -988,7 +1056,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateProjectMemberRoleRequest'
+          $ref: '#/definitions/handler.UpdateProjectMemberRoleRequest'
       produces:
       - application/json
       - application/problem+json
@@ -996,27 +1064,27 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.ProjectMemberResponse'
+            $ref: '#/definitions/service.ProjectMemberResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update member role
@@ -1070,19 +1138,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.PaginatedTasksResponse'
+            $ref: '#/definitions/service.PaginatedTasksResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List tasks for a project
@@ -1099,12 +1167,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+              $ref: '#/definitions/service.TagResponse'
             type: array
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List tags
@@ -1120,7 +1188,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.CreateTagRequest'
+          $ref: '#/definitions/handler.CreateTagRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1128,15 +1196,15 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+            $ref: '#/definitions/service.TagResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Create tag
@@ -1164,15 +1232,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Delete tag
@@ -1226,15 +1294,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.PaginatedTasksResponse'
+            $ref: '#/definitions/service.PaginatedTasksResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List tasks
@@ -1251,7 +1319,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.CreateTaskRequest'
+          $ref: '#/definitions/handler.CreateTaskRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1259,19 +1327,19 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+            $ref: '#/definitions/service.TaskResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Create task
@@ -1299,15 +1367,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Delete task
@@ -1329,19 +1397,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+            $ref: '#/definitions/service.TaskResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Get task by ID
@@ -1363,7 +1431,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateTaskRequest'
+          $ref: '#/definitions/handler.UpdateTaskRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1371,23 +1439,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+            $ref: '#/definitions/service.TaskResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update task
@@ -1409,7 +1477,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateTaskRequest'
+          $ref: '#/definitions/handler.UpdateTaskRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1417,23 +1485,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.TaskResponse'
+            $ref: '#/definitions/service.TaskResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update task
@@ -1457,16 +1525,16 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/task-manager-api_internal_service.AttachmentResponse'
+              $ref: '#/definitions/service.AttachmentResponse'
             type: array
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List task attachments
@@ -1495,27 +1563,27 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.AttachmentResponse'
+            $ref: '#/definitions/service.AttachmentResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "413":
           description: Request Entity Too Large
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Upload task attachment
@@ -1545,15 +1613,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Delete task attachment
@@ -1589,11 +1657,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Download task attachment
@@ -1630,23 +1698,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.PaginatedCommentsResponse'
+            $ref: '#/definitions/service.PaginatedCommentsResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: List task comments
@@ -1668,7 +1736,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.CreateCommentRequest'
+          $ref: '#/definitions/handler.CreateCommentRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1676,23 +1744,23 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+            $ref: '#/definitions/service.CommentResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Create task comment
@@ -1726,23 +1794,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Delete task comment
@@ -1769,7 +1837,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.UpdateCommentRequest'
+          $ref: '#/definitions/handler.UpdateCommentRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1777,27 +1845,27 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.CommentResponse'
+            $ref: '#/definitions/service.CommentResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Update task comment
@@ -1820,7 +1888,7 @@ paths:
         name: payload
         required: true
         schema:
-          $ref: '#/definitions/internal_transport_http_handler.SetTaskTagsRequest'
+          $ref: '#/definitions/handler.SetTaskTagsRequest'
       produces:
       - application/json
       - application/problem+json
@@ -1829,20 +1897,20 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/task-manager-api_internal_service.TagResponse'
+              $ref: '#/definitions/service.TagResponse'
             type: array
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Replace task tags
@@ -1858,20 +1926,266 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/task-manager-api_internal_service.UserResponse'
+            $ref: '#/definitions/service.UserResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       security:
       - BearerAuth: []
       summary: Get current user profile
       tags:
       - users
+  /api/v1/webhooks:
+    get:
+      description: Retrieves all registered webhook subscriptions for the authenticated
+        user.
+      parameters:
+      - description: Filter by project UUID
+        in: query
+        name: project_id
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.WebhookResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List webhooks
+      tags:
+      - webhooks
+    post:
+      consumes:
+      - application/json
+      description: Creates a new webhook subscription for real-time system events
+        (task, comment, attachment).
+      parameters:
+      - description: Webhook subscription configuration
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.CreateWebhookRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/service.WebhookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Register webhook
+      tags:
+      - webhooks
+  /api/v1/webhooks/{id}:
+    delete:
+      description: Permanently removes a webhook subscription.
+      parameters:
+      - description: Webhook UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Delete webhook
+      tags:
+      - webhooks
+    get:
+      description: Retrieves configuration details of a webhook subscription.
+      parameters:
+      - description: Webhook UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.WebhookResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Get webhook details
+      tags:
+      - webhooks
+    patch:
+      consumes:
+      - application/json
+      description: Updates target URL, subscribed events, or active status of a webhook.
+      parameters:
+      - description: Webhook UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated webhook settings
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateWebhookRequest'
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.WebhookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Update webhook
+      tags:
+      - webhooks
+  /api/v1/webhooks/{id}/deliveries:
+    get:
+      description: Returns recent delivery history, HTTP response codes, and execution
+        duration for audit and troubleshooting.
+      parameters:
+      - description: Webhook UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Number of records to retrieve (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of records to skip (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.WebhookDeliveryResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: List webhook deliveries
+      tags:
+      - webhooks
+  /api/v1/webhooks/{id}/test:
+    post:
+      description: Triggers a test ping event to the subscribed webhook endpoint to
+        verify network and HMAC connectivity.
+      parameters:
+      - description: Webhook UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/problem+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ProblemDetails'
+      security:
+      - BearerAuth: []
+      summary: Test webhook ping
+      tags:
+      - webhooks
   /healthz:
     get:
       description: Check if the application HTTP process is running
@@ -1903,7 +2217,7 @@ paths:
         "503":
           description: Service Unavailable
           schema:
-            $ref: '#/definitions/internal_transport_http_handler.ProblemDetails'
+            $ref: '#/definitions/handler.ProblemDetails'
       summary: Readiness probe
       tags:
       - health

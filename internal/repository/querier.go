@@ -28,12 +28,15 @@ type Querier interface {
 	CreateTaskAttachment(ctx context.Context, arg CreateTaskAttachmentParams) (TaskAttachment, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
+	CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) (WebhookDelivery, error)
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteTaskAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteTaskComment(ctx context.Context, id uuid.UUID) error
+	DeleteWebhook(ctx context.Context, id uuid.UUID) error
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
@@ -47,6 +50,9 @@ type Querier interface {
 	GetTaskCommentByID(ctx context.Context, id uuid.UUID) (GetTaskCommentByIDRow, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetWebhookByID(ctx context.Context, id uuid.UUID) (Webhook, error)
+	GetWebhookDeliveryByID(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
+	ListActiveWebhooksForEvent(ctx context.Context, arg ListActiveWebhooksForEventParams) ([]Webhook, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ListProjectMembersRow, error)
 	ListProjectsByMember(ctx context.Context, arg ListProjectsByMemberParams) ([]ListProjectsByMemberRow, error)
 	ListProjectsByMemberKeyset(ctx context.Context, arg ListProjectsByMemberKeysetParams) ([]ListProjectsByMemberKeysetRow, error)
@@ -61,6 +67,9 @@ type Querier interface {
 	ListTasksDueSoon(ctx context.Context, arg ListTasksDueSoonParams) ([]ListTasksDueSoonRow, error)
 	ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]WebhookDelivery, error)
+	ListWebhooksByProjectID(ctx context.Context, projectID pgtype.UUID) ([]Webhook, error)
+	ListWebhooksByUserID(ctx context.Context, userID uuid.UUID) ([]Webhook, error)
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
@@ -73,6 +82,7 @@ type Querier interface {
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	UpdateTaskComment(ctx context.Context, arg UpdateTaskCommentParams) (TaskComment, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 }
 
 var _ Querier = (*Queries)(nil)

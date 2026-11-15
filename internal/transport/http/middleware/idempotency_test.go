@@ -306,6 +306,46 @@ func (m *mockIdempotencyQuerier) DeleteTaskAttachment(context.Context, uuid.UUID
 	return nil
 }
 
+func (m *mockIdempotencyQuerier) CreateWebhook(context.Context, repository.CreateWebhookParams) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockIdempotencyQuerier) GetWebhookByID(context.Context, uuid.UUID) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ListWebhooksByUserID(context.Context, uuid.UUID) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) ListWebhooksByProjectID(context.Context, pgtype.UUID) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) UpdateWebhook(context.Context, repository.UpdateWebhookParams) (repository.Webhook, error) {
+	return repository.Webhook{}, nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteWebhook(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) ListActiveWebhooksForEvent(context.Context, repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) CreateWebhookDelivery(context.Context, repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+	return repository.WebhookDelivery{}, nil
+}
+
+func (m *mockIdempotencyQuerier) GetWebhookDeliveryByID(context.Context, uuid.UUID) (repository.WebhookDelivery, error) {
+	return repository.WebhookDelivery{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ListWebhookDeliveries(context.Context, repository.ListWebhookDeliveriesParams) ([]repository.WebhookDelivery, error) {
+	return nil, nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

@@ -58,7 +58,13 @@ type CommentService interface {
 }
 
 type commentService struct {
-	repo repository.Querier
+	repo       repository.Querier
+	dispatcher EventDispatcher
+}
+
+// SetEventDispatcher registers an event dispatcher for webhook notifications.
+func (s *commentService) SetEventDispatcher(dispatcher EventDispatcher) {
+	s.dispatcher = dispatcher
 }
 
 // NewCommentService constructs a new CommentService.
@@ -108,7 +114,8 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		return nil, ErrEmptyCommentContent
 	}
 
-	if _, err := s.verifyTaskAccess(ctx, userID, taskID); err != nil {
+	task, err := s.verifyTaskAccess(ctx, userID, taskID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -126,7 +133,7 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		return nil, fmt.Errorf("failed to get user details: %w", err)
 	}
 
-	return &CommentResponse{
+	resp := &CommentResponse{
 		ID:        created.ID,
 		TaskID:    created.TaskID,
 		UserID:    created.UserID,
@@ -135,7 +142,18 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		Content:   created.Content,
 		CreatedAt: created.CreatedAt.Time,
 		UpdatedAt: created.UpdatedAt.Time,
-	}, nil
+	}
+
+	if s.dispatcher != nil {
+		var pID *uuid.UUID
+		if task.ProjectID.Valid {
+			id := uuid.UUID(task.ProjectID.Bytes)
+			pID = &id
+		}
+		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "comment.created", resp)
+	}
+
+	return resp, nil
 }
 
 // ListComments retrieves paginated comments for a task.

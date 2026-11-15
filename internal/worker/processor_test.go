@@ -6,6 +6,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"task-manager-api/internal/repository"
 	"testing"
 	"time"
@@ -19,8 +22,9 @@ import (
 
 // mockWorkerStore mocks TaskStore for background worker tests
 type mockWorkerStore struct {
-	deleteExpiredTokensFn func(ctx context.Context) error
-	listTasksDueSoonFn    func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
+	deleteExpiredTokensFn   func(ctx context.Context) error
+	listTasksDueSoonFn      func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
+	createWebhookDeliveryFn func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
 }
 
 func (m *mockWorkerStore) DeleteExpiredRefreshTokens(ctx context.Context) error {
@@ -37,9 +41,17 @@ func (m *mockWorkerStore) ListTasksDueSoon(ctx context.Context, arg repository.L
 	return nil, nil
 }
 
+func (m *mockWorkerStore) CreateWebhookDelivery(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+	if m.createWebhookDeliveryFn != nil {
+		return m.createWebhookDeliveryFn(ctx, arg)
+	}
+	return repository.WebhookDelivery{}, nil
+}
+
 // mockDistributor mocks TaskDistributor
 type mockDistributor struct {
 	reminders []DeadlineReminderPayload
+	webhooks  []SendWebhookPayload
 }
 
 func (m *mockDistributor) DistributeCleanupExpiredTokens(context.Context, ...asynq.Option) error {
@@ -54,6 +66,12 @@ func (m *mockDistributor) DistributeDeadlineReminder(_ context.Context, payload 
 	m.reminders = append(m.reminders, payload)
 	return nil
 }
+
+func (m *mockDistributor) DistributeSendWebhook(_ context.Context, payload SendWebhookPayload, _ ...asynq.Option) error {
+	m.webhooks = append(m.webhooks, payload)
+	return nil
+}
+
 func (m *mockDistributor) Close() error { return nil }
 
 func TestProcessCleanupExpiredTokens(t *testing.T) {
@@ -161,6 +179,111 @@ func TestProcessDeadlineReminder(t *testing.T) {
 	t.Run("invalid json payload returns SkipRetry", func(t *testing.T) {
 		task := asynq.NewTask(TypeDeadlineReminder, []byte("invalid-json"))
 		err := processor.ProcessDeadlineReminder(context.Background(), task)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, asynq.SkipRetry))
+	})
+}
+
+func TestProcessSendWebhook(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	t.Run("success delivery with valid HMAC", func(t *testing.T) {
+		var receivedEvent, receivedSig string
+		var receivedBody []byte
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedEvent = r.Header.Get("X-Webhook-Event")
+			receivedSig = r.Header.Get("X-Webhook-Signature")
+			receivedBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"received":true}`))
+		}))
+		defer ts.Close()
+
+		var recordedDelivery repository.CreateWebhookDeliveryParams
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				recordedDelivery = arg
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: ts.Client(),
+		}
+
+		webhookID := uuid.New()
+		secret := "webhook-secret-xyz"
+		payloadBody := []byte(`{"task_id":"123","title":"Hello"}`)
+
+		payload := SendWebhookPayload{
+			WebhookID: webhookID,
+			TargetURL: ts.URL,
+			Secret:    secret,
+			EventType: "task.created",
+			Payload:   payloadBody,
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "task.created", receivedEvent)
+		assert.Equal(t, payloadBody, receivedBody)
+		assert.True(t, strings.HasPrefix(receivedSig, "sha256="))
+		assert.Equal(t, "success", recordedDelivery.Status)
+		assert.Equal(t, int32(200), recordedDelivery.ResponseStatus.Int32)
+	})
+
+	t.Run("receiver server error 500 returns error for retry", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("server crashed"))
+		}))
+		defer ts.Close()
+
+		var recordedDelivery repository.CreateWebhookDeliveryParams
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				recordedDelivery = arg
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: ts.Client(),
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: ts.URL,
+			Secret:    "secret",
+			EventType: "task.deleted",
+			Payload:   []byte(`{"task_id":"123"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.Error(t, err)
+		assert.Equal(t, "failed", recordedDelivery.Status)
+		assert.Equal(t, int32(500), recordedDelivery.ResponseStatus.Int32)
+	})
+
+	t.Run("invalid json payload returns SkipRetry", func(t *testing.T) {
+		processor := &RedisTaskProcessor{
+			log: log,
+		}
+
+		task := asynq.NewTask(TypeSendWebhook, []byte("invalid-json"))
+		err := processor.ProcessSendWebhook(context.Background(), task)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, asynq.SkipRetry))
 	})

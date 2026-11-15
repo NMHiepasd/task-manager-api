@@ -44,6 +44,7 @@ type RouterDependencies struct {
 	TaskService       service.TaskService
 	CommentService    service.CommentService
 	AttachmentService service.AttachmentService
+	WebhookService    service.WebhookService
 	TagService        service.TagService
 	TokenMaker        token.Maker
 }
@@ -297,6 +298,22 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 				tagGroup.POST("", tagHandler.Create)
 				tagGroup.GET("", tagHandler.List)
 				tagGroup.DELETE("/:id", tagHandler.Delete)
+			}
+		}
+
+		// Webhook endpoints (protected)
+		if deps.WebhookService != nil && deps.TokenMaker != nil {
+			webhookHandler := handler.NewWebhookHandler(deps.WebhookService)
+			webhookGroup := v1.Group("/webhooks")
+			webhookGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			{
+				webhookGroup.POST("", webhookHandler.Create)
+				webhookGroup.GET("", webhookHandler.List)
+				webhookGroup.GET("/:id", webhookHandler.GetByID)
+				webhookGroup.PATCH("/:id", webhookHandler.Update)
+				webhookGroup.DELETE("/:id", webhookHandler.Delete)
+				webhookGroup.POST("/:id/test", webhookHandler.TriggerPing)
+				webhookGroup.GET("/:id/deliveries", webhookHandler.ListDeliveries)
 			}
 		}
 	}

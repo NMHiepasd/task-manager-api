@@ -142,12 +142,14 @@ func main() {
 	}
 
 	// 8. Initialize Asynq background worker and scheduler (if enabled)
+	var taskDistributor worker.TaskDistributor
 	if cfg.WorkerEnabled {
 		redisOpt, err := asynq.ParseRedisURI(cfg.RedisURL)
 		if err != nil {
 			log.Warn("Failed to parse Redis URI for background worker", "error", err)
 		} else {
 			distributor := worker.NewRedisTaskDistributor(redisOpt)
+			taskDistributor = distributor
 			defer func() {
 				if err := distributor.Close(); err != nil {
 					log.Warn("Error closing task distributor", "error", err)
@@ -179,6 +181,17 @@ func main() {
 		}
 	}
 
+	webhookService := service.NewWebhookService(store, taskDistributor, cfg.AllowLocalWebhooks)
+	if d, ok := taskService.(service.EventDispatchable); ok {
+		d.SetEventDispatcher(webhookService)
+	}
+	if d, ok := commentService.(service.EventDispatchable); ok {
+		d.SetEventDispatcher(webhookService)
+	}
+	if d, ok := attachmentService.(service.EventDispatchable); ok {
+		d.SetEventDispatcher(webhookService)
+	}
+
 	// 9. Initialize HTTP router with dependencies
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config:            cfg,
@@ -192,6 +205,7 @@ func main() {
 		TaskService:       taskService,
 		CommentService:    commentService,
 		AttachmentService: attachmentService,
+		WebhookService:    webhookService,
 		TagService:        tagService,
 		TokenMaker:        tokenMaker,
 	})

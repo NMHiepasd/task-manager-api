@@ -108,7 +108,13 @@ type TaskService interface {
 }
 
 type taskService struct {
-	repo repository.Querier
+	repo       repository.Querier
+	dispatcher EventDispatcher
+}
+
+// SetEventDispatcher registers an event dispatcher for webhook notifications.
+func (s *taskService) SetEventDispatcher(dispatcher EventDispatcher) {
+	s.dispatcher = dispatcher
 }
 
 // NewTaskService constructs a new TaskService.
@@ -224,7 +230,11 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 		tags, _ = s.repo.GetTagsForTask(ctx, task.ID)
 	}
 
-	return s.mapTask(task, tags), nil
+	resp := s.mapTask(task, tags)
+	if s.dispatcher != nil {
+		_ = s.dispatcher.DispatchEvent(ctx, userID, resp.ProjectID, "task.created", resp)
+	}
+	return resp, nil
 }
 
 // GetTaskByID retrieves task and its tags, verifying access permissions.
@@ -622,7 +632,11 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 	}
 
 	tags, _ := s.repo.GetTagsForTask(ctx, taskID)
-	return s.mapTask(updated, tags), nil
+	resp := s.mapTask(updated, tags)
+	if s.dispatcher != nil {
+		_ = s.dispatcher.DispatchEvent(ctx, userID, resp.ProjectID, "task.updated", resp)
+	}
+	return resp, nil
 }
 
 // DeleteTask soft-deletes the task.
@@ -645,6 +659,15 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 
 	if err := s.repo.SoftDeleteTask(ctx, taskID); err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
+	}
+
+	if s.dispatcher != nil {
+		var pID *uuid.UUID
+		if existing.ProjectID.Valid {
+			id := uuid.UUID(existing.ProjectID.Bytes)
+			pID = &id
+		}
+		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "task.deleted", map[string]any{"task_id": taskID})
 	}
 
 	return nil

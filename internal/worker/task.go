@@ -23,7 +23,17 @@ const (
 	TypeCleanupExpiredTokens = "task:cleanup_expired_tokens"
 	TypeScanDueTasks         = "task:scan_due_tasks"
 	TypeDeadlineReminder     = "task:deadline_reminder"
+	TypeSendWebhook          = "task:send_webhook"
 )
+
+// SendWebhookPayload defines the information needed to deliver an event to a webhook endpoint.
+type SendWebhookPayload struct {
+	WebhookID uuid.UUID `json:"webhook_id"`
+	TargetURL string    `json:"target_url"`
+	Secret    string    `json:"secret"`
+	EventType string    `json:"event_type"`
+	Payload   []byte    `json:"payload"`
+}
 
 // DeadlineReminderPayload defines the data needed to notify a user of an upcoming task deadline.
 type DeadlineReminderPayload struct {
@@ -51,4 +61,14 @@ func NewDeadlineReminderTask(payload DeadlineReminderPayload) (*asynq.Task, erro
 		return nil, fmt.Errorf("failed to marshal deadline reminder payload: %w", err)
 	}
 	return asynq.NewTask(TypeDeadlineReminder, data, asynq.Queue(QueueCritical), asynq.MaxRetry(5)), nil
+}
+
+// NewSendWebhookTask creates an Asynq task to deliver an HTTP webhook notification.
+func NewSendWebhookTask(payload SendWebhookPayload) (*asynq.Task, error) {
+	//nolint:gosec // G117: Webhook secret must be marshaled into worker task payload for HMAC computation
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal send webhook payload: %w", err)
+	}
+	return asynq.NewTask(TypeSendWebhook, data, asynq.Queue(QueueDefault), asynq.MaxRetry(5)), nil
 }

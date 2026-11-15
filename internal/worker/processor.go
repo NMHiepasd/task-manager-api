@@ -1,12 +1,16 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/webhook"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -20,12 +24,14 @@ type TaskProcessor interface {
 	ProcessCleanupExpiredTokens(ctx context.Context, task *asynq.Task) error
 	ProcessScanDueTasks(ctx context.Context, task *asynq.Task) error
 	ProcessDeadlineReminder(ctx context.Context, task *asynq.Task) error
+	ProcessSendWebhook(ctx context.Context, task *asynq.Task) error
 }
 
 // TaskStore defines the database access methods required by the background worker.
 type TaskStore interface {
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	ListTasksDueSoon(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
+	CreateWebhookDelivery(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
 }
 
 // RedisTaskProcessor implements TaskProcessor using Asynq Server.
@@ -35,6 +41,7 @@ type RedisTaskProcessor struct {
 	store       TaskStore
 	distributor TaskDistributor
 	log         *slog.Logger
+	httpClient  *http.Client
 }
 
 // NewRedisTaskProcessor initializes a new worker server with priority queues and structured logging.
@@ -80,12 +87,14 @@ func NewRedisTaskProcessor(
 		store:       store,
 		distributor: distributor,
 		log:         log,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 
 	// Register task handlers
 	mux.HandleFunc(TypeCleanupExpiredTokens, processor.ProcessCleanupExpiredTokens)
 	mux.HandleFunc(TypeScanDueTasks, processor.ProcessScanDueTasks)
 	mux.HandleFunc(TypeDeadlineReminder, processor.ProcessDeadlineReminder)
+	mux.HandleFunc(TypeSendWebhook, processor.ProcessSendWebhook)
 
 	return processor
 }
@@ -165,6 +174,80 @@ func (p *RedisTaskProcessor) ProcessDeadlineReminder(_ context.Context, task *as
 		"recipient_name", payload.RecipientName,
 		"task_title", payload.TaskTitle,
 		"due_date", payload.DueDate.Format(time.RFC3339),
+	)
+
+	return nil
+}
+
+// ProcessSendWebhook delivers an HTTP webhook notification to the target subscriber.
+func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq.Task) error {
+	var payload SendWebhookPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		p.log.Error("Failed to unmarshal send webhook payload", "error", err)
+		return fmt.Errorf("invalid send webhook payload: %w", asynq.SkipRetry)
+	}
+
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, payload.TargetURL, bytes.NewReader(payload.Payload))
+	if err != nil {
+		p.log.Error("Failed to create webhook request", "error", err, "target_url", payload.TargetURL)
+		return fmt.Errorf("failed to create webhook request: %w", asynq.SkipRetry)
+	}
+
+	sig := webhook.ComputeSignature(payload.Secret, payload.Payload)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Webhook-Event", payload.EventType)
+	req.Header.Set("X-Webhook-Signature", "sha256="+sig)
+	req.Header.Set("User-Agent", "TaskManager-Webhook/1.0")
+
+	resp, err := p.httpClient.Do(req)
+	durationMs := int32(time.Since(start).Milliseconds()) //nolint:gosec // G115: Delivery timeout is capped at 10s, fits in int32
+
+	if err != nil {
+		p.log.Warn("Webhook delivery failed with network error", "target_url", payload.TargetURL, "error", err)
+		_, _ = p.store.CreateWebhookDelivery(ctx, repository.CreateWebhookDeliveryParams{
+			WebhookID:           payload.WebhookID,
+			EventType:           payload.EventType,
+			Payload:             payload.Payload,
+			ResponseStatus:      pgtype.Int4{Valid: false},
+			ResponseBody:        pgtype.Text{String: err.Error(), Valid: true},
+			ExecutionDurationMs: pgtype.Int4{Int32: durationMs, Valid: true},
+			Status:              "failed",
+		})
+		return fmt.Errorf("webhook delivery failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	respBody := string(bodyBytes)
+
+	status := "success"
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		status = "failed"
+	}
+
+	_, dbErr := p.store.CreateWebhookDelivery(ctx, repository.CreateWebhookDeliveryParams{
+		WebhookID:           payload.WebhookID,
+		EventType:           payload.EventType,
+		Payload:             payload.Payload,
+		ResponseStatus:      pgtype.Int4{Int32: int32(resp.StatusCode), Valid: true}, //nolint:gosec // G115: HTTP status code is bounded between 100 and 599
+		ResponseBody:        pgtype.Text{String: respBody, Valid: true},
+		ExecutionDurationMs: pgtype.Int4{Int32: durationMs, Valid: true},
+		Status:              status,
+	})
+	if dbErr != nil {
+		p.log.Debug("Could not record webhook delivery (webhook may have been removed)", "error", dbErr)
+	}
+
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("webhook endpoint returned server error %d", resp.StatusCode)
+	}
+
+	p.log.Info("Webhook delivery completed",
+		"webhook_id", payload.WebhookID.String(),
+		"event_type", payload.EventType,
+		"status_code", resp.StatusCode,
+		"duration_ms", durationMs,
 	)
 
 	return nil
