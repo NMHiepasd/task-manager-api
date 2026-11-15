@@ -78,6 +78,22 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				body := recorder.Body.String()
+				require.Contains(t, body, "Authentication token has expired")
+				require.Contains(t, body, "TOKEN_EXPIRED")
+			},
+		},
+		{
+			name: "Unauthorized_MaskedErrorDetails",
+			setupHeader: func(req *http.Request) {
+				req.Header.Set(AuthorizationHeaderKey, "Bearer invalid.jwt.token.string")
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				body := recorder.Body.String()
+				require.Contains(t, body, "Invalid or expired authentication token")
+				require.NotContains(t, body, "token is invalid:")
+				require.NotContains(t, body, "malformed")
 			},
 		},
 	}

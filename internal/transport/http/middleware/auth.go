@@ -60,13 +60,15 @@ func AuthMiddleware(tokenMaker token.Maker) gin.HandlerFunc {
 		payload, err := tokenMaker.VerifyToken(accessToken)
 		if err != nil {
 			code := "UNAUTHORIZED"
+			detail := "Invalid or expired authentication token"
 			if errors.Is(err, token.ErrExpiredToken) {
 				code = "TOKEN_EXPIRED"
+				detail = "Authentication token has expired"
 			}
 			c.Header("Content-Type", "application/problem+json")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, domain.NewProblem(
 				http.StatusUnauthorized,
-				err.Error(),
+				detail,
 				code,
 				path,
 				reqID,

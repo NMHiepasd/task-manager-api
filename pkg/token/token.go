@@ -21,6 +21,13 @@ var (
 	ErrSecretTooShort = errors.New("secret key must be at least 32 characters long")
 )
 
+const (
+	// DefaultIssuer is the standard issuer identifier for issued JWTs.
+	DefaultIssuer = "task-manager-api"
+	// DefaultAudience is the standard audience identifier for issued JWTs.
+	DefaultAudience = "task-manager-client"
+)
+
 // UserClaims holds custom and standard JWT claims.
 type UserClaims struct {
 	UserID uuid.UUID `json:"user_id"`
@@ -65,6 +72,8 @@ func (m *JWTMaker) CreateAccessToken(userID uuid.UUID, email string, role string
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        tokenID.String(),
 			Subject:   userID.String(),
+			Issuer:    DefaultIssuer,
+			Audience:  jwt.ClaimStrings{DefaultAudience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(duration)),
 		},
@@ -79,7 +88,7 @@ func (m *JWTMaker) CreateAccessToken(userID uuid.UUID, email string, role string
 	return tokenString, claims, nil
 }
 
-// VerifyToken checks if the token is valid and parses claims.
+// VerifyToken checks if the token is valid, correctly signed, contains expected issuer/audience, and parses claims.
 func (m *JWTMaker) VerifyToken(tokenString string) (*UserClaims, error) {
 	keyFunc := func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -88,7 +97,14 @@ func (m *JWTMaker) VerifyToken(tokenString string) (*UserClaims, error) {
 		return m.secretKey, nil
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, keyFunc)
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&UserClaims{},
+		keyFunc,
+		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithIssuer(DefaultIssuer),
+		jwt.WithAudience(DefaultAudience),
+	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrExpiredToken

@@ -33,6 +33,8 @@ func TestJWTMaker_CreateAndVerifyToken(t *testing.T) {
 	require.Equal(t, userID, verifiedClaims.UserID)
 	require.Equal(t, email, verifiedClaims.Email)
 	require.Equal(t, role, verifiedClaims.Role)
+	require.Equal(t, DefaultIssuer, verifiedClaims.Issuer)
+	require.Equal(t, jwt.ClaimStrings{DefaultAudience}, verifiedClaims.Audience)
 	require.WithinDuration(t, time.Now().Add(duration), verifiedClaims.ExpiresAt.Time, 5*time.Second)
 }
 
@@ -80,6 +82,8 @@ func TestJWTMaker_InvalidNoneAlgorithm(t *testing.T) {
 		Email:  "hacker@example.com",
 		Role:   "admin",
 		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    DefaultIssuer,
+			Audience:  jwt.ClaimStrings{DefaultAudience},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
 		},
 	}
@@ -94,6 +98,79 @@ func TestJWTMaker_InvalidNoneAlgorithm(t *testing.T) {
 
 	verifiedClaims, err := maker.VerifyToken(tokenString)
 	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
+	require.Nil(t, verifiedClaims)
+}
+
+func TestJWTMaker_InvalidIssuer(t *testing.T) {
+	maker, err := NewJWTMaker(testSecretKey)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	claims := &UserClaims{
+		UserID: userID,
+		Email:  "user@example.com",
+		Role:   "user",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "malicious-issuer",
+			Audience:  jwt.ClaimStrings{DefaultAudience},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(testSecretKey))
+	require.NoError(t, err)
+
+	verifiedClaims, err := maker.VerifyToken(tokenString)
+	require.ErrorIs(t, err, ErrInvalidToken)
+	require.Nil(t, verifiedClaims)
+}
+
+func TestJWTMaker_InvalidAudience(t *testing.T) {
+	maker, err := NewJWTMaker(testSecretKey)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	claims := &UserClaims{
+		UserID: userID,
+		Email:  "user@example.com",
+		Role:   "user",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    DefaultIssuer,
+			Audience:  jwt.ClaimStrings{"wrong-audience"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(testSecretKey))
+	require.NoError(t, err)
+
+	verifiedClaims, err := maker.VerifyToken(tokenString)
+	require.ErrorIs(t, err, ErrInvalidToken)
+	require.Nil(t, verifiedClaims)
+}
+
+func TestJWTMaker_MissingIssuerOrAudience(t *testing.T) {
+	maker, err := NewJWTMaker(testSecretKey)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	claims := &UserClaims{
+		UserID: userID,
+		Email:  "user@example.com",
+		Role:   "user",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(testSecretKey))
+	require.NoError(t, err)
+
+	verifiedClaims, err := maker.VerifyToken(tokenString)
 	require.ErrorIs(t, err, ErrInvalidToken)
 	require.Nil(t, verifiedClaims)
 }
