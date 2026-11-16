@@ -175,7 +175,7 @@ flowchart TD
   3. Chạy `git rm --cached "Kế hoạch dự án Task Manager REST API.md"`.
 - **Kiểm tra hoàn thành:** `git status` hiển thị các file trên ở trạng thái untracked/ignored.
 
-#### Task 4.2: Soạn thảo CHANGELOG.md & Chuẩn bị Release v1.0.0
+#### [x] Task 4.2: Soạn thảo CHANGELOG.md & Chuẩn bị Release v1.0.0 *(Hoàn thành)*
 - **Mục tiêu:** Hoàn thiện hồ sơ phát hành chính thức cho phiên bản v1.0.0.
 - **Giải quyết Feedback:** #9.
 - **Phạm vi file:** `CHANGELOG.md`, `release_notes.md`
