@@ -165,7 +165,7 @@ flowchart TD
 
 ### GIAI ĐOẠN 4: Dọn dẹp & Phát hành (Cleanliness & Delivery)
 
-#### Task 4.1: Vệ sinh Git Repository & Cập nhật .gitignore
+#### [x] Task 4.1: Vệ sinh Git Repository & Cập nhật .gitignore *(Hoàn thành)*
 - **Mục tiêu:** Làm sạch repo trước khi release, không theo dõi các file tài liệu nháp và thư mục nội bộ agent.
 - **Giải quyết Feedback:** #8.
 - **Phạm vi file:** `.gitignore`, Git index

@@ -32,3 +32,11 @@ Thumbs.db
 
 # Docker volumes
 pgdata/
+
+# Agent internal skills & configurations
+.agents/
+
+# Planning drafts & temporary notes
+*Kế hoạch dự án*.md
+*.draft.md
+
