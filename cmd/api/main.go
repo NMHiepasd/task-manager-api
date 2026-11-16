@@ -48,6 +48,11 @@ func main() {
 	// 1. Load and validate environment configuration (fail-fast)
 	cfg, err := config.Load()
 	if err != nil {
+		slog.Error("Configuration loading failed", "error", err)
+		os.Exit(1)
+	}
+
+	if err := cfg.Validate(cfg.AppEnv); err != nil {
 		slog.Error("Configuration validation failed", "error", err)
 		os.Exit(1)
 	}

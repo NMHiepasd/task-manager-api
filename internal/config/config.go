@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -85,4 +87,51 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse environment configuration: %w", err)
 	}
 	return cfg, nil
+}
+
+// Validate performs fail-fast sanity checks on the configuration, enforcing strict security
+// constraints when running in a production environment.
+func (c *Config) Validate(env string) error {
+	var errs []error
+
+	// Always verify timeout alignment: server write timeout must be >= request timeout
+	// so the timeout middleware can complete and return a 504 Problem Details before the server cuts the connection.
+	if c.ServerWriteTimeout > 0 && c.RequestTimeout > 0 && c.ServerWriteTimeout < c.RequestTimeout {
+		errs = append(errs, fmt.Errorf("ServerWriteTimeout (%v) must be greater than or equal to RequestTimeout (%v)", c.ServerWriteTimeout, c.RequestTimeout))
+	}
+
+	if env == "production" {
+		// 1. Insecure default JWT secret check
+		insecureSecrets := map[string]struct{}{
+			"change-this-to-a-secure-random-secret-key-in-production": {},
+			"task-manager-dev-secret-key-32bytes-min!":                {},
+			"12345678901234567890123456789012":                        {},
+		}
+		if _, insecure := insecureSecrets[c.JWTSecret]; insecure {
+			errs = append(errs, errors.New("JWT_SECRET matches insecure example/default secret; production requires a unique, secure secret"))
+		}
+		if len(c.JWTSecret) < 32 {
+			errs = append(errs, errors.New("JWT_SECRET must be at least 32 characters in production"))
+		}
+
+		// 2. Default S3 / MinIO credentials check
+		if c.S3AccessKey == "minioadmin" {
+			errs = append(errs, errors.New("S3_ACCESS_KEY cannot be default 'minioadmin' in production"))
+		}
+		if c.S3SecretKey == "minioadmin" {
+			errs = append(errs, errors.New("S3_SECRET_KEY cannot be default 'minioadmin' in production"))
+		}
+
+		// 3. CORS allowed origins check
+		for _, origin := range c.CORSAllowedOrigins {
+			trimmed := strings.TrimSpace(origin)
+			if trimmed == "*" {
+				errs = append(errs, errors.New("wildcard '*' CORS origin is forbidden in production"))
+			} else if strings.Contains(trimmed, "localhost") || strings.Contains(trimmed, "127.0.0.1") {
+				errs = append(errs, fmt.Errorf("insecure CORS origin %q containing localhost/127.0.0.1 is not permitted in production", origin))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }

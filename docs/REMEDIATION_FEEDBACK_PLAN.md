@@ -136,7 +136,7 @@ flowchart TD
 
 ### GIAI ĐOẠN 3: Tính bền vững & Xử lý Edge Cases (Fail-fast & Robustness)
 
-#### Task 3.1: Validate Cấu hình khi Khởi động (Fail-fast trong Production)
+#### [x] Task 3.1: Validate Cấu hình khi Khởi động (Fail-fast trong Production) *(Hoàn thành)*
 - **Mục tiêu:** Ngăn ngừa việc chạy nhầm các cấu hình mặc định thiếu an toàn trên production.
 - **Giải quyết Feedback:** #6.
 - **Phạm vi file:** `internal/config/config.go`, `cmd/api/main.go`
