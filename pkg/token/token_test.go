@@ -199,3 +199,66 @@ func TestJWTMaker_RefreshTokenGenerationAndHash(t *testing.T) {
 	require.NotEqual(t, plainToken1, plainToken2)
 	require.NotEqual(t, hash1, hash3)
 }
+
+func TestJWTMaker_MissingExpiration(t *testing.T) {
+	maker, err := NewJWTMaker(testSecretKey)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	claims := &UserClaims{
+		UserID: userID,
+		Email:  "user@example.com",
+		Role:   "user",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:   DefaultIssuer,
+			Audience: jwt.ClaimStrings{DefaultAudience},
+			// ExpiresAt intentionally omitted
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(testSecretKey))
+	require.NoError(t, err)
+
+	verifiedClaims, err := maker.VerifyToken(tokenString)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
+	require.Nil(t, verifiedClaims)
+}
+
+func TestJWTMaker_CustomIssuerAndAudience(t *testing.T) {
+	customIssuer := "my-custom-service"
+	customAudience := "my-custom-client"
+
+	customMaker, err := NewJWTMaker(
+		testSecretKey,
+		WithIssuer(customIssuer),
+		WithAudience(customAudience),
+	)
+	require.NoError(t, err)
+
+	defaultMaker, err := NewJWTMaker(testSecretKey)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	tokenString, claims, err := customMaker.CreateAccessToken(userID, "user@custom.com", "user", 15*time.Minute)
+	require.NoError(t, err)
+	require.Equal(t, customIssuer, claims.Issuer)
+	require.Equal(t, jwt.ClaimStrings{customAudience}, claims.Audience)
+
+	// Custom maker accepts its own token
+	verifiedClaims, err := customMaker.VerifyToken(tokenString)
+	require.NoError(t, err)
+	require.Equal(t, customIssuer, verifiedClaims.Issuer)
+	require.Equal(t, jwt.ClaimStrings{customAudience}, verifiedClaims.Audience)
+
+	// Default maker must reject custom token due to issuer/audience mismatch
+	_, err = defaultMaker.VerifyToken(tokenString)
+	require.ErrorIs(t, err, ErrInvalidToken)
+
+	// Custom maker must reject token issued by default maker
+	defaultToken, _, err := defaultMaker.CreateAccessToken(userID, "user@default.com", "user", 15*time.Minute)
+	require.NoError(t, err)
+	_, err = customMaker.VerifyToken(defaultToken)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}

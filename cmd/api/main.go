@@ -104,7 +104,11 @@ func main() {
 	appMetrics := metrics.NewMetrics()
 
 	// 7. Initialize repository, services, and token maker
-	tokenMaker, err := token.NewJWTMaker(cfg.JWTSecret)
+	tokenMaker, err := token.NewJWTMaker(
+		cfg.JWTSecret,
+		token.WithIssuer(cfg.JWTIssuer),
+		token.WithAudience(cfg.JWTAudience),
+	)
 	if err != nil {
 		log.Error("Failed to initialize JWT token maker", "error", err)
 		os.Exit(1)

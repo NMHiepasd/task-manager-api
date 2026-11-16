@@ -50,7 +50,7 @@ flowchart TD
 
 ### Giai đoạn 2: Bảo mật & Xác thực
 - [x] **Task 2.1**: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack) *(Hoàn thành)*
-- [ ] **Task 2.2**: Hardening JWT Validation & Đưa Claims vào Config
+- [x] **Task 2.2**: Hardening JWT Validation & Đưa Claims vào Config *(Hoàn thành)*
 - [ ] **Task 2.3**: Giới hạn Trusted Proxies theo IP tĩnh của Caddy
 
 ### Giai đoạn 3: Tính bền vững & Xử lý Edge Cases
@@ -111,7 +111,7 @@ flowchart TD
   3. Đảm bảo thời gian chạy `CompareHashAndPassword` của dummy hash bằng $100\%$ thời gian hash thật.
 - **Kiểm tra hoàn thành:** Chạy unit test xác thực `go test -v ./internal/service/...`.
 
-#### Task 2.2: Hardening JWT Validation & Đưa Claims vào Config
+#### [x] Task 2.2: Hardening JWT Validation & Đưa Claims vào Config *(Hoàn thành)*
 - **Mục tiêu:** Chống lỗ hổng bypass token không có hạn sử dụng (`exp`) và linh hoạt môi trường deploy.
 - **Giải quyết Feedback:** #10.
 - **Phạm vi file:** `internal/pkg/jwt/` hoặc `internal/service/token_service.go`, `internal/config/config.go`

@@ -44,17 +44,48 @@ type Maker interface {
 	HashRefreshToken(plainToken string) string
 }
 
+// Option defines a functional option for configuring JWTMaker.
+type Option func(*JWTMaker)
+
+// WithIssuer sets a custom issuer for JWTMaker.
+func WithIssuer(issuer string) Option {
+	return func(m *JWTMaker) {
+		if issuer != "" {
+			m.issuer = issuer
+		}
+	}
+}
+
+// WithAudience sets a custom audience for JWTMaker.
+func WithAudience(audience string) Option {
+	return func(m *JWTMaker) {
+		if audience != "" {
+			m.audience = audience
+		}
+	}
+}
+
 // JWTMaker implements Maker using HMAC-SHA256.
 type JWTMaker struct {
 	secretKey []byte
+	issuer    string
+	audience  string
 }
 
-// NewJWTMaker creates a new JWTMaker with the provided secret key.
-func NewJWTMaker(secretKey string) (*JWTMaker, error) {
+// NewJWTMaker creates a new JWTMaker with the provided secret key and optional functional options.
+func NewJWTMaker(secretKey string, opts ...Option) (*JWTMaker, error) {
 	if len(secretKey) < 32 {
 		return nil, ErrSecretTooShort
 	}
-	return &JWTMaker{secretKey: []byte(secretKey)}, nil
+	m := &JWTMaker{
+		secretKey: []byte(secretKey),
+		issuer:    DefaultIssuer,
+		audience:  DefaultAudience,
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m, nil
 }
 
 // CreateAccessToken creates a new signed JWT access token for a specific user.
@@ -72,8 +103,8 @@ func (m *JWTMaker) CreateAccessToken(userID uuid.UUID, email string, role string
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        tokenID.String(),
 			Subject:   userID.String(),
-			Issuer:    DefaultIssuer,
-			Audience:  jwt.ClaimStrings{DefaultAudience},
+			Issuer:    m.issuer,
+			Audience:  jwt.ClaimStrings{m.audience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(duration)),
 		},
@@ -102,8 +133,9 @@ func (m *JWTMaker) VerifyToken(tokenString string) (*UserClaims, error) {
 		&UserClaims{},
 		keyFunc,
 		jwt.WithValidMethods([]string{"HS256"}),
-		jwt.WithIssuer(DefaultIssuer),
-		jwt.WithAudience(DefaultAudience),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuer(m.issuer),
+		jwt.WithAudience(m.audience),
 	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
