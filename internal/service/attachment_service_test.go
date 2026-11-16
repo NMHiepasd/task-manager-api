@@ -166,10 +166,11 @@ func TestAttachmentService_UploadAttachment(t *testing.T) {
 		mockStore := &mockStorageClient{}
 		svc := NewAttachmentService(mockRepo, mockStore, 10)
 
-		resp, err := svc.UploadAttachment(ctx, creatorID, taskID, "report.pdf", 1024, "application/pdf", strings.NewReader("dummy content"))
+		resp, err := svc.UploadAttachment(ctx, creatorID, taskID, "report.pdf", 1024, "application/pdf", strings.NewReader("%PDF-1.4\n"+strings.Repeat("a", 1015)))
 		require.NoError(t, err)
 		assert.Equal(t, "report.pdf", resp.FileName)
 		assert.Equal(t, int64(1024), resp.FileSize)
+		assert.Equal(t, "application/pdf", resp.ContentType)
 	})
 
 	t.Run("EmptyFile", func(t *testing.T) {
@@ -180,13 +181,41 @@ func TestAttachmentService_UploadAttachment(t *testing.T) {
 
 	t.Run("FileTooLarge", func(t *testing.T) {
 		svc := NewAttachmentService(&mockAttachmentQuerier{}, &mockStorageClient{}, 1) // 1MB max
-		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "large.zip", 2*1024*1024, "application/zip", strings.NewReader("too big"))
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "large.zip", 2*1024*1024, "application/zip", strings.NewReader("PK\x03\x04too big"))
 		assert.ErrorIs(t, err, ErrFileTooLarge)
 	})
 
-	t.Run("BlockedFileType", func(t *testing.T) {
+	t.Run("DisallowedFileType_NotInAllowlist", func(t *testing.T) {
 		svc := NewAttachmentService(&mockAttachmentQuerier{}, &mockStorageClient{}, 10)
 		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "malware.exe", 500, "application/octet-stream", strings.NewReader("bad"))
+		assert.ErrorIs(t, err, ErrInvalidFileType)
+	})
+
+	t.Run("SpoofedExtension_HTMLInPDF", func(t *testing.T) {
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+		}
+		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "contract.pdf", 50, "application/pdf", strings.NewReader("<html><script>alert(1)</script></html>"))
+		assert.ErrorIs(t, err, ErrInvalidFileType)
+	})
+
+	t.Run("SpoofedExtension_HTMLInPNG", func(t *testing.T) {
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+		}
+		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "photo.png", 50, "image/png", strings.NewReader("<html><body>malicious</body></html>"))
 		assert.ErrorIs(t, err, ErrInvalidFileType)
 	})
 
@@ -197,7 +226,7 @@ func TestAttachmentService_UploadAttachment(t *testing.T) {
 			},
 		}
 		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
-		_, err := svc.UploadAttachment(ctx, creatorID, uuid.New(), "doc.pdf", 100, "application/pdf", strings.NewReader("content"))
+		_, err := svc.UploadAttachment(ctx, creatorID, uuid.New(), "doc.pdf", 100, "application/pdf", strings.NewReader("%PDF-1.4 content"))
 		assert.ErrorIs(t, err, ErrTaskNotFound)
 	})
 
@@ -217,7 +246,7 @@ func TestAttachmentService_UploadAttachment(t *testing.T) {
 			},
 		}
 		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
-		_, err := svc.UploadAttachment(ctx, viewerID, taskID, "doc.pdf", 100, "application/pdf", strings.NewReader("content"))
+		_, err := svc.UploadAttachment(ctx, viewerID, taskID, "doc.pdf", 100, "application/pdf", strings.NewReader("%PDF-1.4 content"))
 		assert.ErrorIs(t, err, ErrInsufficientProjectRole)
 	})
 }

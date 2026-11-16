@@ -1,10 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"task-manager-api/internal/repository"
@@ -15,12 +17,64 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Blocked file extensions for safety against remote code execution / script injection.
-var blockedExtensions = map[string]bool{
-	".exe": true, ".dll": true, ".bat": true, ".sh": true,
-	".cmd": true, ".com": true, ".msi": true, ".vbs": true,
-	".scr": true, ".pif": true, ".app": true, ".jar": true,
-	".iso": true,
+// Allowed file extensions for attachments and their canonical Content-Types.
+var allowedExtensions = map[string]string{
+	".pdf":  "application/pdf",
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".webp": "image/webp",
+	".gif":  "image/gif",
+	".txt":  "text/plain",
+	".csv":  "text/csv",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".zip":  "application/zip",
+}
+
+// dangerousMIMEs contains types that could lead to XSS, script injection, or executable execution in browsers.
+var dangerousMIMEs = []string{
+	"text/html",
+	"text/xml",
+	"application/xml",
+	"application/xhtml+xml",
+	"application/javascript",
+	"text/javascript",
+	"application/x-javascript",
+	"image/svg+xml",
+	"application/x-sh",
+	"application/x-msdownload",
+	"application/x-dosexec",
+}
+
+// isMIMECompatible validates that the sniffed MIME type is compatible with the file extension.
+func isMIMECompatible(ext string, detectedMIME string) bool {
+	baseMIME := strings.ToLower(strings.TrimSpace(strings.Split(detectedMIME, ";")[0]))
+
+	for _, dangerous := range dangerousMIMEs {
+		if baseMIME == dangerous || strings.HasPrefix(baseMIME, dangerous) {
+			return false
+		}
+	}
+
+	switch ext {
+	case ".pdf":
+		return baseMIME == "application/pdf"
+	case ".png":
+		return baseMIME == "image/png"
+	case ".jpg", ".jpeg":
+		return baseMIME == "image/jpeg"
+	case ".webp":
+		return baseMIME == "image/webp"
+	case ".gif":
+		return baseMIME == "image/gif"
+	case ".docx", ".xlsx", ".zip":
+		return baseMIME == "application/zip" || baseMIME == "application/octet-stream"
+	case ".txt", ".csv":
+		return strings.HasPrefix(baseMIME, "text/") || baseMIME == "application/octet-stream"
+	default:
+		return false
+	}
 }
 
 // AttachmentResponse represents the public metadata DTO for a task file attachment.
@@ -67,8 +121,8 @@ func NewAttachmentService(queries repository.Querier, storage storage.Client, ma
 	}
 }
 
-// UploadAttachment validates the file, checks authorization, uploads to storage, and saves metadata.
-func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID uuid.UUID, fileName string, fileSize int64, contentType string, reader io.Reader) (*AttachmentResponse, error) {
+// UploadAttachment validates the file against allowlist, sniffs MIME type, checks authorization, uploads to storage, and saves metadata.
+func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID uuid.UUID, fileName string, fileSize int64, _ string, reader io.Reader) (*AttachmentResponse, error) {
 	if fileSize <= 0 {
 		return nil, ErrEmptyFile
 	}
@@ -78,12 +132,29 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 
 	cleanFileName := sanitizeFileName(fileName)
 	ext := strings.ToLower(filepath.Ext(cleanFileName))
-	if blockedExtensions[ext] {
+	canonicalMIME, isAllowed := allowedExtensions[ext]
+	if !isAllowed {
 		return nil, ErrInvalidFileType
 	}
-	if contentType == "" {
-		contentType = "application/octet-stream"
+
+	// Sniff MIME type from first 512 bytes to verify magic numbers and prevent file spoofing
+	buf := make([]byte, 512)
+	n, err := io.ReadFull(reader, buf)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, fmt.Errorf("failed to read attachment header for content type detection: %w", err)
 	}
+	sniffedBytes := buf[:n]
+	detectedMIME := http.DetectContentType(sniffedBytes)
+
+	if !isMIMECompatible(ext, detectedMIME) {
+		return nil, ErrInvalidFileType
+	}
+
+	// Reconstruct stream with sniffed bytes prepended
+	fullReader := io.MultiReader(bytes.NewReader(sniffedBytes), reader)
+
+	// Use verified canonical MIME type instead of untrusted client Content-Type
+	safeContentType := canonicalMIME
 
 	// Verify task write permission
 	task, err := s.verifyTaskWriteAccess(ctx, userID, taskID)
@@ -96,7 +167,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	storageKey := fmt.Sprintf("tasks/%s/%s_%s", taskID.String(), attachmentID.String(), cleanFileName)
 
 	// Stream file to object storage
-	if err := s.storage.Upload(ctx, storageKey, reader, fileSize, contentType); err != nil {
+	if err := s.storage.Upload(ctx, storageKey, fullReader, fileSize, safeContentType); err != nil {
 		return nil, fmt.Errorf("failed to upload attachment to storage: %w", err)
 	}
 
@@ -106,7 +177,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 		UserID:      userID,
 		FileName:    cleanFileName,
 		FileSize:    fileSize,
-		ContentType: contentType,
+		ContentType: safeContentType,
 		StorageKey:  storageKey,
 	})
 	if err != nil {
