@@ -184,7 +184,7 @@ flowchart TD
   2. Soạn nội dung Release Notes cho tag `v1.0.0`: liệt kê tính năng chính, breaking changes, cấu hình môi trường mới và các bản vá bảo mật.
 - **Kiểm tra hoàn thành:** File `CHANGELOG.md` đầy đủ nội dung, đúng format Markdown.
 
-#### Task 4.3: Hướng dẫn Smoke Test Thực tế trên Máy thật (Dành cho Người dùng)
+#### [x] Task 4.3: Hướng dẫn Smoke Test Thực tế trên Máy thật (Dành cho Người dùng) *(Hoàn thành)*
 - **Mục tiêu:** Kiểm tra tích hợp toàn diện từ đầu đến cuối trên máy thật trước khi bàn giao.
 - **Giải quyết Feedback:** #3.
 - **Các bước thực hiện bởi người dùng:**
