@@ -139,3 +139,100 @@ k6 run -e API_URL=http://localhost:8080 scripts/k6/load-test.js
 | **Throughput (Sustained RPS)** | N/A | **`98.0 req/s`** (4,016 reqs in 41s) |  PASSED |
 | **Total Tasks Created** | N/A | **`1,003 tasks`** |  PASSED |
 | **Checks Success Rate** | `100 %` | **`100.00 %`** (7,023 / 7,023 checks) |  PASSED |
+
+---
+
+## 8. Database Query Performance & Index Analysis (100k Tasks Baseline)
+
+In Phase 8a, a baseline benchmark was executed on PostgreSQL 16 with a realistic production-scale dataset of **101,011 tasks** across multiple users (User 1: 5,001 tasks, User 2: 96,010 tasks) to evaluate execution plans via `EXPLAIN (ANALYZE, BUFFERS)`.
+
+### 8.1. Problem 1: Full-Text Search GIN Index Invalidation (`OR title ILIKE '%...%'`)
+
+#### Current Query in `queries/tasks.sql`:
+```sql
+SELECT * FROM tasks
+WHERE deleted_at IS NULL
+  AND (creator_id = $1 OR assignee_id = $1)
+  AND (sqlc.narg('search')::text IS NULL 
+       OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', sqlc.narg('search')) 
+       OR title ILIKE '%' || sqlc.narg('search') || '%')
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+#### Measured Execution Plan (`EXPLAIN (ANALYZE, BUFFERS)`):
+```
+Limit  (cost=22.30..462.93 rows=20 width=279) (actual time=129.427..129.428 rows=0 loops=1)
+  Buffers: shared hit=4377
+  ->  Incremental Sort  (cost=22.30..32981.28 rows=1496 width=279) (actual time=129.425..129.426 rows=0 loops=1)
+        Sort Key: tasks.created_at DESC, tasks.id DESC
+        Presorted Key: tasks.created_at
+        Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 25kB  Peak Memory: 25kB
+        Buffers: shared hit=4377
+        ->  Index Scan using idx_tasks_created_at on public.tasks  (cost=0.29..32913.96 rows=1496 width=279) (actual time=129.227..129.228 rows=0 loops=1)
+              Filter: ((tasks.deleted_at IS NULL) 
+                       AND ((tasks.creator_id = $1) OR (tasks.assignee_id = $1)) 
+                       AND ((to_tsvector('english'::regconfig, (((tasks.title)::text || ' '::text) || COALESCE(tasks.description, ''::text))) @@ '''authent'''::tsquery) 
+                            OR ((tasks.title)::text ~~* '%authentication%'::text)))
+              Rows Removed by Filter: 101011
+              Buffers: shared hit=4368
+Planning Time: 4.068 ms
+Execution Time: 129.528 ms
+```
+
+#### Key Findings & Root Cause:
+1. **GIN Index `idx_tasks_fts` is completely bypassed**: Because PostgreSQL evaluates an `OR` condition between `to_tsvector(...) @@ ...` and `title ILIKE '%...'`, and standard B-Tree/GIN indexes cannot index arbitrary leading-wildcard substring patterns (`%term%`), the query planner is forced to discard the GIN index.
+2. **Table-wide Scan**: The planner fell back to scanning the entire table along `idx_tasks_created_at`, computing `to_tsvector` and regex matching dynamically for all **101,011 rows** (`Rows Removed by Filter: 101011`), resulting in **4,377 buffer hits** and an execution time of **129.5 ms**.
+3. **Contrast with Pure FTS**: Running the exact same query with pure FTS (`@@ plainto_tsquery(...)` without the `OR ILIKE` branch) utilized `Bitmap Index Scan on idx_tasks_fts`, dropping execution time from **129.5 ms to 0.228 ms** (560x speedup) and buffer reads from **4,377 to only 10 blocks**.
+
+---
+
+### 8.2. Problem 2: Keyset Pagination Filter Mismatch (`creator_id OR assignee_id`)
+
+#### Current Query in `queries/tasks.sql`:
+```sql
+SELECT * FROM tasks
+WHERE deleted_at IS NULL
+  AND (creator_id = $1 OR assignee_id = $1)
+  AND (created_at, id) < ($cursor_created_at, $cursor_id)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+#### Measured Execution Plan (`EXPLAIN (ANALYZE, BUFFERS)`):
+```
+Limit  (cost=1.40..24.09 rows=20 width=279) (actual time=0.228..0.233 rows=20 loops=1)
+  Buffers: shared hit=18
+  ->  Incremental Sort  (cost=1.40..8152.14 rows=7183 width=279) (actual time=0.227..0.229 rows=20 loops=1)
+        Sort Key: tasks.created_at DESC, tasks.id DESC
+        Presorted Key: tasks.created_at
+        Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+        Buffers: shared hit=18
+        ->  Index Scan using idx_tasks_created_at on public.tasks  (cost=0.30..7828.90 rows=7183 width=279)
+              Index Cond: (tasks.created_at <= $cursor_created_at)
+              Filter: ((tasks.deleted_at IS NULL) AND ((tasks.creator_id = $1) OR (tasks.assignee_id = $1)) 
+                       AND (ROW(tasks.created_at, tasks.id) < ROW($cursor_created_at, $cursor_id)))
+              Rows Removed by Filter: 380
+              Buffers: shared hit=18
+Planning Time: 0.669 ms
+Execution Time: 0.440 ms
+```
+
+#### Key Findings:
+1. The planner chose `idx_tasks_created_at` instead of `idx_tasks_keyset (created_at DESC, id DESC)` and performed an extra `Incremental Sort` step in memory.
+2. The user ownership filter `(creator_id = $1 OR assignee_id = $1)` does not match the leading column of `idx_tasks_keyset`. Rows are filtered sequentially during index traversal (`Rows Removed by Filter: 380`). If a user has sparse tasks among millions of records, index traversal cost increases proportionally with table size rather than returning immediately.
+
+---
+
+### 8.3. Optimization Plan for Phase 8b
+
+To resolve these bottlenecks in Phase 8b:
+1. **Migration 000008 (Trigram & Specialized Indexing)**:
+   - Enable `pg_trgm` extension: `CREATE EXTENSION IF NOT EXISTS pg_trgm;`.
+   - Add a GIN Trigram index on `tasks(title gin_trgm_ops) WHERE deleted_at IS NULL;` so PostgreSQL can use a `BitmapOr` between `idx_tasks_fts` and the trigram index when substring matching is needed.
+   - Alternatively, standardize the search API to pure full-text search (`websearch_to_tsquery` or `plainto_tsquery`) on a dedicated `tsvector` generated column, achieving sub-millisecond lookups.
+2. **User Feed Indexing for Keyset Pagination**:
+   - Add composite indexes:
+     - `CREATE INDEX idx_tasks_creator_keyset ON tasks(creator_id, created_at DESC, id DESC) WHERE deleted_at IS NULL;`
+     - `CREATE INDEX idx_tasks_assignee_keyset ON tasks(assignee_id, created_at DESC, id DESC) WHERE deleted_at IS NULL;`
+   - Rewrite keyset retrieval for user tasks using `UNION ALL` of creator and assignee streams or index merge to avoid sequential filtering across unrelated users.
