@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"task-manager-api/internal/domain"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,10 +15,20 @@ func MaxBytes(maxBytes int64) gin.HandlerFunc {
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
 		}
 		c.Next()
+	}
+}
 
-		// If MaxBytesReader was exceeded, attach domain error
-		if c.Writer.Status() == http.StatusRequestEntityTooLarge {
-			_ = c.Error(domain.ErrPayloadTooLarge)
+// RequestSizeLimiter dynamically limits the HTTP request body size:
+// defaultLimit for standard API calls and uploadLimit for file attachment uploads.
+func RequestSizeLimiter(defaultLimit, uploadLimit int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		limit := defaultLimit
+		if strings.HasSuffix(c.Request.URL.Path, "/attachments") && c.Request.Method == http.MethodPost {
+			limit = uploadLimit
 		}
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
 	}
 }

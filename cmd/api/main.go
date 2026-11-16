@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -84,7 +85,7 @@ func main() {
 	} else {
 		defer redisCache.Close()
 		cacheStore = redisCache
-		log.Info("Redis cache connection established", "url", cfg.RedisURL)
+		log.Info("Redis cache connection established", "url", maskRedisURL(cfg.RedisURL))
 	}
 
 	// 5. Initialize OpenTelemetry tracing
@@ -248,4 +249,13 @@ func main() {
 	}
 
 	log.Info("Server gracefully stopped, all connections drained")
+}
+
+// maskRedisURL redacts sensitive credentials (e.g. password) from a Redis connection string.
+func maskRedisURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "[invalid-url]"
+	}
+	return u.Redacted()
 }

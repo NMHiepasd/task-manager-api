@@ -6,7 +6,6 @@ import (
 	"math"
 	"net/http"
 	"net/http/pprof"
-	"strings"
 	"task-manager-api/internal/cache"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/domain"
@@ -80,22 +79,6 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		maxUploadBytes = deps.Config.MaxUploadSizeMB * 1024 * 1024
 	}
 
-	// Dynamic request body size limit: 2MB for standard endpoints, maxUploadBytes for file uploads
-	router.Use(func(c *gin.Context) {
-		limit := int64(2 << 20)
-		if strings.HasSuffix(c.Request.URL.Path, "/attachments") && c.Request.Method == http.MethodPost {
-			limit = maxUploadBytes
-		}
-		if c.Request.Body != nil {
-			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
-		}
-		c.Next()
-
-		if c.Writer.Status() == http.StatusRequestEntityTooLarge {
-			_ = c.Error(domain.ErrPayloadTooLarge)
-		}
-	})
-
 	// Attach standard global middlewares
 	router.Use(
 		otelgin.Middleware("task-manager-api"),
@@ -108,6 +91,7 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/swagger", "/healthz", "/readyz", "/debug/pprof", "/metrics"})),
 		middleware.ETag(),
 		middleware.ErrorHandler(deps.Logger),
+		middleware.RequestSizeLimiter(2<<20, maxUploadBytes),
 	)
 
 	// Attach Prometheus RED metrics middleware if provided
