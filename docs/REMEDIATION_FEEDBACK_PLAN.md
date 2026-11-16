@@ -51,7 +51,7 @@ flowchart TD
 ### Giai đoạn 2: Bảo mật & Xác thực
 - [x] **Task 2.1**: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack) *(Hoàn thành)*
 - [x] **Task 2.2**: Hardening JWT Validation & Đưa Claims vào Config *(Hoàn thành)*
-- [ ] **Task 2.3**: Giới hạn Trusted Proxies theo IP tĩnh của Caddy
+- [x] **Task 2.3**: Giới hạn Trusted Proxies theo IP tĩnh của Caddy *(Hoàn thành)*
 
 ### Giai đoạn 3: Tính bền vững & Xử lý Edge Cases
 - [ ] **Task 3.1**: Validate Cấu hình khi Khởi động (Fail-fast trong Production)
@@ -123,7 +123,7 @@ flowchart TD
      - `jwt.WithAudience(cfg.JWTAudience)`
 - **Kiểm tra hoàn thành:** Unit test kiểm tra token thiếu exp bị từ chối; token sai issuer/audience bị từ chối.
 
-#### Task 2.3: Giới hạn Trusted Proxies theo IP tĩnh của Caddy
+#### [x] Task 2.3: Giới hạn Trusted Proxies theo IP tĩnh của Caddy *(Hoàn thành)*
 - **Mục tiêu:** Ngăn chặn giả mạo IP client qua header `X-Forwarded-For`.
 - **Giải quyết Feedback:** #5 (phần ứng dụng).
 - **Phạm vi file:** `cmd/api/main.go` hoặc middleware cấu hình router (Gin/Echo)

@@ -23,7 +23,7 @@ type Config struct {
 	JWTIssuer            string        `env:"JWT_ISSUER" envDefault:"task-manager-api"`
 	JWTAudience          string        `env:"JWT_AUDIENCE" envDefault:"task-manager-client"`
 	CORSAllowedOrigins   []string      `env:"CORS_ALLOWED_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://localhost:5173"`
-	TrustedProxies       []string      `env:"TRUSTED_PROXIES" envSeparator:"," envDefault:"127.0.0.1,172.28.0.0/16"`
+	TrustedProxies       []string      `env:"TRUSTED_PROXIES" envSeparator:"," envDefault:"127.0.0.1,172.28.0.2"`
 	RateLimitAuthRate    float64       `env:"RATE_LIMIT_AUTH_RATE" envDefault:"0.166667"` // 10 reqs per minute (~0.167 req/sec)
 	RateLimitAuthBurst   int           `env:"RATE_LIMIT_AUTH_BURST" envDefault:"5"`
 	RateLimitAuthLimit   int           `env:"RATE_LIMIT_AUTH_LIMIT" envDefault:"10"`

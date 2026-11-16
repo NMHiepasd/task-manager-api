@@ -288,12 +288,12 @@ func TestRouter_TrustedProxies_RateLimitIsolation(t *testing.T) {
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	tokenMaker, _ := token.NewJWTMaker("12345678901234567890123456789012")
 
-	// Proxy at 172.28.0.2 is in TrustedProxies CIDR (172.28.0.0/16)
+	// Proxy at 172.28.0.2 is in TrustedProxies (static Caddy IP)
 	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
 		Config: &config.Config{
 			AppEnv:             "test",
 			GinMode:            "test",
-			TrustedProxies:     []string{"172.28.0.0/16"},
+			TrustedProxies:     []string{"172.28.0.2"},
 			RateLimitAuthRate:  1,
 			RateLimitAuthBurst: 2,
 		},
@@ -333,4 +333,46 @@ func TestRouter_TrustedProxies_RateLimitIsolation(t *testing.T) {
 	recB1 := httptest.NewRecorder()
 	router.ServeHTTP(recB1, reqB1)
 	assert.NotEqual(t, http.StatusTooManyRequests, recB1.Code, "Client B should have independent rate limit bucket")
+}
+
+func TestRouter_UntrustedProxy_DoesNotTrustXForwardedFor(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	tokenMaker, _ := token.NewJWTMaker("12345678901234567890123456789012")
+
+	// Only 172.28.0.2 (Caddy) is trusted
+	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config: &config.Config{
+			AppEnv:             "test",
+			GinMode:            "test",
+			TrustedProxies:     []string{"172.28.0.2"},
+			RateLimitAuthRate:  1,
+			RateLimitAuthBurst: 1,
+		},
+		Logger:      log,
+		AuthService: &mockAuthService{},
+		UserService: &mockUserService{},
+		TokenMaker:  tokenMaker,
+	})
+
+	untrustedAddr := "172.28.0.99:54321"
+
+	// Request 1 from untrusted proxy with fake X-Forwarded-For A
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Forwarded-For", "1.1.1.1")
+	req1.RemoteAddr = untrustedAddr
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+	assert.NotEqual(t, http.StatusTooManyRequests, rec1.Code)
+
+	// Request 2 from SAME untrusted proxy with fake X-Forwarded-For B
+	// Since 172.28.0.99 is NOT trusted, Gin identifies the client as 172.28.0.99,
+	// exhausting the bucket regardless of the spoofed X-Forwarded-For header.
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString("{}"))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Forwarded-For", "2.2.2.2")
+	req2.RemoteAddr = untrustedAddr
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusTooManyRequests, rec2.Code, "Untrusted proxy should not bypass rate limiting via spoofed X-Forwarded-For")
 }

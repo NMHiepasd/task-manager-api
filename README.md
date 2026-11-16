@@ -298,7 +298,7 @@ cp .env.example .env
 | `JWT_SECRET` | *(required)* | Secret key for signing access tokens (HMAC-SHA256) |
 | `JWT_EXPIRATION` | `15m` | Lifetime of access tokens |
 | `JWT_REFRESH_EXPIRATION`| `168h` (7 days) | Lifetime of refresh tokens |
-| `TRUSTED_PROXIES` | `127.0.0.1,172.28.0.0/16` | Comma-separated trusted upstream proxy IPs/CIDRs |
+| `TRUSTED_PROXIES` | `127.0.0.1,172.28.0.2` | Comma-separated trusted upstream proxy IPs/CIDRs |
 | `CORS_ALLOWED_ORIGINS`| `http://localhost:3000,http://localhost:5173` | Comma-separated allowed CORS origins |
 | `RATE_LIMIT_AUTH_RATE`| `0.166667` | Allowed requests per second per IP for auth (~10 req/min) |
 | `RATE_LIMIT_AUTH_BURST`| `5` | Allowed burst limit for auth |
