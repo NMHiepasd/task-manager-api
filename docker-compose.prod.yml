@@ -36,7 +36,7 @@ services:
       - task_network_prod
 
   api:
-    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:-v1.0.0}
+    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:-1.0.0}
     container_name: task_manager_api_prod
     restart: unless-stopped
     expose:

@@ -46,7 +46,7 @@ flowchart TD
 ### Giai đoạn 1: Hạ tầng & Docker Compose
 - [x] **Task 1.1**: Sửa MinIO, Redis Requirepass & Ghim Image Tags *(Hoàn thành)*
 - [x] **Task 1.2**: Cấu hình IP tĩnh cho Caddy trong Bridge Network *(Hoàn thành)*
-- [ ] **Task 1.3**: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose
+- [x] **Task 1.3**: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose *(Hoàn thành)*
 
 ### Giai đoạn 2: Bảo mật & Xác thực
 - [ ] **Task 2.1**: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack)
@@ -87,7 +87,7 @@ flowchart TD
   2. Gán `ipv4_address: 172.28.0.2` cố định cho service Caddy.
 - **Kiểm tra hoàn thành:** `docker compose -f docker-compose.prod.yml config` hợp lệ, network map chính xác.
 
-#### Task 1.3: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose
+#### [x] Task 1.3: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose *(Hoàn thành)*
 - **Mục tiêu:** Ngăn chặn lỗi không pull được image do lệch định dạng `v1.0.0` và `1.0.0`.
 - **Giải quyết Feedback:** #1, #12 (phần CI Go version).
 - **Phạm vi file:** `.github/workflows/deploy.yml` (hoặc workflow build docker), `docker-compose.prod.yml`
