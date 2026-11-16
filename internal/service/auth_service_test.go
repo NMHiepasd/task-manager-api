@@ -496,7 +496,10 @@ func TestAuthService_Login_TimingAttackDefense(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	require.Equal(t, 1, tracker.compareCount, "ComparePassword must be called once even if user is not found")
-	require.Equal(t, dummyBcryptHash, tracker.lastComparedHash, "Must compare against dummyBcryptHash to prevent timing attack")
+	require.NotEmpty(t, tracker.lastComparedHash, "Must compare against dummy hash to prevent timing attack")
+	cost, err := bcrypt.Cost([]byte(tracker.lastComparedHash))
+	require.NoError(t, err)
+	require.Equal(t, bcrypt.MinCost, cost, "Dummy hash cost must match the configured hasher cost")
 }
 
 func TestAuthService_RefreshToken_Rotation(t *testing.T) {

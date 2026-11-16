@@ -49,7 +49,7 @@ flowchart TD
 - [x] **Task 1.3**: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose *(Hoàn thành)*
 
 ### Giai đoạn 2: Bảo mật & Xác thực
-- [ ] **Task 2.1**: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack)
+- [x] **Task 2.1**: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack) *(Hoàn thành)*
 - [ ] **Task 2.2**: Hardening JWT Validation & Đưa Claims vào Config
 - [ ] **Task 2.3**: Giới hạn Trusted Proxies theo IP tĩnh của Caddy
 
@@ -101,7 +101,7 @@ flowchart TD
 
 ### GIAI ĐOẠN 2: Bảo mật & Xác thực (Ưu tiên số 2)
 
-#### Task 2.1: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack)
+#### [x] Task 2.1: Đồng bộ Bcrypt Cost cho Dummy Hash (Chống Timing Attack) *(Hoàn thành)*
 - **Mục tiêu:** Triệt tiêu hoàn toàn khả năng dò quét user qua thời gian phản hồi API login.
 - **Giải quyết Feedback:** #4.
 - **Phạm vi file:** `internal/service/auth_service.go` (hoặc `internal/pkg/hasher/`)
