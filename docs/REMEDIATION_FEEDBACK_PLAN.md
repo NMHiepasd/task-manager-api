@@ -45,7 +45,7 @@ flowchart TD
 
 ### Giai đoạn 1: Hạ tầng & Docker Compose
 - [x] **Task 1.1**: Sửa MinIO, Redis Requirepass & Ghim Image Tags *(Hoàn thành)*
-- [ ] **Task 1.2**: Cấu hình IP tĩnh cho Caddy trong Bridge Network
+- [x] **Task 1.2**: Cấu hình IP tĩnh cho Caddy trong Bridge Network *(Hoàn thành)*
 - [ ] **Task 1.3**: Đồng bộ Image Tag giữa CI/CD Pipeline và Docker Compose
 
 ### Giai đoạn 2: Bảo mật & Xác thực
@@ -78,7 +78,7 @@ flowchart TD
   3. Ghim phiên bản cụ thể cho các image còn lại: `postgres:16-alpine`, `redis:7-alpine`, `caddy:2.8-alpine`.
 - **Kiểm tra hoàn thành:** `docker compose -f docker-compose.prod.yml config` không báo lỗi cú pháp.
 
-#### Task 1.2: Cấu hình IP tĩnh cho Caddy trong Bridge Network
+#### [x] Task 1.2: Cấu hình IP tĩnh cho Caddy trong Bridge Network *(Hoàn thành)*
 - **Mục tiêu:** Chuẩn bị IP tĩnh cho Reverse Proxy để phục vụ việc hạn chế Trusted Proxies ở tầng API.
 - **Giải quyết Feedback:** #5 (phần hạ tầng Docker).
 - **Phạm vi file:** `docker-compose.prod.yml`

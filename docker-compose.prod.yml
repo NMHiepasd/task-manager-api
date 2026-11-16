@@ -16,7 +16,8 @@ services:
       api:
         condition: service_healthy
     networks:
-      - task_network_prod
+      task_network_prod:
+        ipv4_address: 172.28.0.2
 
   migration:
     image: migrate/migrate:v4.18.2
