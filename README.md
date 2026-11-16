@@ -2,7 +2,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/NMHiepasd/task-manager-api)](https://goreportcard.com/report/github.com/NMHiepasd/task-manager-api)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![OpenAPI Spec](https://img.shields.io/badge/OpenAPI-3.0%20%2F%20Swagger-green.svg)](http://localhost:8080/swagger/index.html)
+[![OpenAPI Spec](https://img.shields.io/badge/OpenAPI-3.0%20%2F%20Swagger-green.svg)](docs/swagger/swagger.json)
 
 Production-ready, highly secure Task Manager REST API built in Go adhering to **Clean Architecture** principles, strict **RFC 9457 Problem Details for HTTP APIs**, **OWASP Security Hardening**, **Keyset Cursor-based Pagination**, **Full-Text Search (GIN)**, and comprehensive multi-tier testing (**Testcontainers**, **Fuzzing**, **Race detection**).
 
@@ -76,9 +76,13 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    USERS ||--o{ PROJECTS : "owns"
-    USERS ||--o{ TASKS : "owns"
-    USERS ||--o{ TAGS : "creates"
+    USERS ||--o{ PROJECTS : "owns (owner_id)"
+    USERS ||--o{ TASKS : "creates (creator_id)"
+    USERS ||--o{ TASKS : "assigned (assignee_id)"
+    USERS ||--o{ TAGS : "creates (user_id)"
+    USERS ||--o{ REFRESH_TOKENS : "issues (user_id)"
+    USERS ||--o{ IDEMPOTENCY_KEYS : "scopes (user_id)"
+    USERS ||--o{ WEBHOOKS : "configures (user_id)"
     PROJECTS ||--o{ TASKS : "contains"
     PROJECTS ||--o{ PROJECT_MEMBERS : "collaborates"
     USERS ||--o{ PROJECT_MEMBERS : "joined as"
@@ -88,6 +92,7 @@ erDiagram
     USERS ||--o{ TASK_COMMENTS : "authors"
     TASKS ||--o{ TASK_ATTACHMENTS : "attaches"
     USERS ||--o{ TASK_ATTACHMENTS : "uploads"
+    WEBHOOKS ||--o{ WEBHOOK_DELIVERIES : "records"
 
     USERS {
         uuid id PK
@@ -101,7 +106,7 @@ erDiagram
 
     PROJECTS {
         uuid id PK
-        uuid user_id FK
+        uuid owner_id FK
         varchar name
         text description
         varchar status
@@ -111,7 +116,8 @@ erDiagram
 
     TASKS {
         uuid id PK
-        uuid user_id FK
+        uuid creator_id FK
+        uuid assignee_id FK
         uuid project_id FK
         varchar title
         text description
@@ -119,6 +125,8 @@ erDiagram
         varchar priority
         date due_date
         tsvector search_vector
+        int version
+        timestamptz deleted_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -164,6 +172,49 @@ erDiagram
         varchar storage_key UK
         timestamptz created_at
     }
+
+    REFRESH_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK
+        timestamptz expires_at
+        timestamptz revoked_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    IDEMPOTENCY_KEYS {
+        varchar key PK
+        uuid user_id FK
+        int response_status
+        jsonb response_headers
+        bytea response_body
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    WEBHOOKS {
+        uuid id PK
+        uuid user_id FK
+        varchar url
+        varchar secret
+        text_array events
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    WEBHOOK_DELIVERIES {
+        uuid id PK
+        uuid webhook_id FK
+        varchar event
+        jsonb payload
+        int response_status
+        text response_body
+        int execution_time_ms
+        text error_message
+        timestamptz delivered_at
+    }
 ```
 
 ### Project Directory Layout
@@ -185,11 +236,11 @@ task-manager-api/
 │           ├── middleware/      # Auth, CORS, Logger, RequestID, RateLimiter, Recovery, Security
 │           └── router.go        # Router configuration and endpoint routing table
 ├── pkg/
-│   ├── hasher/                  # Password hashing (Argon2id / bcrypt)
+│   ├── hasher/                  # Password hashing (bcrypt with constant-time dummy verification)
 │   ├── logger/                  # Structured logging (log/slog)
 │   ├── pagination/              # Keyset cursor pagination encoder/decoder
 │   ├── response/                # Standardized envelope response helpers
-│   └── token/                   # JWT & PASETO token generator and validator
+│   └── token/                   # JWT token generator and validator with iss/aud verification
 ├── docs/
 │   ├── adr/                     # Architecture Decision Records
 │   └── swagger/                 # OpenAPI 3.0 generated specifications (docs.go, swagger.json)
@@ -207,9 +258,12 @@ task-manager-api/
 
 ## API Documentation & Swagger UI
 
-Once the application is running, you can access the interactive Swagger UI at:
+When running locally in non-production mode (`APP_ENV != "production"`), you can access the interactive Swagger UI at:
 
 👉 **[http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)**
+
+> [!NOTE]
+> In production environments (`APP_ENV=production`), `/swagger/*` is automatically disabled and shielded by Caddy reverse proxy for security. The raw specification is committed at [`docs/swagger/swagger.json`](docs/swagger/swagger.json).
 
 ### Key Endpoint Groups:
 - **Auth**: `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`
@@ -237,20 +291,30 @@ cp .env.example .env
 
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
+| `APP_PORT` | `8080` | Server listening port |
 | `APP_ENV` | `development` | Environment (`development`, `staging`, `production`) |
-| `HTTP_PORT` | `8080` | Server listening port |
 | `GIN_MODE` | `debug` | Gin operating mode (`debug`, `release`, `test`) |
-| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/task_manager?sslmode=disable` | PostgreSQL connection string |
+| `LOG_LEVEL` | `info` | Structured log level (`debug`, `info`, `warn`, `error`) |
+| `JWT_SECRET` | *(required)* | Secret key for signing access tokens (HMAC-SHA256) |
+| `JWT_EXPIRATION` | `15m` | Lifetime of access tokens |
+| `JWT_REFRESH_EXPIRATION`| `168h` (7 days) | Lifetime of refresh tokens |
+| `TRUSTED_PROXIES` | `127.0.0.1,172.28.0.0/16` | Comma-separated trusted upstream proxy IPs/CIDRs |
+| `CORS_ALLOWED_ORIGINS`| `http://localhost:3000,http://localhost:5173` | Comma-separated allowed CORS origins |
+| `RATE_LIMIT_AUTH_RATE`| `0.166667` | Allowed requests per second per IP for auth (~10 req/min) |
+| `RATE_LIMIT_AUTH_BURST`| `5` | Allowed burst limit for auth |
+| `DB_URL` | `postgres://postgres:postgres@localhost:5432/task_manager?sslmode=disable` | PostgreSQL connection string |
 | `DB_MAX_CONNS` | `25` | Maximum active DB connections |
 | `DB_MIN_CONNS` | `5` | Minimum idle DB connections |
 | `DB_MAX_CONN_LIFETIME` | `1h` | Maximum connection reuse duration |
 | `DB_MAX_CONN_IDLE_TIME` | `30m` | Maximum connection idle duration |
-| `JWT_SECRET` | `task-manager-dev-secret-key-32bytes-min!` | Secret key for signing access tokens |
-| `JWT_ACCESS_DURATION` | `15m` | Lifetime of access tokens |
-| `JWT_REFRESH_DURATION`| `168h` (7 days) | Lifetime of refresh tokens |
-| `RATE_LIMIT_AUTH_RATE`| `5` | Allowed requests per second per IP for auth |
-| `RATE_LIMIT_AUTH_BURST`| `10` | Allowed burst limit for auth |
-| `CORS_ALLOWED_ORIGINS`| `http://localhost:3000,http://localhost:5173` | Comma-separated allowed origins |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL for cache and Asynq queues |
+| `WORKER_ENABLED` | `true` | Enable Asynq background worker process |
+| `REQUEST_TIMEOUT` | `30s` | Maximum HTTP request processing timeout |
+| `SERVER_READ_TIMEOUT` | `60s` | HTTP server socket read timeout |
+| `SERVER_WRITE_TIMEOUT`| `60s` | HTTP server socket write timeout |
+| `S3_ENDPOINT` | `localhost:9000` | S3 / MinIO endpoint for attachments |
+| `S3_BUCKET_NAME` | `task-attachments` | Object storage bucket name |
+| `MAX_UPLOAD_SIZE_MB` | `10` | Maximum file upload size in MB |
 
 ### Quickstart with Docker
 
