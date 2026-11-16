@@ -20,7 +20,7 @@ WHERE deleted_at IS NULL
   AND ($3::varchar IS NULL OR status = $3)
   AND ($4::varchar IS NULL OR priority = $4)
   AND ($5::timestamptz IS NULL OR due_date <= $5)
-  AND ($6::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $6) OR title ILIKE '%' || $6 || '%')
+  AND ($6::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', $6))
   AND ($7::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $7
   ))
@@ -142,7 +142,7 @@ WHERE deleted_at IS NULL
   AND ($5::varchar IS NULL OR status = $5)
   AND ($6::varchar IS NULL OR priority = $6)
   AND ($7::timestamptz IS NULL OR due_date <= $7)
-  AND ($8::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $8) OR title ILIKE '%' || $8 || '%')
+  AND ($8::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', $8))
   AND ($9::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $9
   ))
@@ -333,7 +333,7 @@ WHERE deleted_at IS NULL
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::varchar IS NULL OR priority = $5)
   AND ($6::timestamptz IS NULL OR due_date <= $6)
-  AND ($7::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', $7) OR title ILIKE '%' || $7 || '%')
+  AND ($7::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', $7))
   AND ($8::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = $8
   ))

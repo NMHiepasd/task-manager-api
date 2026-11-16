@@ -25,7 +25,7 @@ WHERE deleted_at IS NULL
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('priority')::varchar IS NULL OR priority = sqlc.narg('priority'))
   AND (sqlc.narg('due_before')::timestamptz IS NULL OR due_date <= sqlc.narg('due_before'))
-  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', sqlc.narg('search')) OR title ILIKE '%' || sqlc.narg('search') || '%')
+  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', sqlc.narg('search')))
   AND (sqlc.narg('tag_id')::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = sqlc.narg('tag_id')
   ))
@@ -40,7 +40,7 @@ WHERE deleted_at IS NULL
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('priority')::varchar IS NULL OR priority = sqlc.narg('priority'))
   AND (sqlc.narg('due_before')::timestamptz IS NULL OR due_date <= sqlc.narg('due_before'))
-  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', sqlc.narg('search')) OR title ILIKE '%' || sqlc.narg('search') || '%')
+  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', sqlc.narg('search')))
   AND (sqlc.narg('tag_id')::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = sqlc.narg('tag_id')
   ))
@@ -56,7 +56,7 @@ WHERE deleted_at IS NULL
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('priority')::varchar IS NULL OR priority = sqlc.narg('priority'))
   AND (sqlc.narg('due_before')::timestamptz IS NULL OR due_date <= sqlc.narg('due_before'))
-  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ plainto_tsquery('english', sqlc.narg('search')) OR title ILIKE '%' || sqlc.narg('search') || '%')
+  AND (sqlc.narg('search')::text IS NULL OR to_tsvector('english', title || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', sqlc.narg('search')))
   AND (sqlc.narg('tag_id')::uuid IS NULL OR EXISTS (
       SELECT 1 FROM task_tags tt WHERE tt.task_id = tasks.id AND tt.tag_id = sqlc.narg('tag_id')
   ));
