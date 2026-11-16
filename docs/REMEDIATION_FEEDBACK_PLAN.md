@@ -150,7 +150,7 @@ flowchart TD
   3. Gọi `cfg.Validate(cfg.AppEnv)` ngay đầu hàm `main()`, nếu có lỗi thì `log.Fatalf` dừng server ngay.
 - **Kiểm tra hoàn thành:** Unit test `config_test.go` cho các trường hợp config không hợp lệ ở production.
 
-#### Task 3.2: Xử lý Edge-case Kẹt Khóa Idempotency
+#### [x] Task 3.2: Xử lý Edge-case Kẹt Khóa Idempotency *(Hoàn thành)*
 - **Mục tiêu:** Đảm bảo khi lưu response thất bại, client không bị chặn retry suốt 24 giờ.
 - **Giải quyết Feedback:** #11.
 - **Phạm vi file:** `internal/middleware/idempotency.go` (hoặc service idempotency)

@@ -19,6 +19,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// InProgressLockTTL defines the maximum processing duration (short TTL: 60s)
+// before an in-flight idempotency reservation is considered stale/abandoned.
+// Completed responses have a long TTL (24 hours) enforced by the background cleanup worker.
+const InProgressLockTTL = 1 * time.Minute
+
 // responseBodyWriter wraps gin.ResponseWriter to intercept response body for caching.
 type responseBodyWriter struct {
 	gin.ResponseWriter
@@ -122,33 +127,63 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 
 				// Check if previous request is still in-flight
 				if !existing.ResponseCode.Valid {
-					c.Header("Content-Type", "application/problem+json")
-					c.AbortWithStatusJSON(http.StatusConflict, domain.NewProblem(
-						http.StatusConflict,
-						"A request with this idempotency key is currently processing",
-						"IDEMPOTENCY_IN_PROGRESS",
-						path,
-						reqID,
-					))
+					lockTime := existing.CreatedAt.Time
+					if existing.LockedAt.Valid {
+						lockTime = existing.LockedAt.Time
+					}
+
+					// Stale lock detection: if the request has been processing longer than InProgressLockTTL,
+					// assume previous attempt crashed, timed out, or terminated abnormally.
+					if !lockTime.IsZero() && time.Since(lockTime) > InProgressLockTTL {
+						// Clean up stale in-progress key so current retry can proceed cleanly
+						delCtx, cancelDel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancelDel()
+						_ = querier.DeleteIdempotencyKey(delCtx, repository.DeleteIdempotencyKeyParams{
+							Key:    key,
+							UserID: userID,
+						})
+
+						// Re-reserve key for this fresh attempt
+						err = querier.CreateIdempotencyKey(c.Request.Context(), repository.CreateIdempotencyKeyParams{
+							Key:         key,
+							UserID:      userID,
+							RequestPath: path,
+							ParamsHash:  paramsHash,
+						})
+						if err != nil {
+							_ = c.Error(err)
+							c.Abort()
+							return
+						}
+					} else {
+						c.Header("Content-Type", "application/problem+json")
+						c.AbortWithStatusJSON(http.StatusConflict, domain.NewProblem(
+							http.StatusConflict,
+							"A request with this idempotency key is currently processing",
+							"IDEMPOTENCY_IN_PROGRESS",
+							path,
+							reqID,
+						))
+						return
+					}
+				} else {
+					// Replay stored response
+					c.Header("Idempotent-Replayed", "true")
+					statusCode := int(existing.ResponseCode.Int32)
+					contentType := "application/json"
+					if statusCode >= 400 {
+						contentType = "application/problem+json"
+					}
+					c.Data(statusCode, contentType, existing.ResponseBody)
+					c.Abort()
 					return
 				}
-
-				// Replay stored response
-				c.Header("Idempotent-Replayed", "true")
-				statusCode := int(existing.ResponseCode.Int32)
-				contentType := "application/json"
-				if statusCode >= 400 {
-					contentType = "application/problem+json"
-				}
-				c.Data(statusCode, contentType, existing.ResponseBody)
+			} else {
+				// Unknown database error during key reservation
+				_ = c.Error(err)
 				c.Abort()
 				return
 			}
-
-			// Unknown database error during key reservation
-			_ = c.Error(err)
-			c.Abort()
-			return
 		}
 
 		// Wrap response writer to capture output body
@@ -192,12 +227,24 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 			updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			_ = querier.UpdateIdempotencyKeyResponse(updateCtx, repository.UpdateIdempotencyKeyResponseParams{
+			updateErr := querier.UpdateIdempotencyKeyResponse(updateCtx, repository.UpdateIdempotencyKeyResponseParams{
 				Key:          key,
 				UserID:       userID,
 				ResponseCode: pgtype.Int4{Int32: int32(statusCode), Valid: true},
 				ResponseBody: writer.body.Bytes(),
 			})
+			if updateErr != nil {
+				// Rollback: if updating the response fails, actively delete the key
+				// so subsequent retries are not permanently locked in 409 Conflict.
+				delCtx, cancelDel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancelDel()
+				_ = querier.DeleteIdempotencyKey(delCtx, repository.DeleteIdempotencyKeyParams{
+					Key:    key,
+					UserID: userID,
+				})
+				_ = c.Error(updateErr)
+				return
+			}
 			completed = true
 		}
 	}

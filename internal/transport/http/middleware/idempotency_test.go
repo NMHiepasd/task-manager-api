@@ -27,8 +27,9 @@ import (
 
 // mockIdempotencyQuerier simulates idempotency database storage in memory.
 type mockIdempotencyQuerier struct {
-	mu      sync.Mutex
-	records map[string]repository.IdempotencyKey
+	mu                sync.Mutex
+	records           map[string]repository.IdempotencyKey
+	updateResponseErr error
 }
 
 func newMockIdempotencyQuerier() *mockIdempotencyQuerier {
@@ -77,6 +78,10 @@ func (m *mockIdempotencyQuerier) UpdateIdempotencyKeyResponse(_ context.Context,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.updateResponseErr != nil {
+		return m.updateResponseErr
+	}
+
 	k := m.recordKey(arg.UserID, arg.Key)
 	rec, exists := m.records[k]
 	if !exists {
@@ -96,6 +101,13 @@ func (m *mockIdempotencyQuerier) DeleteIdempotencyKey(_ context.Context, arg rep
 	k := m.recordKey(arg.UserID, arg.Key)
 	delete(m.records, k)
 	return nil
+}
+
+func (m *mockIdempotencyQuerier) setRecord(rec repository.IdempotencyKey) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k := m.recordKey(rec.UserID, rec.Key)
+	m.records[k] = rec
 }
 
 // Stubs to fulfill repository.Querier
@@ -610,4 +622,118 @@ func TestIdempotency_PanickingHandler_CleansUpKey(t *testing.T) {
 	router.ServeHTTP(rec2, req2)
 	assert.Equal(t, http.StatusOK, rec2.Code)
 	assert.Contains(t, rec2.Body.String(), "recovered")
+}
+
+func TestIdempotency_UpdateResponseFailure_RollsBackKeyAndAllowsRetry(t *testing.T) {
+	mock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Rollback on Update Fail"}`
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+
+	callCount := 0
+	router.POST("/api/v1/update-fail-test", func(c *gin.Context) {
+		callCount++
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	// Inject database failure when saving response
+	mock.updateResponseErr = errors.New("simulated update idempotency response error")
+
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/update-fail-test", bytes.NewBufferString(body))
+	req1.Header.Set("Idempotency-Key", key)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+
+	// Verify key was cleaned up / deleted from store despite handler success
+	_, err := mock.GetIdempotencyKey(context.Background(), repository.GetIdempotencyKeyParams{
+		Key:    key,
+		UserID: userID,
+	})
+	assert.ErrorIs(t, err, pgx.ErrNoRows, "Failed response persistence must rollback key reservation")
+
+	// Now database recovers
+	mock.updateResponseErr = nil
+
+	// Subsequent retry with the SAME key must NOT be blocked by 409 IDEMPOTENCY_IN_PROGRESS
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/update-fail-test", bytes.NewBufferString(body))
+	req2.Header.Set("Idempotency-Key", key)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+
+	assert.Equal(t, http.StatusOK, rec2.Code)
+	assert.Equal(t, 2, callCount)
+	assert.Contains(t, rec2.Body.String(), "ok")
+}
+
+func TestIdempotency_StaleInProgressKey_AllowsTakeoverAndRetry(t *testing.T) {
+	mock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Stale Key Takeover"}`
+	path := "/api/v1/stale-test"
+
+	hash := sha256.Sum256([]byte(body))
+	paramsHash := hex.EncodeToString(hash[:])
+
+	// Pre-populate store with a stale in-flight reservation from 5 minutes ago (older than InProgressLockTTL)
+	staleTime := time.Now().Add(-5 * time.Minute)
+	mock.setRecord(repository.IdempotencyKey{
+		Key:          key,
+		UserID:       userID,
+		RequestPath:  path,
+		ParamsHash:   paramsHash,
+		ResponseCode: pgtype.Int4{Valid: false},
+		CreatedAt:    pgtype.Timestamptz{Time: staleTime, Valid: true},
+		LockedAt:     pgtype.Timestamptz{Time: staleTime, Valid: true},
+	})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+
+	callCount := 0
+	router.POST(path, func(c *gin.Context) {
+		callCount++
+		c.JSON(http.StatusCreated, gin.H{"status": "task created successfully"})
+	})
+
+	// Retry request with stale key
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	// It must NOT fail with 409 IDEMPOTENCY_IN_PROGRESS, but instead take over and succeed
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.Equal(t, 1, callCount)
+	assert.Contains(t, rec.Body.String(), "task created successfully")
+
+	// The record in store should now be marked as completed
+	saved, err := mock.GetIdempotencyKey(context.Background(), repository.GetIdempotencyKeyParams{
+		Key:    key,
+		UserID: userID,
+	})
+	require.NoError(t, err)
+	assert.True(t, saved.ResponseCode.Valid)
+	assert.Equal(t, int32(http.StatusCreated), saved.ResponseCode.Int32)
 }
