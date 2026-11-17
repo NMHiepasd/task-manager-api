@@ -71,11 +71,16 @@ func (q *Queries) CreateTaskAttachment(ctx context.Context, arg CreateTaskAttach
 
 const deleteTaskAttachment = `-- name: DeleteTaskAttachment :exec
 DELETE FROM task_attachments
-WHERE id = $1
+WHERE id = $1 AND task_id = $2
 `
 
-func (q *Queries) DeleteTaskAttachment(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteTaskAttachment, id)
+type DeleteTaskAttachmentParams struct {
+	ID     uuid.UUID `json:"id"`
+	TaskID uuid.UUID `json:"task_id"`
+}
+
+func (q *Queries) DeleteTaskAttachment(ctx context.Context, arg DeleteTaskAttachmentParams) error {
+	_, err := q.db.Exec(ctx, deleteTaskAttachment, arg.ID, arg.TaskID)
 	return err
 }
 

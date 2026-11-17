@@ -37,8 +37,8 @@ type Querier interface {
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
-	DeleteTaskAttachment(ctx context.Context, id uuid.UUID) error
-	DeleteTaskComment(ctx context.Context, id uuid.UUID) error
+	DeleteTaskAttachment(ctx context.Context, arg DeleteTaskAttachmentParams) error
+	DeleteTaskComment(ctx context.Context, arg DeleteTaskCommentParams) error
 	DeleteWebhook(ctx context.Context, id uuid.UUID) error
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)

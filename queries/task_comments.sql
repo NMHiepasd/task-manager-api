@@ -48,4 +48,4 @@ RETURNING *;
 
 -- name: DeleteTaskComment :exec
 DELETE FROM task_comments
-WHERE id = $1;
+WHERE id = $1 AND task_id = $2;

@@ -22,7 +22,7 @@ ORDER BY created_at ASC;
 
 -- name: DeleteTaskAttachment :exec
 DELETE FROM task_attachments
-WHERE id = $1;
+WHERE id = $1 AND task_id = $2;
 
 -- name: CountAttachmentsByTaskID :one
 SELECT COUNT(*)::bigint FROM task_attachments
