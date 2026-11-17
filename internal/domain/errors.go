@@ -43,6 +43,7 @@ var (
 	ErrFileTooLarge               = fmt.Errorf("%w: file size exceeds allowed limit", ErrValidation)
 	ErrInvalidFileType            = fmt.Errorf("%w: file type is not allowed", ErrValidation)
 	ErrEmptyFile                  = fmt.Errorf("%w: file cannot be empty", ErrValidation)
+	ErrAttachmentQuotaExceeded    = fmt.Errorf("%w: attachment quota exceeded", ErrValidation)
 	ErrWebhookNotFound            = fmt.Errorf("%w: webhook not found", ErrNotFound)
 	ErrInvalidWebhookURL          = fmt.Errorf("%w: invalid webhook url", ErrValidation)
 	ErrWebhookSSRF                = fmt.Errorf("%w: webhook url cannot target private, loopback, or reserved network addresses", ErrValidation)

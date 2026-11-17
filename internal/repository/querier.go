@@ -15,6 +15,7 @@ type Querier interface {
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (ProjectMember, error)
 	AddTagToTask(ctx context.Context, arg AddTagToTaskParams) error
 	ClearTaskTags(ctx context.Context, taskID uuid.UUID) error
+	CountAttachmentsByTaskID(ctx context.Context, taskID uuid.UUID) (int64, error)
 	CountProjectMembers(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsByMember(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountProjectsByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error)
@@ -50,6 +51,7 @@ type Querier interface {
 	GetTaskAttachmentByID(ctx context.Context, id uuid.UUID) (TaskAttachment, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskCommentByID(ctx context.Context, id uuid.UUID) (GetTaskCommentByIDRow, error)
+	GetTotalAttachmentSizeByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetWebhookByID(ctx context.Context, id uuid.UUID) (Webhook, error)

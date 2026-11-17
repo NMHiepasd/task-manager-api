@@ -11,6 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAttachmentsByTaskID = `-- name: CountAttachmentsByTaskID :one
+SELECT COUNT(*)::bigint FROM task_attachments
+WHERE task_id = $1
+`
+
+func (q *Queries) CountAttachmentsByTaskID(ctx context.Context, taskID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttachmentsByTaskID, taskID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createTaskAttachment = `-- name: CreateTaskAttachment :one
 INSERT INTO task_attachments (
     task_id,
@@ -86,6 +98,18 @@ func (q *Queries) GetTaskAttachmentByID(ctx context.Context, id uuid.UUID) (Task
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getTotalAttachmentSizeByUserID = `-- name: GetTotalAttachmentSizeByUserID :one
+SELECT COALESCE(SUM(file_size), 0)::bigint FROM task_attachments
+WHERE user_id = $1
+`
+
+func (q *Queries) GetTotalAttachmentSizeByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getTotalAttachmentSizeByUserID, userID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const listTaskAttachmentsByTaskID = `-- name: ListTaskAttachmentsByTaskID :many

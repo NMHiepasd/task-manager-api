@@ -23,3 +23,11 @@ ORDER BY created_at ASC;
 -- name: DeleteTaskAttachment :exec
 DELETE FROM task_attachments
 WHERE id = $1;
+
+-- name: CountAttachmentsByTaskID :one
+SELECT COUNT(*)::bigint FROM task_attachments
+WHERE task_id = $1;
+
+-- name: GetTotalAttachmentSizeByUserID :one
+SELECT COALESCE(SUM(file_size), 0)::bigint FROM task_attachments
+WHERE user_id = $1;
