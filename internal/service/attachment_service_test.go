@@ -439,3 +439,281 @@ func TestAttachmentService_DeleteAttachment(t *testing.T) {
 		assert.ErrorIs(t, err, ErrForbidden)
 	})
 }
+
+func TestAttachmentService_ADR018_ViewerCreatorCannotModerate(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	creatorID := uuid.New()
+	ownerID := uuid.New()
+	projectID := uuid.New()
+	otherUserID := uuid.New()
+	attachmentID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: creatorID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: ownerID,
+	}
+	attachment := repository.TaskAttachment{
+		ID:         attachmentID,
+		TaskID:     taskID,
+		UserID:     otherUserID, // Uploaded by another user
+		StorageKey: "tasks/" + taskID.String() + "/spec.pdf",
+	}
+
+	mockRepo := &mockAttachmentQuerier{
+		getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+			return task, nil
+		},
+		getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+			return project, nil
+		},
+		getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			// Creator is merely a viewer in this project workspace
+			if arg.UserID == creatorID {
+				return repository.ProjectMember{ProjectID: projectID, UserID: creatorID, Role: "viewer"}, nil
+			}
+			return repository.ProjectMember{}, pgx.ErrNoRows
+		},
+		getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
+			return attachment, nil
+		},
+	}
+
+	svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+
+	// Creator who is demoted to viewer cannot delete another member's attachment
+	err := svc.DeleteAttachment(ctx, creatorID, taskID, attachmentID)
+	require.ErrorIs(t, err, ErrInsufficientProjectRole)
+}
+
+func TestAttachmentService_ADR018_RemovedCreatorBlockedReadAndWrite(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	removedCreatorID := uuid.New()
+	ownerID := uuid.New()
+	projectID := uuid.New()
+	attachmentID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: removedCreatorID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: ownerID,
+	}
+	attachment := repository.TaskAttachment{
+		ID:         attachmentID,
+		TaskID:     taskID,
+		UserID:     removedCreatorID,
+		StorageKey: "tasks/" + taskID.String() + "/old.pdf",
+	}
+
+	// Creator is no longer in project_members
+	mockRepo := &mockAttachmentQuerier{
+		getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+			return task, nil
+		},
+		getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+			return project, nil
+		},
+		getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			return repository.ProjectMember{}, pgx.ErrNoRows // Removed!
+		},
+		getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
+			return attachment, nil
+		},
+	}
+
+	svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+
+	t.Run("ListAttachments_Returns404", func(t *testing.T) {
+		_, err := svc.ListAttachments(ctx, removedCreatorID, taskID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("GetAttachment_Returns404", func(t *testing.T) {
+		_, _, err := svc.GetAttachment(ctx, removedCreatorID, taskID, attachmentID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("GetAttachmentPresignedURL_Returns404", func(t *testing.T) {
+		_, err := svc.GetAttachmentPresignedURL(ctx, removedCreatorID, taskID, attachmentID, 0)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("UploadAttachment_Returns404", func(t *testing.T) {
+		validPDF := "%PDF-1.4 sample content"
+		_, err := svc.UploadAttachment(ctx, removedCreatorID, taskID, "file.pdf", int64(len(validPDF)), "application/pdf", strings.NewReader(validPDF))
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("DeleteAttachment_Returns404", func(t *testing.T) {
+		err := svc.DeleteAttachment(ctx, removedCreatorID, taskID, attachmentID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+}
+
+func TestAttachmentService_ADR018_EditorCannotModerate(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	editorID := uuid.New()
+	ownerID := uuid.New()
+	uploaderID := uuid.New()
+	projectID := uuid.New()
+	attachmentID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: ownerID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: ownerID,
+	}
+	attachment := repository.TaskAttachment{
+		ID:         attachmentID,
+		TaskID:     taskID,
+		UserID:     uploaderID,
+		StorageKey: "tasks/" + taskID.String() + "/doc.pdf",
+	}
+
+	mockRepo := &mockAttachmentQuerier{
+		getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+			return task, nil
+		},
+		getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+			return project, nil
+		},
+		getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			if arg.UserID == editorID {
+				return repository.ProjectMember{ProjectID: projectID, UserID: editorID, Role: "editor"}, nil
+			}
+			return repository.ProjectMember{}, pgx.ErrNoRows
+		},
+		getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
+			return attachment, nil
+		},
+	}
+
+	svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+	err := svc.DeleteAttachment(ctx, editorID, taskID, attachmentID)
+	require.ErrorIs(t, err, ErrInsufficientProjectRole)
+}
+
+func TestAttachmentService_ADR018_OwnerCanModerate(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	ownerID := uuid.New()
+	uploaderID := uuid.New()
+	projectID := uuid.New()
+	attachmentID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: uploaderID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: ownerID,
+	}
+	attachment := repository.TaskAttachment{
+		ID:         attachmentID,
+		TaskID:     taskID,
+		UserID:     uploaderID,
+		StorageKey: "tasks/" + taskID.String() + "/doc.pdf",
+	}
+
+	deletedDB := false
+	deletedStore := false
+	mockRepo := &mockAttachmentQuerier{
+		getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+			return task, nil
+		},
+		getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+			return project, nil
+		},
+		getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
+			return attachment, nil
+		},
+		deleteTaskAttachmentFn: func(_ context.Context, id uuid.UUID) error {
+			if id == attachmentID {
+				deletedDB = true
+			}
+			return nil
+		},
+	}
+	mockStore := &mockStorageClient{
+		deleteFunc: func(_ context.Context, key string) error {
+			if key == attachment.StorageKey {
+				deletedStore = true
+			}
+			return nil
+		},
+	}
+
+	svc := NewAttachmentService(mockRepo, mockStore, 10)
+	err := svc.DeleteAttachment(ctx, ownerID, taskID, attachmentID)
+	require.NoError(t, err)
+	require.True(t, deletedDB)
+	require.True(t, deletedStore)
+}
+
+func TestAttachmentService_ADR018_SoftDeletedProjectGets404(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	ownerID := uuid.New()
+	projectID := uuid.New()
+	attachmentID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: ownerID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:        projectID,
+		OwnerID:   ownerID,
+		DeletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, // Soft-deleted
+	}
+
+	mockRepo := &mockAttachmentQuerier{
+		getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+			return task, nil
+		},
+		getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+			return project, nil
+		},
+	}
+
+	svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
+
+	t.Run("ListAttachments_Returns404", func(t *testing.T) {
+		_, err := svc.ListAttachments(ctx, ownerID, taskID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("GetAttachment_Returns404", func(t *testing.T) {
+		_, _, err := svc.GetAttachment(ctx, ownerID, taskID, attachmentID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("UploadAttachment_Returns404", func(t *testing.T) {
+		validPDF := "%PDF-1.4 sample content"
+		_, err := svc.UploadAttachment(ctx, ownerID, taskID, "file.pdf", int64(len(validPDF)), "application/pdf", strings.NewReader(validPDF))
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("DeleteAttachment_Returns404", func(t *testing.T) {
+		err := svc.DeleteAttachment(ctx, ownerID, taskID, attachmentID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+}

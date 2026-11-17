@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"task-manager-api/internal/authz"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/storage"
 	"time"
@@ -157,7 +158,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	safeContentType := canonicalMIME
 
 	// Verify task write permission
-	task, err := s.verifyTaskWriteAccess(ctx, userID, taskID)
+	task, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionUpload)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +202,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 
 // ListAttachments returns all attachments belonging to a task for authorized members.
 func (s *attachmentService) ListAttachments(ctx context.Context, userID, taskID uuid.UUID) ([]AttachmentResponse, error) {
-	if _, _, err := s.verifyTaskReadAccess(ctx, userID, taskID); err != nil {
+	if _, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +221,7 @@ func (s *attachmentService) ListAttachments(ctx context.Context, userID, taskID 
 
 // GetAttachment retrieves attachment metadata and downloads stream for authorized viewers.
 func (s *attachmentService) GetAttachment(ctx context.Context, userID, taskID, attachmentID uuid.UUID) (*AttachmentResponse, io.ReadCloser, error) {
-	if _, _, err := s.verifyTaskReadAccess(ctx, userID, taskID); err != nil {
+	if _, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -246,7 +247,7 @@ func (s *attachmentService) GetAttachment(ctx context.Context, userID, taskID, a
 
 // GetAttachmentPresignedURL generates a temporary download URL for an attachment.
 func (s *attachmentService) GetAttachmentPresignedURL(ctx context.Context, userID, taskID, attachmentID uuid.UUID, expiry time.Duration) (string, error) {
-	if _, _, err := s.verifyTaskReadAccess(ctx, userID, taskID); err != nil {
+	if _, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead); err != nil {
 		return "", err
 	}
 
@@ -276,7 +277,7 @@ func (s *attachmentService) GetAttachmentPresignedURL(ctx context.Context, userI
 
 // DeleteAttachment removes the attachment from DB and object storage following moderation rules.
 func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID, attachmentID uuid.UUID) error {
-	task, project, err := s.verifyTaskReadAccess(ctx, userID, taskID)
+	_, res, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead)
 	if err != nil {
 		return err
 	}
@@ -294,16 +295,11 @@ func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID
 	}
 
 	// Moderation check:
-	// Allowed if:
-	// 1. Caller is the attachment author (record.UserID == userID)
-	// 2. Caller is the task creator (task.CreatorID == userID)
-	// 3. Caller is the project owner (project != nil && project.OwnerID == userID)
-	isAuthor := record.UserID == userID
-	isTaskCreator := task.CreatorID == userID
-	isProjectOwner := project != nil && project.OwnerID == userID
-
-	if !isAuthor && !isTaskCreator && !isProjectOwner {
-		return ErrForbidden
+	// Allowed if caller is the attachment author (record.UserID == userID) or holds ActionModerateAttachments
+	sub := authz.Subject{UserID: userID}
+	canDelete := record.UserID == userID || authz.Can(sub, res, authz.ActionModerateAttachments)
+	if !canDelete {
+		return ErrInsufficientProjectRole
 	}
 
 	if err := s.queries.DeleteTaskAttachment(ctx, attachmentID); err != nil {
@@ -316,82 +312,78 @@ func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID
 	return nil
 }
 
-// verifyTaskReadAccess checks if the user has read access to the task.
-func (s *attachmentService) verifyTaskReadAccess(ctx context.Context, userID, taskID uuid.UUID) (*repository.Task, *repository.Project, error) {
+// loadTaskResource retrieves task details and constructs the authorization Resource.
+func (s *attachmentService) loadTaskResource(ctx context.Context, userID, taskID uuid.UUID) (*repository.Task, authz.Resource, error) {
 	task, err := s.queries.GetTaskByID(ctx, taskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil, ErrTaskNotFound
+			return nil, authz.Resource{}, ErrTaskNotFound
 		}
-		return nil, nil, fmt.Errorf("failed to query task: %w", err)
+		return nil, authz.Resource{}, fmt.Errorf("failed to query task: %w", err)
 	}
 
 	if task.DeletedAt.Valid {
-		return nil, nil, ErrTaskNotFound
+		return nil, authz.Resource{}, ErrTaskNotFound
 	}
 
-	var project *repository.Project
+	res := authz.Resource{
+		TaskID:    task.ID,
+		CreatorID: task.CreatorID,
+	}
+	if task.AssigneeID.Valid {
+		assigneeID := uuid.UUID(task.AssigneeID.Bytes)
+		res.AssigneeID = &assigneeID
+	}
+
 	if task.ProjectID.Valid {
-		p, err := s.queries.GetProjectByID(ctx, task.ProjectID.Bytes)
-		if err != nil {
-			if !errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil, fmt.Errorf("failed to query project: %w", err)
+		projectID := uuid.UUID(task.ProjectID.Bytes)
+		res.ProjectID = &projectID
+
+		project, pErr := s.queries.GetProjectByID(ctx, projectID)
+		if pErr != nil {
+			if errors.Is(pErr, pgx.ErrNoRows) {
+				return nil, authz.Resource{}, ErrTaskNotFound
 			}
-		} else if !p.DeletedAt.Valid {
-			project = &p
-			if p.OwnerID == userID {
-				return &task, project, nil
-			}
-			member, err := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
-				ProjectID: p.ID,
+			return nil, authz.Resource{}, fmt.Errorf("failed to query project: %w", pErr)
+		}
+
+		if project.DeletedAt.Valid {
+			res.ProjectDeleted = true
+		}
+
+		if project.OwnerID == userID {
+			res.MemberRole = authz.RolePtr(authz.RoleOwner)
+		} else {
+			member, mErr := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
+				ProjectID: projectID,
 				UserID:    userID,
 			})
-			if err == nil && member.Role != "" {
-				return &task, project, nil
+			if mErr == nil {
+				res.MemberRole = authz.ParseRole(member.Role)
 			}
 		}
 	}
 
-	if task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID) {
-		return &task, project, nil
-	}
-
-	// Anti-IDOR: Return ErrTaskNotFound if user has no relationship with the task
-	return nil, nil, ErrTaskNotFound
+	return &task, res, nil
 }
 
-// verifyTaskWriteAccess checks if the user has write access to upload attachments.
-func (s *attachmentService) verifyTaskWriteAccess(ctx context.Context, userID, taskID uuid.UUID) (*repository.Task, error) {
-	task, project, err := s.verifyTaskReadAccess(ctx, userID, taskID)
+// verifyTaskAccess checks whether the user has access to the task according to authz policy.
+func (s *attachmentService) verifyTaskAccess(ctx context.Context, userID, taskID uuid.UUID, action authz.Action) (*repository.Task, authz.Resource, error) {
+	task, res, err := s.loadTaskResource(ctx, userID, taskID)
 	if err != nil {
-		return nil, err
+		return nil, authz.Resource{}, err
 	}
 
-	// If project-level task, verify member has Editor or Owner role (Viewers cannot upload attachments)
-	if project != nil {
-		if project.OwnerID == userID {
-			return task, nil
-		}
-		member, err := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
-			ProjectID: project.ID,
-			UserID:    userID,
-		})
-		if err == nil {
-			if member.Role == "viewer" {
-				return nil, ErrInsufficientProjectRole
-			}
-			if member.Role == "editor" || member.Role == "owner" {
-				return task, nil
-			}
-		}
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
+		return nil, authz.Resource{}, ErrTaskNotFound // anti-IDOR
 	}
 
-	// If personal task or direct creator/assignee without restrictive project role
-	if task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID) {
-		return task, nil
+	if !authz.Can(sub, res, action) {
+		return nil, authz.Resource{}, ErrInsufficientProjectRole
 	}
 
-	return nil, ErrInsufficientProjectRole
+	return task, res, nil
 }
 
 func sanitizeFileName(name string) string {
