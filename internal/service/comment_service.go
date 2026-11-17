@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"task-manager-api/internal/authz"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/pagination"
@@ -72,39 +73,78 @@ func NewCommentService(repo repository.Querier) CommentService {
 	return &commentService{repo: repo}
 }
 
-// verifyTaskAccess checks whether the user has read access to the task.
-func (s *commentService) verifyTaskAccess(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*repository.Task, error) {
+// loadTaskResource retrieves task details and constructs the authorization Resource.
+func (s *commentService) loadTaskResource(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*repository.Task, authz.Resource, error) {
 	task, err := s.repo.GetTaskByID(ctx, taskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrTaskNotFound
+			return nil, authz.Resource{}, ErrTaskNotFound
 		}
-		return nil, fmt.Errorf("failed to get task: %w", err)
+		return nil, authz.Resource{}, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	hasAccess := task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID)
-	if !hasAccess && task.ProjectID.Valid {
-		project, pErr := s.repo.GetProjectByID(ctx, task.ProjectID.Bytes)
-		if pErr == nil {
-			if project.OwnerID == userID {
-				hasAccess = true
-			} else {
-				_, mErr := s.repo.GetProjectMember(ctx, repository.GetProjectMemberParams{
-					ProjectID: task.ProjectID.Bytes,
-					UserID:    userID,
-				})
-				if mErr == nil {
-					hasAccess = true
-				}
+	if task.DeletedAt.Valid {
+		return nil, authz.Resource{}, ErrTaskNotFound
+	}
+
+	res := authz.Resource{
+		TaskID:    task.ID,
+		CreatorID: task.CreatorID,
+	}
+	if task.AssigneeID.Valid {
+		assigneeID := uuid.UUID(task.AssigneeID.Bytes)
+		res.AssigneeID = &assigneeID
+	}
+
+	if task.ProjectID.Valid {
+		projectID := uuid.UUID(task.ProjectID.Bytes)
+		res.ProjectID = &projectID
+
+		project, pErr := s.repo.GetProjectByID(ctx, projectID)
+		if pErr != nil {
+			if errors.Is(pErr, pgx.ErrNoRows) {
+				return nil, authz.Resource{}, ErrTaskNotFound
+			}
+			return nil, authz.Resource{}, fmt.Errorf("failed to get project: %w", pErr)
+		}
+
+		if project.DeletedAt.Valid {
+			res.ProjectDeleted = true
+		}
+
+		if project.OwnerID == userID {
+			res.MemberRole = authz.RolePtr(authz.RoleOwner)
+		} else {
+			member, mErr := s.repo.GetProjectMember(ctx, repository.GetProjectMemberParams{
+				ProjectID: projectID,
+				UserID:    userID,
+			})
+			if mErr == nil {
+				res.MemberRole = authz.ParseRole(member.Role)
 			}
 		}
 	}
 
-	if !hasAccess {
-		return nil, ErrTaskNotFound // anti-IDOR
+	return &task, res, nil
+}
+
+// verifyTaskAccess checks whether the user has access to the task according to authz policy.
+func (s *commentService) verifyTaskAccess(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, action authz.Action) (*repository.Task, authz.Resource, error) {
+	task, res, err := s.loadTaskResource(ctx, userID, taskID)
+	if err != nil {
+		return nil, authz.Resource{}, err
 	}
 
-	return &task, nil
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
+		return nil, authz.Resource{}, ErrTaskNotFound // anti-IDOR
+	}
+
+	if !authz.Can(sub, res, action) {
+		return nil, authz.Resource{}, ErrInsufficientProjectRole
+	}
+
+	return task, res, nil
 }
 
 // CreateComment adds a comment to a task.
@@ -114,7 +154,7 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		return nil, ErrEmptyCommentContent
 	}
 
-	task, err := s.verifyTaskAccess(ctx, userID, taskID)
+	task, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionComment)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +198,7 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 
 // ListComments retrieves paginated comments for a task.
 func (s *commentService) ListComments(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, params PaginationParams) (*PaginatedCommentsResponse, error) {
-	if _, err := s.verifyTaskAccess(ctx, userID, taskID); err != nil {
+	if _, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -284,7 +324,7 @@ func (s *commentService) UpdateComment(ctx context.Context, userID uuid.UUID, ta
 		return nil, ErrEmptyCommentContent
 	}
 
-	if _, err := s.verifyTaskAccess(ctx, userID, taskID); err != nil {
+	if _, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -325,9 +365,9 @@ func (s *commentService) UpdateComment(ctx context.Context, userID uuid.UUID, ta
 	}, nil
 }
 
-// DeleteComment removes a comment. The original author, task creator, or project owner can delete it.
+// DeleteComment removes a comment. The original author, task creator (personal task), or project owner can delete it.
 func (s *commentService) DeleteComment(ctx context.Context, userID uuid.UUID, taskID uuid.UUID, commentID uuid.UUID) error {
-	task, err := s.verifyTaskAccess(ctx, userID, taskID)
+	_, res, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionRead)
 	if err != nil {
 		return err
 	}
@@ -344,15 +384,8 @@ func (s *commentService) DeleteComment(ctx context.Context, userID uuid.UUID, ta
 		return ErrCommentNotFound // anti-IDOR
 	}
 
-	// Permission: author, task creator, or project owner
-	canDelete := existing.UserID == userID || task.CreatorID == userID
-	if !canDelete && task.ProjectID.Valid {
-		project, pErr := s.repo.GetProjectByID(ctx, task.ProjectID.Bytes)
-		if pErr == nil && project.OwnerID == userID {
-			canDelete = true
-		}
-	}
-
+	sub := authz.Subject{UserID: userID}
+	canDelete := existing.UserID == userID || authz.Can(sub, res, authz.ActionModerateComments)
 	if !canDelete {
 		return ErrInsufficientProjectRole
 	}
