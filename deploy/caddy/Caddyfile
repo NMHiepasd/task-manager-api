@@ -15,6 +15,11 @@
         close
     }
 
+    # Route public S3 / MinIO direct downloads for task attachments
+    handle /{$S3_BUCKET_NAME:task-attachments}/* {
+        reverse_proxy minio:9000
+    }
+
     # Route all legitimate API traffic to backend
     reverse_proxy api:8080 {
         header_up X-Real-IP {remote_host}

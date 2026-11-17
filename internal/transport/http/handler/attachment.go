@@ -16,12 +16,19 @@ import (
 // AttachmentHandler handles HTTP requests for task file attachments.
 type AttachmentHandler struct {
 	attachmentService service.AttachmentService
+	presignEnabled    bool
 }
 
 // NewAttachmentHandler creates a new AttachmentHandler instance.
-func NewAttachmentHandler(attachmentService service.AttachmentService) *AttachmentHandler {
+// Optional presignEnabled controls whether ?presigned=true generates temporary URLs or streams directly (default true).
+func NewAttachmentHandler(attachmentService service.AttachmentService, presignEnabled ...bool) *AttachmentHandler {
+	enabled := true
+	if len(presignEnabled) > 0 {
+		enabled = presignEnabled[0]
+	}
 	return &AttachmentHandler{
 		attachmentService: attachmentService,
+		presignEnabled:    enabled,
 	}
 }
 
@@ -173,7 +180,7 @@ func (h *AttachmentHandler) Download(c *gin.Context) {
 		return
 	}
 
-	if c.Query("presigned") == "true" {
+	if h.presignEnabled && c.Query("presigned") == "true" {
 		presignedURL, err := h.attachmentService.GetAttachmentPresignedURL(
 			c.Request.Context(),
 			userID,

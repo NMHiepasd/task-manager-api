@@ -3,13 +3,12 @@ package storage_test
 import (
 	"context"
 	"net/url"
+	"task-manager-api/pkg/storage"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"task-manager-api/pkg/storage"
 )
 
 func TestMinIOClient_GetPresignedURL_DefaultInternalEndpoint(t *testing.T) {

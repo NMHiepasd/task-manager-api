@@ -270,7 +270,11 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 					taskGroup.DELETE("/:id/comments/:commentId", commentHandler.Delete)
 				}
 				if deps.AttachmentService != nil {
-					attachmentHandler := handler.NewAttachmentHandler(deps.AttachmentService)
+					presignEnabled := true
+					if deps.Config != nil {
+						presignEnabled = deps.Config.AttachmentPresignEnabled
+					}
+					attachmentHandler := handler.NewAttachmentHandler(deps.AttachmentService, presignEnabled)
 					taskGroup.POST("/:id/attachments", attachmentHandler.Upload)
 					taskGroup.GET("/:id/attachments", attachmentHandler.List)
 					taskGroup.GET("/:id/attachments/:attachmentId", attachmentHandler.Download)

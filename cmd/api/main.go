@@ -129,8 +129,9 @@ func main() {
 	tagService := service.NewTagService(store, cacheStore)
 
 	// Initialize Object Storage (MinIO / S3)
-	storageClient, err := storage.NewMinIOClient(
+	storageClient, err := storage.NewMinIOClientWithPublic(
 		cfg.S3Endpoint,
+		cfg.S3PublicEndpoint,
 		cfg.S3AccessKey,
 		cfg.S3SecretKey,
 		cfg.S3BucketName,

@@ -230,6 +230,34 @@ func TestAttachmentHandler_Download(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://storage.local/presigned-url?sig=abc", resp["download_url"])
 	})
+
+	t.Run("PresignDisabled_FallbackToStream", func(t *testing.T) {
+		svc := &mockAttachmentService{
+			getAttachmentFn: func(_ context.Context, _, _, _ uuid.UUID) (*service.AttachmentResponse, io.ReadCloser, error) {
+				return &service.AttachmentResponse{
+					ID:          attachmentID,
+					TaskID:      taskID,
+					UserID:      userID,
+					FileName:    "fallback.pdf",
+					FileSize:    1024,
+					ContentType: "application/pdf",
+					CreatedAt:   time.Now(),
+				}, io.NopCloser(strings.NewReader("Streamed fallback data")), nil
+			},
+		}
+		// Presign disabled
+		handler := NewAttachmentHandler(svc, false)
+		router := setupTestAttachmentRouter(handler, userID)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/"+taskID.String()+"/attachments/"+attachmentID.String()+"?presigned=true", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "Streamed fallback data", w.Body.String())
+		assert.Contains(t, w.Header().Get("Content-Disposition"), "fallback.pdf")
+		assert.Equal(t, "application/pdf", w.Header().Get("Content-Type"))
+	})
 }
 
 func TestAttachmentHandler_Delete(t *testing.T) {
