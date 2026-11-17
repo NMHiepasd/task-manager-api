@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -19,13 +20,21 @@ type TaskDistributor interface {
 
 // RedisTaskDistributor implements TaskDistributor using an Asynq Redis client.
 type RedisTaskDistributor struct {
-	client *asynq.Client
+	client          *asynq.Client
+	webhookMaxRetry int
 }
 
 // NewRedisTaskDistributor creates a new Redis-backed TaskDistributor.
-func NewRedisTaskDistributor(redisOpt asynq.RedisConnOpt) *RedisTaskDistributor {
+func NewRedisTaskDistributor(redisOpt asynq.RedisConnOpt, webhookMaxRetry ...int) *RedisTaskDistributor {
+	retry := 6
+	if len(webhookMaxRetry) > 0 && webhookMaxRetry[0] > 0 {
+		retry = webhookMaxRetry[0]
+	}
 	client := asynq.NewClient(redisOpt)
-	return &RedisTaskDistributor{client: client}
+	return &RedisTaskDistributor{
+		client:          client,
+		webhookMaxRetry: retry,
+	}
 }
 
 // DistributeCleanupExpiredTokens enqueues a cleanup task.
@@ -71,13 +80,25 @@ func (d *RedisTaskDistributor) DistributeDeadlineReminder(ctx context.Context, p
 	return nil
 }
 
-// DistributeSendWebhook enqueues a webhook delivery task.
+// DistributeSendWebhook enqueues a webhook delivery task with retry limits and execution timeout.
 func (d *RedisTaskDistributor) DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error {
 	task, err := NewSendWebhookTask(payload)
 	if err != nil {
 		return err
 	}
-	_, err = d.client.EnqueueContext(ctx, task, opts...)
+
+	maxRetry := d.webhookMaxRetry
+	if maxRetry <= 0 {
+		maxRetry = 6
+	}
+
+	defaultOpts := []asynq.Option{
+		asynq.MaxRetry(maxRetry),
+		asynq.Timeout(15 * time.Second),
+	}
+	allOpts := append(defaultOpts, opts...)
+
+	_, err = d.client.EnqueueContext(ctx, task, allOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send webhook task: %w", err)
 	}

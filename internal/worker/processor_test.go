@@ -57,6 +57,14 @@ func (m *mockWorkerStore) CreateWebhookDelivery(ctx context.Context, arg reposit
 	return repository.WebhookDelivery{}, nil
 }
 
+type errTransport struct {
+	err error
+}
+
+func (t *errTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, t.err
+}
+
 // mockDistributor mocks TaskDistributor
 type mockDistributor struct {
 	reminders []DeadlineReminderPayload
@@ -381,6 +389,39 @@ func TestProcessSendWebhook(t *testing.T) {
 		assert.True(t, errors.Is(err, asynq.SkipRetry))
 		assert.Equal(t, "failed", recordedDelivery.Status)
 		assert.Contains(t, recordedDelivery.ResponseBody.String, "SSRF prevention")
+	})
+
+	t.Run("normal network error does not return SkipRetry", func(t *testing.T) {
+		var recordedDelivery repository.CreateWebhookDeliveryParams
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				recordedDelivery = arg
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		mockTransport := &errTransport{err: errors.New("dial tcp 93.184.216.34:443: i/o timeout")}
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: &http.Client{Transport: mockTransport},
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: "https://example.com/webhook",
+			Secret:    "secret",
+			EventType: "task.created",
+			Payload:   []byte(`{"task_id":"123"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.Error(t, err)
+		assert.False(t, errors.Is(err, asynq.SkipRetry), "generic network error should be retryable (not SkipRetry)")
+		assert.Equal(t, "failed", recordedDelivery.Status)
 	})
 
 	t.Run("redirect response is treated as failed and not followed", func(t *testing.T) {

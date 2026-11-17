@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/webhook"
@@ -233,7 +233,7 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 			ExecutionDurationMs: pgtype.Int4{Int32: durationMs, Valid: true},
 			Status:              "failed",
 		})
-		if strings.Contains(err.Error(), "SSRF prevention") {
+		if errors.Is(err, webhook.ErrBlockedIP) {
 			return fmt.Errorf("webhook delivery blocked by SSRF protection: %w", asynq.SkipRetry)
 		}
 		return fmt.Errorf("webhook delivery failed: %w", err)

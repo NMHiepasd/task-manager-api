@@ -2,12 +2,16 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"syscall"
 	"time"
 )
+
+// ErrBlockedIP indicates that a network connection was aborted because the destination IP is blocked by SSRF protection.
+var ErrBlockedIP = errors.New("connection to blocked IP is prohibited (SSRF prevention)")
 
 // NewSafeHTTPClient creates an HTTP client hardened against SSRF and DNS rebinding attacks.
 // It enforces:
@@ -34,7 +38,7 @@ func NewSafeHTTPClient(allowLocal bool, timeout time.Duration) *http.Client {
 				return fmt.Errorf("invalid IP in socket address %q", host)
 			}
 			if IsBlockedIP(ip) {
-				return fmt.Errorf("connection to blocked IP %s is prohibited (SSRF prevention)", ip.String())
+				return fmt.Errorf("%w: %s", ErrBlockedIP, ip.String())
 			}
 			return nil
 		},

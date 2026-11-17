@@ -32,6 +32,7 @@ func TestNewSafeHTTPClient_BlocksSSRF(t *testing.T) {
 		defer resp.Body.Close()
 	}
 	assert.Error(t, err, "expected client.Do to fail with SSRF blocked error")
+	assert.ErrorIs(t, err, ErrBlockedIP, "expected error to wrap ErrBlockedIP sentinel")
 	assert.Contains(t, err.Error(), "SSRF prevention")
 }
 
