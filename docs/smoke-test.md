@@ -72,31 +72,64 @@ bash scripts/smoke-prod.sh
 
 ## 4. Execution Evidence & Actual Output Log
 
-*To be executed by the operator on clean volume deployment. Record date, commit SHA, and raw terminal output below.*
-
 ### Run Record: v1.1.0 Pre-Release Smoke Test
 
-* **Date:** *(Recorded upon execution)*
-* **Git Commit:** `3477bdf` (or current release commit)
+* **Date:** `2026-11-17 16:51:50Z`
+* **Git Commit:** `4de7e5d`
 * **Environment:** `docker-compose.prod.yml` (clean volumes)
-* **Operator:** Developer / DevOps Operator
+* **Operator:** Automated Smoke Test Suite (`scripts/smoke-prod.sh` & `scripts/smoke-prod.ps1`)
 
+#### 1. POSIX Bash Run Output (`bash scripts/smoke-prod.sh`):
 ```text
 ========================================================================
   TASK MANAGER API - PRODUCTION SMOKE TEST
-  Date:       2026-11-17 16:26:00Z
-  Commit:     3477bdf
-  Target URL: http://localhost:80
+  Date:       2026-11-17 16:51:47Z
+  Commit:     4de7e5d
+  Target URL: https://localhost
 ========================================================================
 
-[1/8] Checking service readiness (/readyz)... PASSED (HTTP 200, status: ok)
+[1/8] Checking service readiness (/readyz)... PASSED (HTTP 200, status: ready)
 [2/8] Verifying Caddy blocks public /metrics and /swagger... PASSED (/metrics: 403, /swagger: 403, /debug/pprof: 403)
-[3/8] Testing authentication rate limiter burst handling... PASSED (HTTP 429 Too Many Requests received on burst)
-[4/8] Testing user registration and authentication... PASSED (Registered smoke_1794935160@example.com, JWT verified)
-[5/8] Creating task and uploading file attachment... PASSED (Task 019a0000-0000-7000-8000-000000000001, Attachment 019a0000-0000-7000-8000-000000000002)
-[6/8] Generating presigned URL and verifying download... PASSED (Presigned download verified)
-[7/8] Verifying Webhook Anti-SSRF protections... PASSED (127.0.0.1, 169.254.x, 10.x all rejected with HTTP 422/400)
-[8/8] Testing Webhook registration and HMAC-SHA256 signature logic... PASSED (Webhook ID: 019a0000-0000-7000-8000-000000000003, Signature computed: 4f8b2d1c9e3a7b5d...)
+[3/8] Testing user registration and authentication... PASSED (Registered smoke_1794934307@example.com, JWT verified)
+[4/8] Creating task and uploading file attachment... PASSED (Task 01a1ea6b-fd22-79c8-9cef-b14bea954c18, Attachment 2d491323-d094-4914-9909-5fb572628094)
+[5/8] Generating presigned URL and verifying download... PASSED (Presigned download verified)
+[6/8] Verifying Webhook Anti-SSRF protections... PASSED (127.0.0.1, 169.254.x, 10.x all rejected with HTTP 422/400)
+[7/8] Testing Webhook registration and HMAC-SHA256 signature logic... PASSED (Webhook ID: c5a90c15-febd-4957-b502-7551d9fe40c5, Signature computed: f7b51ac41d546d7e...)
+[8/8] Testing authentication rate limiter burst handling... PASSED (HTTP 429 Too Many Requests received on burst)
+
+========================================================================
+  ALL SMOKE TESTS COMPLETED SUCCESSFULLY! [8/8 PASSED]
+  Date:    2026-11-17 16:51:47Z
+  Commit:  4de7e5d
+  Result:  SUCCESS - STACK FULLY FUNCTIONAL AND SECURED
+========================================================================
+```
+
+#### 2. Native Windows PowerShell Run Output (`.\scripts\smoke-prod.ps1`):
+```text
+========================================================================
+  TASK MANAGER API - PRODUCTION SMOKE TEST (POWERSHELL)
+  Date:       2026-11-17 16:50:28Z
+  Commit:     4de7e5d
+  Target URL: https://localhost
+========================================================================
+
+[1/8] Checking service readiness (/readyz)... PASSED (HTTP 200, status: ready)
+[2/8] Verifying Caddy blocks public /metrics and /swagger... PASSED (/metrics: 403, /swagger: 403, /debug/pprof: 403)
+[3/8] Testing user registration and authentication... PASSED (Registered smoke_1794934228@example.com, JWT verified)
+[4/8] Creating task and uploading file attachment... PASSED (Task 01a1ea6a-ca63-76c1-83e3-7343322337cb, Attachment e86af3d9-3a06-4287-9f18-7f15e1bb0b1c)
+[5/8] Generating presigned URL and verifying download... PASSED (Presigned download verified)
+[6/8] Verifying Webhook Anti-SSRF protections... PASSED (127.0.0.1, 169.254.x, 10.x all rejected with HTTP 422/400)
+[7/8] Testing Webhook registration and HMAC-SHA256 signature logic... PASSED (Webhook ID: b554829a-2d4f-4f5d-9064-2f9772c0c11e, Signature computed: 3ea5a6c74b99eb29...)
+[8/8] Testing authentication rate limiter burst handling... PASSED (HTTP 429 Too Many Requests received on burst)
+
+========================================================================
+  ALL SMOKE TESTS COMPLETED SUCCESSFULLY! [8/8 PASSED]
+  Date:    2026-11-17 16:50:28Z
+  Commit:  4de7e5d
+  Result:  SUCCESS - STACK FULLY FUNCTIONAL AND SECURED
+========================================================================
+```
 
 ========================================================================
   ALL SMOKE TESTS COMPLETED SUCCESSFULLY! [8/8 PASSED]
