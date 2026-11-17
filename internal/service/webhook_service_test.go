@@ -41,6 +41,11 @@ func (m *mockWebhookDistributor) DistributeSendWebhook(_ context.Context, payloa
 	m.sent = append(m.sent, payload)
 	return nil
 }
+
+func (m *mockWebhookDistributor) DistributeDeleteStorageObject(context.Context, worker.DeleteStorageObjectPayload, ...asynq.Option) error {
+	return nil
+}
+
 func (m *mockWebhookDistributor) Close() error { return nil }
 
 type mockWebhookQuerier struct {

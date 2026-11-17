@@ -173,7 +173,7 @@ func main() {
 				}
 			}()
 
-			processor := worker.NewRedisTaskProcessor(redisOpt, cfg, store, distributor, log)
+			processor := worker.NewRedisTaskProcessor(redisOpt, cfg, store, distributor, log, storageClient)
 			if err := processor.Start(); err != nil {
 				log.Error("Failed to start background task processor", "error", err)
 			} else {
@@ -207,6 +207,11 @@ func main() {
 	}
 	if d, ok := attachmentService.(service.EventDispatchable); ok {
 		d.SetEventDispatcher(webhookService)
+	}
+	if taskDistributor != nil {
+		if d, ok := attachmentService.(interface{ SetTaskDistributor(worker.TaskDistributor) }); ok {
+			d.SetTaskDistributor(taskDistributor)
+		}
 	}
 
 	// 9. Initialize HTTP router with dependencies

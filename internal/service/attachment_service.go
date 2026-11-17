@@ -11,6 +11,7 @@ import (
 	"strings"
 	"task-manager-api/internal/authz"
 	"task-manager-api/internal/repository"
+	"task-manager-api/internal/worker"
 	"task-manager-api/pkg/storage"
 	"time"
 
@@ -105,11 +106,17 @@ type attachmentService struct {
 	maxAttachmentsPerTask int64
 	maxUserStorageBytes   int64
 	dispatcher            EventDispatcher
+	distributor           worker.TaskDistributor
 }
 
 // SetEventDispatcher registers an event dispatcher for webhook notifications.
 func (s *attachmentService) SetEventDispatcher(dispatcher EventDispatcher) {
 	s.dispatcher = dispatcher
+}
+
+// SetTaskDistributor registers a background task distributor for orphan object cleanup retries.
+func (s *attachmentService) SetTaskDistributor(distributor worker.TaskDistributor) {
+	s.distributor = distributor
 }
 
 // NewAttachmentService creates a new AttachmentService instance.
@@ -340,8 +347,14 @@ func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID
 		return fmt.Errorf("failed to delete attachment from db: %w", err)
 	}
 
-	// Delete from storage (best-effort, log failure if any)
-	_ = s.storage.Delete(ctx, record.StorageKey)
+	// Delete from storage (best-effort, enqueue background retry on failure)
+	if err := s.storage.Delete(ctx, record.StorageKey); err != nil {
+		if s.distributor != nil {
+			_ = s.distributor.DistributeDeleteStorageObject(ctx, worker.DeleteStorageObjectPayload{
+				StorageKey: record.StorageKey,
+			})
+		}
+	}
 
 	return nil
 }

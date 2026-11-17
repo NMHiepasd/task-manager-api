@@ -3,13 +3,16 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"task-manager-api/internal/repository"
+	"task-manager-api/internal/worker"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +61,39 @@ func (m *mockStorageClient) EnsureBucket(ctx context.Context) error {
 	}
 	return nil
 }
+
+type mockTaskDistributor struct {
+	distributeDeleteStorageObjectFn func(ctx context.Context, payload worker.DeleteStorageObjectPayload, opts ...asynq.Option) error
+}
+
+func (m *mockTaskDistributor) DistributeCleanupExpiredTokens(context.Context, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockTaskDistributor) DistributeCleanupExpiredIdempotencyKeys(context.Context, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockTaskDistributor) DistributeScanDueTasks(context.Context, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockTaskDistributor) DistributeDeadlineReminder(context.Context, worker.DeadlineReminderPayload, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockTaskDistributor) DistributeSendWebhook(context.Context, worker.SendWebhookPayload, ...asynq.Option) error {
+	return nil
+}
+
+func (m *mockTaskDistributor) DistributeDeleteStorageObject(ctx context.Context, payload worker.DeleteStorageObjectPayload, opts ...asynq.Option) error {
+	if m.distributeDeleteStorageObjectFn != nil {
+		return m.distributeDeleteStorageObjectFn(ctx, payload, opts...)
+	}
+	return nil
+}
+
+func (m *mockTaskDistributor) Close() error { return nil }
 
 type mockAttachmentQuerier struct {
 	mockQuerier
@@ -472,6 +508,43 @@ func TestAttachmentService_DeleteAttachment(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, attachmentID, deletedDBID)
 		assert.Equal(t, attachment.StorageKey, deletedStorageKey)
+	})
+
+	t.Run("EnqueuesOrphanCleanupWhenStorageDeleteFails", func(t *testing.T) {
+		taskWithAssignee := task
+		taskWithAssignee.AssigneeID = pgtype.UUID{Bytes: uploaderID, Valid: true}
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return taskWithAssignee, nil
+			},
+			getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
+				return attachment, nil
+			},
+			deleteTaskAttachmentFn: func(_ context.Context, _ repository.DeleteTaskAttachmentParams) error {
+				return nil
+			},
+		}
+		mockStore := &mockStorageClient{
+			deleteFunc: func(_ context.Context, _ string) error {
+				return errors.New("temporary minio 500 internal error")
+			},
+		}
+		var enqueuedKey string
+		mockDist := &mockTaskDistributor{
+			distributeDeleteStorageObjectFn: func(_ context.Context, payload worker.DeleteStorageObjectPayload, _ ...asynq.Option) error {
+				enqueuedKey = payload.StorageKey
+				return nil
+			},
+		}
+
+		svc := NewAttachmentService(mockRepo, mockStore, 10)
+		if d, ok := svc.(interface{ SetTaskDistributor(worker.TaskDistributor) }); ok {
+			d.SetTaskDistributor(mockDist)
+		}
+
+		err := svc.DeleteAttachment(ctx, uploaderID, taskID, attachmentID)
+		require.NoError(t, err)
+		assert.Equal(t, attachment.StorageKey, enqueuedKey)
 	})
 
 	t.Run("TaskCreatorModerates_Success", func(t *testing.T) {
