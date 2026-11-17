@@ -38,6 +38,7 @@ Production-ready, highly secure Task Manager REST API built in Go adhering to **
 - **Anti-IDOR & Information Leak Protection**: Returns `404 Not Found` (instead of `403 Forbidden`) when accessing or mutating resources not owned by the tenant.
 - **Database Connection Pooling & Transactions**: High-performance connection pooling via `jackc/pgx/v5` with explicit transactional scope helper `WithTx`.
 - **Keyset Cursor Pagination & Full-Text Search**: Scalable Base64 cursor pagination (`(created_at, id)`) and PostgreSQL `tsvector`/GIN full-text search.
+- **Event-Driven Webhooks & HMAC Signatures**: Real-time event delivery via Asynq background queues with anti-SSRF protections, strict secret policy (minimum 32 characters or auto-generated 24-byte crypto random), and write-only secret disclosure.
 - **Multi-tier Automated Testing**:
   - Unit tests with `go test -short`.
   - Integration tests using real PostgreSQL instances with **Testcontainers-Go**.
