@@ -19,6 +19,9 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Maintain Docker dependencies
   - package-ecosystem: "docker"
