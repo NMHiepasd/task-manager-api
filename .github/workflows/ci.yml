@@ -55,7 +55,7 @@ jobs:
           govulncheck ./... | tee govulncheck-report.txt
 
       - name: Upload govulncheck Report
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
           name: govulncheck-report
@@ -139,7 +139,7 @@ jobs:
           awk -v cov="$SERVICE_COV" 'BEGIN { if (cov+0 < 65.0) { print "ERROR: Service layer coverage " cov "% is below threshold 65.0%"; exit 1 } else { print "SUCCESS: Service layer coverage meets threshold" } }'
 
       - name: Upload Coverage Reports
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
           name: code-coverage-reports
@@ -222,7 +222,7 @@ jobs:
           fi
 
       - name: Upload Trivy Report
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
           name: trivy-report
