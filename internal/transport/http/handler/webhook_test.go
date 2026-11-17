@@ -144,6 +144,8 @@ func TestWebhookHandler_Create(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "https://example.com/webhook", resp.URL)
+		assert.Equal(t, "whsec_test", resp.Secret)
+		assert.Contains(t, w.Body.String(), `"secret"`)
 	})
 }
 
@@ -173,6 +175,7 @@ func TestWebhookHandler_GetAndList(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
 	})
 
 	t.Run("GetByID_InvalidUUID", func(t *testing.T) {
@@ -205,6 +208,7 @@ func TestWebhookHandler_GetAndList(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
 	})
 }
 
@@ -237,6 +241,7 @@ func TestWebhookHandler_UpdateAndDelete(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
 	})
 
 	t.Run("Delete_Success", func(t *testing.T) {
@@ -278,6 +283,7 @@ func TestWebhookHandler_TriggerPingAndDeliveries(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
 	})
 
 	t.Run("ListDeliveries_Success", func(t *testing.T) {
@@ -298,5 +304,6 @@ func TestWebhookHandler_TriggerPingAndDeliveries(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
 	})
 }

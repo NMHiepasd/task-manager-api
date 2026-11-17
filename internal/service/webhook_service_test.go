@@ -154,7 +154,50 @@ func TestWebhookService_CreateWebhook(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, res.ID)
 		assert.NotEmpty(t, res.Secret)
+		assert.GreaterOrEqual(t, len(res.Secret), 32)
 		assert.True(t, res.IsActive)
+	})
+
+	t.Run("Success_CustomSecretValid", func(t *testing.T) {
+		dist := &mockWebhookDistributor{}
+		mockQ := &mockWebhookQuerier{
+			createWebhookFn: func(_ context.Context, arg repository.CreateWebhookParams) (repository.Webhook, error) {
+				return repository.Webhook{
+					ID:        uuid.New(),
+					UserID:    arg.UserID,
+					Url:       arg.Url,
+					Secret:    arg.Secret,
+					Events:    arg.Events,
+					IsActive:  arg.IsActive,
+					CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				}, nil
+			},
+		}
+
+		//nolint:gosec // G101: Test fixture dummy secret
+		customSecret := "whsec_custom_secret_key_32_characters_minimum!"
+		svc := NewWebhookService(mockQ, dist, true)
+		res, err := svc.CreateWebhook(context.Background(), userID, CreateWebhookRequest{
+			URL:    "http://localhost:8080/hook",
+			Secret: customSecret,
+			Events: []string{"task.created"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, customSecret, res.Secret)
+	})
+
+	t.Run("Fail_CustomSecretTooShort", func(t *testing.T) {
+		dist := &mockWebhookDistributor{}
+		mockQ := &mockWebhookQuerier{}
+
+		svc := NewWebhookService(mockQ, dist, true)
+		_, err := svc.CreateWebhook(context.Background(), userID, CreateWebhookRequest{
+			URL:    "http://localhost:8080/hook",
+			Secret: "short_secret_under_32_chars",
+			Events: []string{"task.created"},
+		})
+		assert.ErrorIs(t, err, domain.ErrInvalidWebhookSecret)
 	})
 
 	t.Run("Fail_SSRFBlocked", func(t *testing.T) {
@@ -205,6 +248,7 @@ func TestWebhookService_GetAndListWebhooks(t *testing.T) {
 		res, err := svc.GetWebhook(context.Background(), userID, webhookID)
 		require.NoError(t, err)
 		assert.Equal(t, webhookID, res.ID)
+		assert.Empty(t, res.Secret, "secret must not be revealed in GetWebhook response")
 	})
 
 	t.Run("GetWebhook_Forbidden_AntiIDOR", func(t *testing.T) {
@@ -237,6 +281,8 @@ func TestWebhookService_GetAndListWebhooks(t *testing.T) {
 		list, err := svc.ListWebhooks(context.Background(), userID, nil)
 		require.NoError(t, err)
 		assert.Len(t, list, 2)
+		assert.Empty(t, list[0].Secret, "secret must not be revealed in ListWebhooks")
+		assert.Empty(t, list[1].Secret, "secret must not be revealed in ListWebhooks")
 	})
 }
 
@@ -271,6 +317,7 @@ func TestWebhookService_UpdateAndDelete(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, newURL, res.URL)
 		assert.False(t, res.IsActive)
+		assert.Empty(t, res.Secret, "secret must not be revealed in UpdateWebhook response")
 	})
 
 	t.Run("DeleteWebhook_Success", func(t *testing.T) {

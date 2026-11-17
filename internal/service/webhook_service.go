@@ -25,7 +25,7 @@ type WebhookResponse struct {
 	UserID    uuid.UUID  `json:"user_id"`
 	ProjectID *uuid.UUID `json:"project_id,omitempty"`
 	URL       string     `json:"url"`
-	Secret    string     `json:"secret,omitempty"`
+	Secret    string     `json:"secret,omitempty"` // Signing secret (returned only once upon creation; omitted in get/list/update)
 	Events    []string   `json:"events"`
 	IsActive  bool       `json:"is_active"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -136,6 +136,8 @@ func (s *webhookService) CreateWebhook(ctx context.Context, userID uuid.UUID, re
 			return nil, fmt.Errorf("failed to generate webhook secret: %w", err)
 		}
 		secret = "whsec_" + hex.EncodeToString(randomBytes)
+	} else if len(secret) < 32 {
+		return nil, domain.ErrInvalidWebhookSecret
 	}
 
 	wh, err := s.queries.CreateWebhook(ctx, repository.CreateWebhookParams{

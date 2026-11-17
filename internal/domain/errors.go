@@ -47,6 +47,7 @@ var (
 	ErrInvalidWebhookURL          = fmt.Errorf("%w: invalid webhook url", ErrValidation)
 	ErrWebhookSSRF                = fmt.Errorf("%w: webhook url cannot target private, loopback, or reserved network addresses", ErrValidation)
 	ErrInvalidWebhookEvents       = fmt.Errorf("%w: invalid webhook events; must be non-empty and contain supported event types", ErrValidation)
+	ErrInvalidWebhookSecret       = fmt.Errorf("%w: webhook secret must be at least 32 characters", ErrValidation)
 	ErrPayloadTooLarge            = fmt.Errorf("%w: request payload exceeds size limit", ErrValidation)
 	ErrRateLimitExceeded          = errors.New("rate limit exceeded; please wait before retrying")
 	ErrTimeout                    = errors.New("request processing timed out")

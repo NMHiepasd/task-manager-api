@@ -25,7 +25,7 @@ func NewWebhookHandler(webhookService service.WebhookService) *WebhookHandler {
 
 // Create registers a new webhook subscription.
 // @Summary      Register webhook
-// @Description  Creates a new webhook subscription for real-time system events (task, comment, attachment).
+// @Description  Creates a new webhook subscription for real-time system events (task, comment, attachment). If secret is omitted, a cryptographically secure secret (>=24 bytes) is generated. Custom secrets must be >=32 characters. Full secret is returned only once in this response.
 // @Tags         webhooks
 // @Accept       json
 // @Produce      json
