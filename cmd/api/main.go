@@ -158,7 +158,7 @@ func main() {
 		if err != nil {
 			log.Warn("Failed to parse Redis URI for background worker", "error", err)
 		} else {
-			distributor := worker.NewRedisTaskDistributor(redisOpt)
+			distributor := worker.NewRedisTaskDistributor(redisOpt, cfg.WebhookMaxRetry)
 			taskDistributor = distributor
 			defer func() {
 				if err := distributor.Close(); err != nil {

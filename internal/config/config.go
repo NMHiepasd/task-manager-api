@@ -74,6 +74,7 @@ type Config struct {
 
 	// Webhooks
 	AllowLocalWebhooks bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
+	WebhookMaxRetry    int  `env:"WEBHOOK_MAX_RETRY" envDefault:"6"`
 }
 
 // Load parses environment variables into Config and validates required fields.

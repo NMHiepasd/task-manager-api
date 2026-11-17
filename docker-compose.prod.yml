@@ -72,6 +72,8 @@ services:
       S3_USE_SSL: ${S3_USE_SSL:-false}
       S3_REGION: ${S3_REGION:-us-east-1}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
+      ALLOW_LOCAL_WEBHOOKS: "false"
+      WEBHOOK_MAX_RETRY: ${WEBHOOK_MAX_RETRY:-6}
     depends_on:
       db:
         condition: service_healthy

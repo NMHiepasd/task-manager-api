@@ -315,6 +315,8 @@ cp .env.example .env
 | `S3_ENDPOINT` | `localhost:9000` | S3 / MinIO endpoint for attachments |
 | `S3_BUCKET_NAME` | `task-attachments` | Object storage bucket name |
 | `MAX_UPLOAD_SIZE_MB` | `10` | Maximum file upload size in MB |
+| `ALLOW_LOCAL_WEBHOOKS` | `false` | Allow webhook delivery to loopback and private networks (testing only) |
+| `WEBHOOK_MAX_RETRY` | `6` | Maximum retry attempts for failed webhook deliveries |
 
 ### Quickstart with Docker
 
