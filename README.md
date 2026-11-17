@@ -472,6 +472,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-015: Task Comments Architecture, Access Control, and Moderation](docs/adr/0015-task-comments-architecture-and-moderation.md)**
 - **[ADR-016: Task File Attachments with MinIO / S3 Object Storage](docs/adr/0016-file-attachments-minio-s3.md)**
 - **[ADR-017: Webhook System with Asynq Background Queue and HMAC-SHA256 Signatures](docs/adr/0017-webhooks-system-asynq.md)**
+- **[ADR-018: Task Access Policy and Permission Matrix](docs/adr/0018-task-access-policy.md)**
 - Detailed webhook signature verification instructions and language examples are cataloged in **[`docs/webhooks.md`](docs/webhooks.md)**.
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
