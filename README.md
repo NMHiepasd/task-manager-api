@@ -38,7 +38,7 @@ Production-ready, highly secure Task Manager REST API built in Go adhering to **
 - **Anti-IDOR & Information Leak Protection**: Returns `404 Not Found` (instead of `403 Forbidden`) when accessing or mutating resources not owned by the tenant.
 - **Database Connection Pooling & Transactions**: High-performance connection pooling via `jackc/pgx/v5` with explicit transactional scope helper `WithTx`.
 - **Keyset Cursor Pagination & Full-Text Search**: Scalable Base64 cursor pagination (`(created_at, id)`) and PostgreSQL `tsvector`/GIN full-text search.
-- **Event-Driven Webhooks & HMAC Signatures**: Real-time event delivery via Asynq background queues with anti-SSRF protections, strict secret policy (minimum 32 characters or auto-generated 24-byte crypto random), and write-only secret disclosure.
+- **Event-Driven Webhooks & HMAC Signatures**: Real-time event delivery via Asynq background queues with anti-SSRF protections, strict secret policy (minimum 32 characters or auto-generated 24-byte crypto random), write-only secret disclosure, and replay-resistant Webhook V2 signing. See **[`docs/webhooks.md`](docs/webhooks.md)**.
 - **Multi-tier Automated Testing**:
   - Unit tests with `go test -short`.
   - Integration tests using real PostgreSQL instances with **Testcontainers-Go**.
@@ -472,6 +472,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-015: Task Comments Architecture, Access Control, and Moderation](docs/adr/0015-task-comments-architecture-and-moderation.md)**
 - **[ADR-016: Task File Attachments with MinIO / S3 Object Storage](docs/adr/0016-file-attachments-minio-s3.md)**
 - **[ADR-017: Webhook System with Asynq Background Queue and HMAC-SHA256 Signatures](docs/adr/0017-webhooks-system-asynq.md)**
+- Detailed webhook signature verification instructions and language examples are cataloged in **[`docs/webhooks.md`](docs/webhooks.md)**.
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 
 ---

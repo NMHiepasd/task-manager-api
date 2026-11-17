@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Breaking Changes
+- **Webhook V2 Signature & Anti-Replay Architecture**:
+  - Deprecated legacy `X-Webhook-Signature: sha256=<hex>` header.
+  - Upgraded all deliveries to **Webhook V2** standard:
+    - Added `X-Webhook-Id: <delivery_uuid>` (stable across all retries of the event).
+    - Added `X-Webhook-Timestamp: <unix_seconds>` (fresh timestamp generated per attempt).
+    - Added `X-Webhook-Signature: v1=<hmac_hex>` computed over `<timestamp>.<delivery_id>.<raw_body_bytes>`.
+    - Added `id` field to the top-level webhook event envelope JSON.
+  - **Strict Secret Policy**: User-supplied webhook secrets must now be at least 32 characters (auto-generates 24-byte crypto random string if omitted).
+  - **Write-Only Secret Visibility**: Webhook secrets are returned only once upon creation (`POST /api/v1/webhooks`) and masked (`""` / omitted) in `GET`, `LIST`, and `PATCH` endpoints.
+
+### Added
+- **Webhook V2 Verification Library**:
+  - Introduced `pkg/webhook.SignV2` and `pkg/webhook.VerifyV2` with constant-time comparison and 5-minute configurable timestamp tolerance window.
+  - Added sentinel errors: `ErrSignatureMismatch`, `ErrTimestampExpired`, `ErrInvalidSignatureFormat`, `ErrInvalidTimestampFormat`.
+  - Integration guide with Go, Node.js, and Python verification code in [`docs/webhooks.md`](docs/webhooks.md).
+- **Webhook Delivery Lifecycle Hardening**:
+  - Configurable `WEBHOOK_MAX_RETRY` (env, default: 6) with 15s task execution timeout.
+  - Sentinel error `webhook.ErrBlockedIP` for anti-SSRF dialer rejections, replacing string-based matching in worker processor.
+  - Automatic deactivation of project webhooks (`DeactivateProjectWebhooksByUser`) when project collaborators are removed or demoted to `viewer`.
+  - Restricted `ListActiveWebhooksForEvent` to ensure project webhooks strictly dispatch events to active project owners/editors.
+
+---
+
 ## [1.0.0] - 2026-11-16
 
 ### Added

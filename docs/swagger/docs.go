@@ -2230,7 +2230,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new webhook subscription for real-time system events (task, comment, attachment). If secret is omitted, a cryptographically secure secret (\u003e=24 bytes) is generated. Custom secrets must be \u003e=32 characters. Full secret is returned only once in this response.",
+                "description": "Creates a new webhook subscription for real-time system events (task, comment, attachment). If secret is omitted, a cryptographically secure secret (\u003e=24 bytes) is generated. Custom secrets must be \u003e=32 characters. Full secret is returned only once in this response. Incoming deliveries use Webhook V2 replay-resistant signatures (see docs/webhooks.md).",
                 "consumes": [
                     "application/json"
                 ],

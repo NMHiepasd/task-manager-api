@@ -1984,7 +1984,8 @@ paths:
       description: Creates a new webhook subscription for real-time system events
         (task, comment, attachment). If secret is omitted, a cryptographically secure
         secret (>=24 bytes) is generated. Custom secrets must be >=32 characters.
-        Full secret is returned only once in this response.
+        Full secret is returned only once in this response. Incoming deliveries use
+        Webhook V2 replay-resistant signatures (see docs/webhooks.md).
       parameters:
       - description: Webhook subscription configuration
         in: body
