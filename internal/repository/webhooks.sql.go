@@ -162,20 +162,34 @@ func (q *Queries) GetWebhookDeliveryByID(ctx context.Context, id uuid.UUID) (Web
 }
 
 const listActiveWebhooksForEvent = `-- name: ListActiveWebhooksForEvent :many
-SELECT id, user_id, project_id, url, secret, events, is_active, created_at, updated_at FROM webhooks
-WHERE is_active = true
-  AND (user_id = $1 OR (project_id IS NOT NULL AND project_id = $2))
-  AND ('*' = ANY(events) OR $3::text = ANY(events))
+SELECT w.id, w.user_id, w.project_id, w.url, w.secret, w.events, w.is_active, w.created_at, w.updated_at FROM webhooks w
+LEFT JOIN projects p ON p.id = w.project_id AND p.deleted_at IS NULL
+LEFT JOIN project_members pm ON pm.project_id = w.project_id AND pm.user_id = w.user_id
+WHERE w.is_active = true
+  AND ('*' = ANY(w.events) OR $1::text = ANY(w.events))
+  AND (
+      -- Case 1: Personal webhook (project_id IS NULL) receives events triggered by the webhook's owner
+      (w.project_id IS NULL AND w.user_id = $2)
+      OR
+      -- Case 2: Project-scoped webhook receives events matching that project, provided the webhook creator is still an owner or editor
+      (
+          w.project_id IS NOT NULL
+          AND $3::uuid IS NOT NULL
+          AND w.project_id = $3
+          AND p.id IS NOT NULL
+          AND (p.owner_id = w.user_id OR pm.role IN ('owner', 'editor'))
+      )
+  )
 `
 
 type ListActiveWebhooksForEventParams struct {
+	EventType string      `json:"event_type"`
 	UserID    uuid.UUID   `json:"user_id"`
 	ProjectID pgtype.UUID `json:"project_id"`
-	EventType string      `json:"event_type"`
 }
 
 func (q *Queries) ListActiveWebhooksForEvent(ctx context.Context, arg ListActiveWebhooksForEventParams) ([]Webhook, error) {
-	rows, err := q.db.Query(ctx, listActiveWebhooksForEvent, arg.UserID, arg.ProjectID, arg.EventType)
+	rows, err := q.db.Query(ctx, listActiveWebhooksForEvent, arg.EventType, arg.UserID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
