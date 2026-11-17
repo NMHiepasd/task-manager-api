@@ -66,6 +66,25 @@ func (q *Queries) DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype
 	return err
 }
 
+const deleteStaleIdempotencyKey = `-- name: DeleteStaleIdempotencyKey :execrows
+DELETE FROM idempotency_keys
+WHERE key = $1 AND user_id = $2 AND locked_at = $3
+`
+
+type DeleteStaleIdempotencyKeyParams struct {
+	Key      string             `json:"key"`
+	UserID   uuid.UUID          `json:"user_id"`
+	LockedAt pgtype.Timestamptz `json:"locked_at"`
+}
+
+func (q *Queries) DeleteStaleIdempotencyKey(ctx context.Context, arg DeleteStaleIdempotencyKeyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleIdempotencyKey, arg.Key, arg.UserID, arg.LockedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getIdempotencyKey = `-- name: GetIdempotencyKey :one
 SELECT key, user_id, request_path, params_hash, response_code, response_body, created_at, locked_at
 FROM idempotency_keys

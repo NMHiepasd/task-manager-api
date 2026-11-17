@@ -181,6 +181,10 @@ func (m *mockQuerier) DeleteIdempotencyKey(context.Context, repository.DeleteIde
 	return nil
 }
 
+func (m *mockQuerier) DeleteStaleIdempotencyKey(context.Context, repository.DeleteStaleIdempotencyKeyParams) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockQuerier) DeactivateProjectWebhooksByUser(context.Context, repository.DeactivateProjectWebhooksByUserParams) error {
 	return nil
 }

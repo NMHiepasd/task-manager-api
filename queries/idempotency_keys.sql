@@ -28,3 +28,7 @@ WHERE created_at < $1;
 -- name: DeleteIdempotencyKey :exec
 DELETE FROM idempotency_keys
 WHERE key = $1 AND user_id = $2;
+
+-- name: DeleteStaleIdempotencyKey :execrows
+DELETE FROM idempotency_keys
+WHERE key = $1 AND user_id = $2 AND locked_at = $3;

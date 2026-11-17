@@ -135,13 +135,30 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 					// Stale lock detection: if the request has been processing longer than InProgressLockTTL,
 					// assume previous attempt crashed, timed out, or terminated abnormally.
 					if !lockTime.IsZero() && time.Since(lockTime) > InProgressLockTTL {
-						// Clean up stale in-progress key so current retry can proceed cleanly
+						// Clean up stale in-progress key with conditional lock on locked_at so we don't accidentally
+						// delete another concurrent request's newly acquired reservation.
 						delCtx, cancelDel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancelDel()
-						_ = querier.DeleteIdempotencyKey(delCtx, repository.DeleteIdempotencyKeyParams{
-							Key:    key,
-							UserID: userID,
+						lockedAt := existing.LockedAt
+						if !lockedAt.Valid {
+							lockedAt = existing.CreatedAt
+						}
+						rowsAffected, delErr := querier.DeleteStaleIdempotencyKey(delCtx, repository.DeleteStaleIdempotencyKeyParams{
+							Key:      key,
+							UserID:   userID,
+							LockedAt: lockedAt,
 						})
+						if delErr != nil || rowsAffected == 0 {
+							c.Header("Content-Type", "application/problem+json")
+							c.AbortWithStatusJSON(http.StatusConflict, domain.NewProblem(
+								http.StatusConflict,
+								"A request with this idempotency key is currently processing",
+								"IDEMPOTENCY_IN_PROGRESS",
+								path,
+								reqID,
+							))
+							return
+						}
 
 						// Re-reserve key for this fresh attempt
 						err = querier.CreateIdempotencyKey(c.Request.Context(), repository.CreateIdempotencyKeyParams{
@@ -151,6 +168,18 @@ func Idempotency(querier repository.Querier) gin.HandlerFunc {
 							ParamsHash:  paramsHash,
 						})
 						if err != nil {
+							var pgErr *pgconn.PgError
+							if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation race
+								c.Header("Content-Type", "application/problem+json")
+								c.AbortWithStatusJSON(http.StatusConflict, domain.NewProblem(
+									http.StatusConflict,
+									"A request with this idempotency key is currently processing",
+									"IDEMPOTENCY_IN_PROGRESS",
+									path,
+									reqID,
+								))
+								return
+							}
 							_ = c.Error(err)
 							c.Abort()
 							return

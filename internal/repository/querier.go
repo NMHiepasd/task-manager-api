@@ -36,6 +36,7 @@ type Querier interface {
 	DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotencyKeyParams) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
+	DeleteStaleIdempotencyKey(ctx context.Context, arg DeleteStaleIdempotencyKeyParams) (int64, error)
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteTaskAttachment(ctx context.Context, arg DeleteTaskAttachmentParams) error
 	DeleteTaskComment(ctx context.Context, arg DeleteTaskCommentParams) error

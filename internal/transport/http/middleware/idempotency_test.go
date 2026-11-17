@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/transport/http/middleware"
 	"task-manager-api/pkg/token"
@@ -101,6 +102,26 @@ func (m *mockIdempotencyQuerier) DeleteIdempotencyKey(_ context.Context, arg rep
 	k := m.recordKey(arg.UserID, arg.Key)
 	delete(m.records, k)
 	return nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteStaleIdempotencyKey(_ context.Context, arg repository.DeleteStaleIdempotencyKeyParams) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	k := m.recordKey(arg.UserID, arg.Key)
+	rec, exists := m.records[k]
+	if !exists {
+		return 0, nil
+	}
+	if rec.LockedAt.Valid && arg.LockedAt.Valid {
+		if !rec.LockedAt.Time.Equal(arg.LockedAt.Time) {
+			return 0, nil
+		}
+	} else if rec.LockedAt.Valid != arg.LockedAt.Valid {
+		return 0, nil
+	}
+	delete(m.records, k)
+	return 1, nil
 }
 
 func (m *mockIdempotencyQuerier) setRecord(rec repository.IdempotencyKey) {
@@ -752,4 +773,136 @@ func TestIdempotency_StaleInProgressKey_AllowsTakeoverAndRetry(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, saved.ResponseCode.Valid)
 	assert.Equal(t, int32(http.StatusCreated), saved.ResponseCode.Int32)
+}
+
+func TestIdempotency_StaleLockTakeover_RaceConcurrent(t *testing.T) {
+	mock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Race Stale Key Takeover"}`
+	path := "/api/v1/race-stale-test"
+
+	hash := sha256.Sum256([]byte(body))
+	paramsHash := hex.EncodeToString(hash[:])
+
+	// Pre-populate store with a stale in-flight reservation from 5 minutes ago
+	staleTime := time.Now().Add(-5 * time.Minute)
+	mock.setRecord(repository.IdempotencyKey{
+		Key:          key,
+		UserID:       userID,
+		RequestPath:  path,
+		ParamsHash:   paramsHash,
+		ResponseCode: pgtype.Int4{Valid: false},
+		CreatedAt:    pgtype.Timestamptz{Time: staleTime, Valid: true},
+		LockedAt:     pgtype.Timestamptz{Time: staleTime, Valid: true},
+	})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+
+	var handlerExecutions int64
+	router.POST(path, func(c *gin.Context) {
+		atomic.AddInt64(&handlerExecutions, 1)
+		time.Sleep(10 * time.Millisecond) // Simulate DB mutation work
+		c.JSON(http.StatusCreated, gin.H{"status": "created"})
+	})
+
+	const concurrency = 20
+	var wg sync.WaitGroup
+	statusCodes := make([]int, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+			req.Header.Set("Idempotency-Key", key)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			statusCodes[idx] = rec.Code
+		}(i)
+	}
+
+	wg.Wait()
+
+	var count201, count409 int
+	for _, code := range statusCodes {
+		switch code {
+		case http.StatusCreated:
+			count201++
+		case http.StatusConflict:
+			count409++
+		default:
+			t.Errorf("Unexpected status code %d (expected 201 or 409, strictly no 500s)", code)
+		}
+	}
+
+	assert.Equal(t, 1, count201, "Exactly one concurrent request must win the stale takeover and execute the handler")
+	assert.Equal(t, concurrency-1, count409, "All other concurrent requests must receive 409 IDEMPOTENCY_IN_PROGRESS")
+	assert.Equal(t, int64(1), atomic.LoadInt64(&handlerExecutions), "Handler must be executed exactly once")
+}
+
+type mockReReserveUniqueQuerier struct {
+	*mockIdempotencyQuerier
+}
+
+func (m *mockReReserveUniqueQuerier) CreateIdempotencyKey(_ context.Context, _ repository.CreateIdempotencyKeyParams) error {
+	// Simulate race: another transaction inserted key right after stale deletion
+	return &pgconn.PgError{Code: "23505"}
+}
+
+func TestIdempotency_ReReserveUniqueViolation_Returns409(t *testing.T) {
+	baseMock := newMockIdempotencyQuerier()
+	userID := uuid.New()
+	key := uuid.NewString()
+	body := `{"title":"Unique Violation Test"}`
+	path := "/api/v1/unique-test"
+
+	hash := sha256.Sum256([]byte(body))
+	paramsHash := hex.EncodeToString(hash[:])
+
+	staleTime := time.Now().Add(-5 * time.Minute)
+	baseMock.setRecord(repository.IdempotencyKey{
+		Key:          key,
+		UserID:       userID,
+		RequestPath:  path,
+		ParamsHash:   paramsHash,
+		ResponseCode: pgtype.Int4{Valid: false},
+		CreatedAt:    pgtype.Timestamptz{Time: staleTime, Valid: true},
+		LockedAt:     pgtype.Timestamptz{Time: staleTime, Valid: true},
+	})
+
+	mock := &mockReReserveUniqueQuerier{mockIdempotencyQuerier: baseMock}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthorizationUserIDKey, userID)
+		c.Set(middleware.AuthorizationPayloadKey, &token.UserClaims{
+			UserID: userID,
+			Role:   "user",
+		})
+		c.Next()
+	})
+	router.Use(middleware.Idempotency(mock))
+	router.POST(path, func(c *gin.Context) {
+		c.JSON(http.StatusCreated, gin.H{"status": "created"})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), "IDEMPOTENCY_IN_PROGRESS")
 }
