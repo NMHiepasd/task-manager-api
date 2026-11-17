@@ -9,11 +9,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/webhook"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -213,11 +215,21 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 		return fmt.Errorf("failed to create webhook request: %w", asynq.SkipRetry)
 	}
 
-	sig := webhook.ComputeSignature(payload.Secret, payload.Payload)
+	deliveryID := payload.DeliveryID
+	if deliveryID == uuid.Nil {
+		deliveryID = uuid.New()
+	}
+	deliveryIDStr := deliveryID.String()
+
+	tsStr := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := webhook.SignV2(payload.Secret, tsStr, deliveryIDStr, payload.Payload)
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Event", payload.EventType)
-	req.Header.Set("X-Webhook-Signature", "sha256="+sig)
-	req.Header.Set("User-Agent", "TaskManager-Webhook/1.0")
+	req.Header.Set("X-Webhook-Id", deliveryIDStr)
+	req.Header.Set("X-Webhook-Timestamp", tsStr)
+	req.Header.Set("X-Webhook-Signature", "v1="+sig)
+	req.Header.Set("User-Agent", "TaskManager-Webhook/2.0")
 
 	resp, err := p.httpClient.Do(req)
 	durationMs := int32(time.Since(start).Milliseconds()) //nolint:gosec // G115: Delivery timeout is capped at 10s, fits in int32

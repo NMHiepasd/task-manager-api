@@ -29,11 +29,12 @@ const (
 
 // SendWebhookPayload defines the information needed to deliver an event to a webhook endpoint.
 type SendWebhookPayload struct {
-	WebhookID uuid.UUID `json:"webhook_id"`
-	TargetURL string    `json:"target_url"`
-	Secret    string    `json:"secret"`
-	EventType string    `json:"event_type"`
-	Payload   []byte    `json:"payload"`
+	DeliveryID uuid.UUID `json:"delivery_id"`
+	WebhookID  uuid.UUID `json:"webhook_id"`
+	TargetURL  string    `json:"target_url"`
+	Secret     string    `json:"secret"`
+	EventType  string    `json:"event_type"`
+	Payload    []byte    `json:"payload"`
 }
 
 // DeadlineReminderPayload defines the data needed to notify a user of an upcoming task deadline.

@@ -297,7 +297,9 @@ func (s *webhookService) TriggerTestPing(ctx context.Context, userID, webhookID 
 		return nil
 	}
 
+	deliveryID := uuid.New()
 	pingPayload, _ := json.Marshal(map[string]any{
+		"id":         deliveryID.String(),
 		"event":      "ping",
 		"webhook_id": wh.ID.String(),
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
@@ -305,11 +307,12 @@ func (s *webhookService) TriggerTestPing(ctx context.Context, userID, webhookID 
 	})
 
 	return s.distributor.DistributeSendWebhook(ctx, worker.SendWebhookPayload{
-		WebhookID: wh.ID,
-		TargetURL: wh.Url,
-		Secret:    wh.Secret,
-		EventType: "ping",
-		Payload:   pingPayload,
+		DeliveryID: deliveryID,
+		WebhookID:  wh.ID,
+		TargetURL:  wh.Url,
+		Secret:     wh.Secret,
+		EventType:  "ping",
+		Payload:    pingPayload,
 	})
 }
 
@@ -396,23 +399,26 @@ func (s *webhookService) DispatchEvent(ctx context.Context, actorID uuid.UUID, p
 		return nil
 	}
 
-	envelopeBytes, err := json.Marshal(map[string]any{
-		"event":     eventType,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"actor_id":  actorID.String(),
-		"data":      data,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to marshal webhook event envelope: %w", err)
-	}
-
 	for _, wh := range webhooks {
+		deliveryID := uuid.New()
+		envelopeBytes, err := json.Marshal(map[string]any{
+			"id":        deliveryID.String(),
+			"event":     eventType,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"actor_id":  actorID.String(),
+			"data":      data,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to marshal webhook event envelope: %w", err)
+		}
+
 		_ = s.distributor.DistributeSendWebhook(ctx, worker.SendWebhookPayload{
-			WebhookID: wh.ID,
-			TargetURL: wh.Url,
-			Secret:    wh.Secret,
-			EventType: eventType,
-			Payload:   envelopeBytes,
+			DeliveryID: deliveryID,
+			WebhookID:  wh.ID,
+			TargetURL:  wh.Url,
+			Secret:     wh.Secret,
+			EventType:  eventType,
+			Payload:    envelopeBytes,
 		})
 	}
 

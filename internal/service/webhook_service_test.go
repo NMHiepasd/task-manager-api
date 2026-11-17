@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/worker"
@@ -362,6 +363,12 @@ func TestWebhookService_TriggerTestPingAndDispatch(t *testing.T) {
 		require.Len(t, dist.sent, 1)
 		assert.Equal(t, "ping", dist.sent[0].EventType)
 		assert.Equal(t, webhookID, dist.sent[0].WebhookID)
+		assert.NotEqual(t, uuid.Nil, dist.sent[0].DeliveryID)
+
+		var parsed map[string]any
+		err = json.Unmarshal(dist.sent[0].Payload, &parsed)
+		require.NoError(t, err)
+		assert.Equal(t, dist.sent[0].DeliveryID.String(), parsed["id"])
 	})
 
 	t.Run("DispatchEvent_EnqueuesActiveWebhooks", func(t *testing.T) {
@@ -378,8 +385,17 @@ func TestWebhookService_TriggerTestPingAndDispatch(t *testing.T) {
 		svc := NewWebhookService(mockQ, dist, false)
 		err := svc.DispatchEvent(context.Background(), userID, nil, "task.created", map[string]any{"task_id": "123"})
 		require.NoError(t, err)
-		assert.Len(t, dist.sent, 2)
+		require.Len(t, dist.sent, 2)
 		assert.Equal(t, "task.created", dist.sent[0].EventType)
 		assert.Equal(t, "task.created", dist.sent[1].EventType)
+		assert.NotEqual(t, uuid.Nil, dist.sent[0].DeliveryID)
+		assert.NotEqual(t, uuid.Nil, dist.sent[1].DeliveryID)
+		assert.NotEqual(t, dist.sent[0].DeliveryID, dist.sent[1].DeliveryID, "each webhook target gets a unique delivery_id")
+
+		var parsed1, parsed2 map[string]any
+		require.NoError(t, json.Unmarshal(dist.sent[0].Payload, &parsed1))
+		require.NoError(t, json.Unmarshal(dist.sent[1].Payload, &parsed2))
+		assert.Equal(t, dist.sent[0].DeliveryID.String(), parsed1["id"])
+		assert.Equal(t, dist.sent[1].DeliveryID.String(), parsed2["id"])
 	})
 }

@@ -252,13 +252,15 @@ func TestProcessDeadlineReminder(t *testing.T) {
 func TestProcessSendWebhook(t *testing.T) {
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	t.Run("success delivery with valid HMAC", func(t *testing.T) {
-		var receivedEvent, receivedSig string
+	t.Run("success delivery with valid HMAC V2", func(t *testing.T) {
+		var receivedEvent, receivedSig, receivedID, receivedTs string
 		var receivedBody []byte
 
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			receivedEvent = r.Header.Get("X-Webhook-Event")
 			receivedSig = r.Header.Get("X-Webhook-Signature")
+			receivedID = r.Header.Get("X-Webhook-Id")
+			receivedTs = r.Header.Get("X-Webhook-Timestamp")
 			receivedBody, _ = io.ReadAll(r.Body)
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"received":true}`))
@@ -279,16 +281,19 @@ func TestProcessSendWebhook(t *testing.T) {
 			httpClient: ts.Client(),
 		}
 
+		deliveryID := uuid.New()
 		webhookID := uuid.New()
-		secret := "webhook-secret-xyz"
+		//nolint:gosec // G101: Test dummy secret key
+		secret := "whsec_test_secret_32_characters_minimum_len!"
 		payloadBody := []byte(`{"task_id":"123","title":"Hello"}`)
 
 		payload := SendWebhookPayload{
-			WebhookID: webhookID,
-			TargetURL: ts.URL,
-			Secret:    secret,
-			EventType: "task.created",
-			Payload:   payloadBody,
+			DeliveryID: deliveryID,
+			WebhookID:  webhookID,
+			TargetURL:  ts.URL,
+			Secret:     secret,
+			EventType:  "task.created",
+			Payload:    payloadBody,
 		}
 
 		task, err := NewSendWebhookTask(payload)
@@ -299,9 +304,91 @@ func TestProcessSendWebhook(t *testing.T) {
 
 		assert.Equal(t, "task.created", receivedEvent)
 		assert.Equal(t, payloadBody, receivedBody)
-		assert.True(t, strings.HasPrefix(receivedSig, "sha256="))
+		assert.Equal(t, deliveryID.String(), receivedID)
+		assert.NotEmpty(t, receivedTs)
+		assert.True(t, strings.HasPrefix(receivedSig, "v1="))
+
+		// Receiver verifies authenticity using VerifyV2
+		verifyErr := webhook.VerifyV2(secret, receivedTs, receivedID, receivedBody, receivedSig, time.Now(), 5*time.Minute)
+		assert.NoError(t, verifyErr, "receiver must verify signature using VerifyV2")
+
 		assert.Equal(t, "success", recordedDelivery.Status)
 		assert.Equal(t, int32(200), recordedDelivery.ResponseStatus.Int32)
+	})
+
+	t.Run("retry preserves delivery_id with new timestamp and valid V2 signature", func(t *testing.T) {
+		var timestamps []string
+		var ids []string
+		var sigs []string
+		var bodies [][]byte
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			timestamps = append(timestamps, r.Header.Get("X-Webhook-Timestamp"))
+			ids = append(ids, r.Header.Get("X-Webhook-Id"))
+			sigs = append(sigs, r.Header.Get("X-Webhook-Signature"))
+			b, _ := io.ReadAll(r.Body)
+			bodies = append(bodies, b)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		store := &mockWorkerStore{
+			createWebhookDeliveryFn: func(_ context.Context, _ repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error) {
+				return repository.WebhookDelivery{}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: ts.Client(),
+		}
+
+		deliveryID := uuid.New()
+		//nolint:gosec // G101: Test dummy secret key
+		secret := "whsec_test_secret_32_characters_minimum_len!"
+		payloadBody := []byte(`{"id":"task-retry-test"}`)
+
+		payload := SendWebhookPayload{
+			DeliveryID: deliveryID,
+			WebhookID:  uuid.New(),
+			TargetURL:  ts.URL,
+			Secret:     secret,
+			EventType:  "task.updated",
+			Payload:    payloadBody,
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		// First delivery attempt
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		require.NoError(t, err)
+
+		// Simulate passage of time for retry (sleep 1 second to advance Unix timestamp)
+		time.Sleep(1100 * time.Millisecond)
+
+		// Second delivery attempt (retry of the exact same task)
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		require.NoError(t, err)
+
+		require.Len(t, ids, 2)
+		require.Len(t, timestamps, 2)
+
+		// ID must remain stable across retries
+		assert.Equal(t, deliveryID.String(), ids[0])
+		assert.Equal(t, deliveryID.String(), ids[1])
+		assert.Equal(t, ids[0], ids[1], "Delivery ID must be preserved across retries")
+
+		// Timestamp must be updated on retry
+		assert.NotEqual(t, timestamps[0], timestamps[1], "Retry must generate a fresh timestamp")
+
+		// Both attempts must be verifiable using VerifyV2
+		err1 := webhook.VerifyV2(secret, timestamps[0], ids[0], bodies[0], sigs[0], time.Now(), 5*time.Minute)
+		assert.NoError(t, err1, "first attempt must verify with VerifyV2")
+
+		err2 := webhook.VerifyV2(secret, timestamps[1], ids[1], bodies[1], sigs[1], time.Now(), 5*time.Minute)
+		assert.NoError(t, err2, "second attempt must verify with VerifyV2")
 	})
 
 	t.Run("receiver server error 500 returns error for retry", func(t *testing.T) {
