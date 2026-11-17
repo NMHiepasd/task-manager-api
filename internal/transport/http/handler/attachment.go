@@ -2,8 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
 	"task-manager-api/internal/transport/http/middleware"
@@ -206,11 +209,58 @@ func (h *AttachmentHandler) Download(c *gin.Context) {
 	}
 	defer stream.Close()
 
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", att.FileName))
+	c.Header("Content-Disposition", formatContentDisposition(att.FileName))
 	c.Header("Content-Type", att.ContentType)
 	c.Header("Content-Length", strconv.FormatInt(att.FileSize, 10))
+	c.Header("X-Content-Type-Options", "nosniff")
 
 	c.DataFromReader(http.StatusOK, att.FileSize, att.ContentType, stream, nil)
+}
+
+// formatContentDisposition securely formats the Content-Disposition header conforming to RFC 2616 / RFC 6266.
+// It escapes quotes, strips CRLF injection vectors, and encodes Unicode filenames with RFC 5987.
+func formatContentDisposition(filename string) string {
+	// Strip CRLF to prevent HTTP response splitting
+	cleanName := strings.ReplaceAll(filename, "\r", "")
+	cleanName = strings.ReplaceAll(cleanName, "\n", "")
+
+	disposition := mime.FormatMediaType("attachment", map[string]string{
+		"filename": cleanName,
+	})
+	if disposition != "" {
+		return disposition
+	}
+
+	// For Unicode or special characters where basic FormatMediaType returns empty,
+	// provide an ASCII fallback along with RFC 5987 UTF-8 encoded parameter.
+	asciiFallback := toASCIIFallback(cleanName)
+	encodedUTF8 := "UTF-8''" + url.PathEscape(cleanName)
+
+	disposition = mime.FormatMediaType("attachment", map[string]string{
+		"filename":  asciiFallback,
+		"filename*": encodedUTF8,
+	})
+	if disposition != "" {
+		return disposition
+	}
+
+	return fmt.Sprintf("attachment; filename=\"%s\"; filename*=%s", asciiFallback, encodedUTF8)
+}
+
+func toASCIIFallback(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= 0x20 && r <= 0x7e && r != '"' && r != '\\' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	res := strings.TrimSpace(b.String())
+	if res == "" || res == "_" {
+		return "attachment"
+	}
+	return res
 }
 
 // Delete removes a task attachment.

@@ -282,3 +282,88 @@ func TestAttachmentHandler_Delete(t *testing.T) {
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
+
+func TestAttachmentHandler_Download_SafeContentDisposition(t *testing.T) {
+	userID := uuid.New()
+	taskID := uuid.New()
+	attachmentID := uuid.New()
+
+	tests := []struct {
+		name                   string
+		filename               string
+		expectedDisposContains []string
+		prohibitedDispos       []string
+	}{
+		{
+			name:     "DoubleQuotesEscaped",
+			filename: `my "special" document.pdf`,
+			expectedDisposContains: []string{
+				`attachment;`,
+				`filename="my \"special\" document.pdf"`,
+			},
+			prohibitedDispos: []string{
+				`filename="my "special"`,
+			},
+		},
+		{
+			name:     "NewlinesStripped",
+			filename: "malicious\r\nheader\ninjection.pdf",
+			expectedDisposContains: []string{
+				`attachment;`,
+				`maliciousheaderinjection.pdf`,
+			},
+			prohibitedDispos: []string{
+				"\r",
+				"\n",
+			},
+		},
+		{
+			name:     "UnicodeEncoded",
+			filename: "báo_cáo_tài_chính.pdf",
+			expectedDisposContains: []string{
+				`attachment;`,
+				`filename*=`,
+				`b%C3%A1o_c%C3%A1o_t%C3%A0i_ch%C3%ADnh.pdf`,
+			},
+			prohibitedDispos: []string{
+				"\r",
+				"\n",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &mockAttachmentService{
+				getAttachmentFn: func(_ context.Context, _, _, _ uuid.UUID) (*service.AttachmentResponse, io.ReadCloser, error) {
+					return &service.AttachmentResponse{
+						ID:          attachmentID,
+						TaskID:      taskID,
+						UserID:      userID,
+						FileName:    tc.filename,
+						FileSize:    100,
+						ContentType: "application/pdf",
+						CreatedAt:   time.Now(),
+					}, io.NopCloser(strings.NewReader("dummy stream")), nil
+				},
+			}
+			handler := NewAttachmentHandler(svc)
+			router := setupTestAttachmentRouter(handler, userID)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/"+taskID.String()+"/attachments/"+attachmentID.String(), nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+
+			disposition := w.Header().Get("Content-Disposition")
+			for _, expected := range tc.expectedDisposContains {
+				assert.Contains(t, disposition, expected)
+			}
+			for _, prohibited := range tc.prohibitedDispos {
+				assert.NotContains(t, disposition, prohibited)
+			}
+		})
+	}
+}
