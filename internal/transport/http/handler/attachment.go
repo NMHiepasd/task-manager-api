@@ -37,7 +37,7 @@ func NewAttachmentHandler(attachmentService service.AttachmentService, presignEn
 
 // Upload handles multipart file upload for a task.
 // @Summary      Upload task attachment
-// @Description  Uploads a file attachment to a task. Caller must have write access (Owner or Editor) to the task/project.
+// @Description  Uploads a file attachment to a task. Caller must have write access (Owner or Editor). Fails with 400 ATTACHMENT_QUOTA_EXCEEDED if task file limit or user storage limit is exceeded.
 // @Tags         attachments
 // @Accept       multipart/form-data
 // @Produce      json

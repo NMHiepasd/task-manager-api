@@ -111,6 +111,11 @@ func ErrorHandler(logger *slog.Logger) gin.HandlerFunc {
 			code = "FORBIDDEN"
 			detail = err.Error()
 
+		case errors.Is(err, domain.ErrAttachmentQuotaExceeded):
+			status = http.StatusBadRequest
+			code = "ATTACHMENT_QUOTA_EXCEEDED"
+			detail = err.Error()
+
 		case errors.Is(err, domain.ErrValidation):
 			status = http.StatusBadRequest
 			code = "VALIDATION_FAILED"

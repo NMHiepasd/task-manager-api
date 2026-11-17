@@ -81,6 +81,10 @@ func TestErrorHandler_DomainErrors(t *testing.T) {
 		_ = c.Error(domain.ErrForbidden)
 	})
 
+	r.GET("/quota-exceeded", func(c *gin.Context) {
+		_ = c.Error(domain.ErrAttachmentQuotaExceeded)
+	})
+
 	testCases := []struct {
 		url          string
 		expectedCode int
@@ -90,6 +94,7 @@ func TestErrorHandler_DomainErrors(t *testing.T) {
 		{"/conflict", http.StatusConflict, "CONFLICT"},
 		{"/unauthorized", http.StatusUnauthorized, "UNAUTHORIZED"},
 		{"/forbidden", http.StatusForbidden, "FORBIDDEN"},
+		{"/quota-exceeded", http.StatusBadRequest, "ATTACHMENT_QUOTA_EXCEEDED"},
 	}
 
 	for _, tc := range testCases {

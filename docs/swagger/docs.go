@@ -1575,7 +1575,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Uploads a file attachment to a task. Caller must have write access (Owner or Editor) to the task/project.",
+                "description": "Uploads a file attachment to a task. Caller must have write access (Owner or Editor). Fails with 400 ATTACHMENT_QUOTA_EXCEEDED if task file limit or user storage limit is exceeded.",
                 "consumes": [
                     "multipart/form-data"
                 ],

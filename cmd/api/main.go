@@ -149,7 +149,13 @@ func main() {
 			log.Info("Object storage initialized and bucket ready", "bucket", cfg.S3BucketName, "endpoint", cfg.S3Endpoint)
 		}
 		ensureCancel()
-		attachmentService = service.NewAttachmentService(store, storageClient, cfg.MaxUploadSizeMB)
+		attachmentService = service.NewAttachmentService(
+			store,
+			storageClient,
+			cfg.MaxUploadSizeMB,
+			cfg.MaxAttachmentsPerTask,
+			cfg.MaxUserStorageMB,
+		)
 	}
 
 	// 8. Initialize Asynq background worker and scheduler (if enabled)

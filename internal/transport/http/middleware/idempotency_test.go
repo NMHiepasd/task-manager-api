@@ -376,6 +376,14 @@ func (m *mockIdempotencyQuerier) UnassignTasksByProjectAndUser(context.Context, 
 	return nil
 }
 
+func (m *mockIdempotencyQuerier) CountAttachmentsByTaskID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) GetTotalAttachmentSizeByUserID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
