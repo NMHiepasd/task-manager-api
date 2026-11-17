@@ -39,3 +39,6 @@ updates:
     labels:
       - "dependencies"
       - "docker-compose"
+    ignore:
+      - dependency-name: "redis"
+        update-types: ["version-update:semver-major"]
