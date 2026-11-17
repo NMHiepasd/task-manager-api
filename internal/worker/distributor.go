@@ -15,6 +15,7 @@ type TaskDistributor interface {
 	DistributeScanDueTasks(ctx context.Context, opts ...asynq.Option) error
 	DistributeDeadlineReminder(ctx context.Context, payload DeadlineReminderPayload, opts ...asynq.Option) error
 	DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error
+	DistributeDeleteStorageObject(ctx context.Context, payload DeleteStorageObjectPayload, opts ...asynq.Option) error
 	Close() error
 }
 
@@ -101,6 +102,26 @@ func (d *RedisTaskDistributor) DistributeSendWebhook(ctx context.Context, payloa
 	_, err = d.client.EnqueueContext(ctx, task, allOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send webhook task: %w", err)
+	}
+	return nil
+}
+
+// DistributeDeleteStorageObject enqueues an asynchronous orphan object cleanup task.
+func (d *RedisTaskDistributor) DistributeDeleteStorageObject(ctx context.Context, payload DeleteStorageObjectPayload, opts ...asynq.Option) error {
+	task, err := NewDeleteStorageObjectTask(payload)
+	if err != nil {
+		return err
+	}
+
+	defaultOpts := []asynq.Option{
+		asynq.MaxRetry(5),
+		asynq.Timeout(30 * time.Second),
+	}
+	allOpts := append(defaultOpts, opts...)
+
+	_, err = d.client.EnqueueContext(ctx, task, allOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue delete storage object task: %w", err)
 	}
 	return nil
 }

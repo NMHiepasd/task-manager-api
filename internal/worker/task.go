@@ -25,7 +25,13 @@ const (
 	TypeScanDueTasks                  = "task:scan_due_tasks"
 	TypeDeadlineReminder              = "task:deadline_reminder"
 	TypeSendWebhook                   = "task:send_webhook"
+	TypeDeleteStorageObject           = "storage:delete_object"
 )
+
+// DeleteStorageObjectPayload defines the payload for asynchronous orphan object cleanup.
+type DeleteStorageObjectPayload struct {
+	StorageKey string `json:"storage_key"`
+}
 
 // SendWebhookPayload defines the information needed to deliver an event to a webhook endpoint.
 type SendWebhookPayload struct {
@@ -78,4 +84,13 @@ func NewSendWebhookTask(payload SendWebhookPayload) (*asynq.Task, error) {
 		return nil, fmt.Errorf("failed to marshal send webhook payload: %w", err)
 	}
 	return asynq.NewTask(TypeSendWebhook, data, asynq.Queue(QueueDefault), asynq.MaxRetry(5)), nil
+}
+
+// NewDeleteStorageObjectTask creates an Asynq task to remove an orphan object from object storage.
+func NewDeleteStorageObjectTask(payload DeleteStorageObjectPayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal delete storage object payload: %w", err)
+	}
+	return asynq.NewTask(TypeDeleteStorageObject, data, asynq.Queue(QueueLow), asynq.MaxRetry(5)), nil
 }

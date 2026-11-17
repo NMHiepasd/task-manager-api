@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/storage"
 	"task-manager-api/pkg/webhook"
 	"time"
 
@@ -29,6 +30,7 @@ type TaskProcessor interface {
 	ProcessScanDueTasks(ctx context.Context, task *asynq.Task) error
 	ProcessDeadlineReminder(ctx context.Context, task *asynq.Task) error
 	ProcessSendWebhook(ctx context.Context, task *asynq.Task) error
+	ProcessDeleteStorageObject(ctx context.Context, task *asynq.Task) error
 }
 
 // TaskStore defines the database access methods required by the background worker.
@@ -45,6 +47,7 @@ type RedisTaskProcessor struct {
 	mux         *asynq.ServeMux
 	store       TaskStore
 	distributor TaskDistributor
+	storage     storage.Client
 	log         *slog.Logger
 	httpClient  *http.Client
 }
@@ -56,6 +59,7 @@ func NewRedisTaskProcessor(
 	store TaskStore,
 	distributor TaskDistributor,
 	log *slog.Logger,
+	storageClient ...storage.Client,
 ) *RedisTaskProcessor {
 	concurrency := cfg.WorkerConcurrency
 	if concurrency <= 0 {
@@ -86,11 +90,16 @@ func NewRedisTaskProcessor(
 	)
 
 	mux := asynq.NewServeMux()
+	var st storage.Client
+	if len(storageClient) > 0 {
+		st = storageClient[0]
+	}
 	processor := &RedisTaskProcessor{
 		server:      server,
 		mux:         mux,
 		store:       store,
 		distributor: distributor,
+		storage:     st,
 		log:         log,
 		httpClient:  webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks, 10*time.Second),
 	}
@@ -101,6 +110,7 @@ func NewRedisTaskProcessor(
 	mux.HandleFunc(TypeScanDueTasks, processor.ProcessScanDueTasks)
 	mux.HandleFunc(TypeDeadlineReminder, processor.ProcessDeadlineReminder)
 	mux.HandleFunc(TypeSendWebhook, processor.ProcessSendWebhook)
+	mux.HandleFunc(TypeDeleteStorageObject, processor.ProcessDeleteStorageObject)
 
 	return processor
 }
@@ -284,5 +294,43 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 		"duration_ms", durationMs,
 	)
 
+	return nil
+}
+
+// ProcessDeleteStorageObject executes background deletion of an orphan object from storage.
+func (p *RedisTaskProcessor) ProcessDeleteStorageObject(ctx context.Context, task *asynq.Task) error {
+	var payload DeleteStorageObjectPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		p.log.Error("Failed to unmarshal delete storage object payload", "error", err)
+		return fmt.Errorf("invalid delete storage object payload: %w", asynq.SkipRetry)
+	}
+
+	if payload.StorageKey == "" {
+		p.log.Warn("Delete storage object task has empty storage key, skipping")
+		return nil
+	}
+
+	if p.storage == nil {
+		p.log.Error("Storage client is not configured for worker processor", "storage_key", payload.StorageKey)
+		return errors.New("storage client not configured on worker processor")
+	}
+
+	err := p.storage.Delete(ctx, payload.StorageKey)
+	if err != nil {
+		if storage.IsNotFoundError(err) {
+			p.log.Info("Storage object does not exist, skipping deletion retry",
+				"storage_key", payload.StorageKey,
+				"error", err,
+			)
+			return nil
+		}
+		p.log.Warn("Failed to delete storage object, will retry",
+			"storage_key", payload.StorageKey,
+			"error", err,
+		)
+		return fmt.Errorf("failed to delete storage object %s: %w", payload.StorageKey, err)
+	}
+
+	p.log.Info("Successfully deleted orphan storage object", "storage_key", payload.StorageKey)
 	return nil
 }

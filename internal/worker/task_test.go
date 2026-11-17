@@ -93,3 +93,19 @@ func TestNewRedisTaskDistributor_DefaultAndCustomRetry(t *testing.T) {
 	dInvalid := NewRedisTaskDistributor(asynq.RedisClientOpt{Addr: "localhost:6379"}, -1)
 	assert.Equal(t, 6, dInvalid.webhookMaxRetry)
 }
+
+func TestNewDeleteStorageObjectTask(t *testing.T) {
+	payload := DeleteStorageObjectPayload{
+		StorageKey: "tasks/987/sample.png",
+	}
+
+	task, err := NewDeleteStorageObjectTask(payload)
+	require.NoError(t, err)
+	require.NotNil(t, task)
+	assert.Equal(t, TypeDeleteStorageObject, task.Type())
+
+	var decoded DeleteStorageObjectPayload
+	err = json.Unmarshal(task.Payload(), &decoded)
+	require.NoError(t, err)
+	assert.Equal(t, payload.StorageKey, decoded.StorageKey)
+}

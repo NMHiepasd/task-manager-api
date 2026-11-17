@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -11,6 +12,27 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+// ErrObjectNotFound indicates that the requested object does not exist in storage.
+var ErrObjectNotFound = errors.New("storage object not found")
+
+// IsNotFoundError checks whether an error signifies that the object does not exist.
+func IsNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrObjectNotFound) {
+		return true
+	}
+	var errResp minio.ErrorResponse
+	if errors.As(err, &errResp) {
+		if errResp.Code == "NoSuchKey" || errResp.Code == "ResourceNotFound" {
+			return true
+		}
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "nosuchkey") || strings.Contains(msg, "not found") || strings.Contains(msg, "does not exist")
+}
 
 // Client defines the interface for object storage interactions (MinIO / S3).
 type Client interface {

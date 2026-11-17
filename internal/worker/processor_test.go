@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/storage"
 	"task-manager-api/pkg/webhook"
 	"testing"
 	"time"
@@ -67,8 +68,9 @@ func (t *errTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 
 // mockDistributor mocks TaskDistributor
 type mockDistributor struct {
-	reminders []DeadlineReminderPayload
-	webhooks  []SendWebhookPayload
+	reminders      []DeadlineReminderPayload
+	webhooks       []SendWebhookPayload
+	storageDeletes []DeleteStorageObjectPayload
 }
 
 func (m *mockDistributor) DistributeCleanupExpiredTokens(context.Context, ...asynq.Option) error {
@@ -90,6 +92,11 @@ func (m *mockDistributor) DistributeDeadlineReminder(_ context.Context, payload 
 
 func (m *mockDistributor) DistributeSendWebhook(_ context.Context, payload SendWebhookPayload, _ ...asynq.Option) error {
 	m.webhooks = append(m.webhooks, payload)
+	return nil
+}
+
+func (m *mockDistributor) DistributeDeleteStorageObject(_ context.Context, payload DeleteStorageObjectPayload, _ ...asynq.Option) error {
+	m.storageDeletes = append(m.storageDeletes, payload)
 	return nil
 }
 
@@ -554,5 +561,164 @@ func TestProcessSendWebhook(t *testing.T) {
 		assert.False(t, redirectTargetCalled, "should not have followed redirect")
 		assert.Equal(t, "failed", recordedDelivery.Status)
 		assert.Equal(t, int32(302), recordedDelivery.ResponseStatus.Int32)
+	})
+}
+
+type mockWorkerStorageClient struct {
+	deleteFn func(ctx context.Context, key string) error
+}
+
+func (m *mockWorkerStorageClient) Upload(context.Context, string, io.Reader, int64, string) error {
+	return nil
+}
+
+func (m *mockWorkerStorageClient) Download(context.Context, string) (io.ReadCloser, error) {
+	return nil, nil
+}
+
+func (m *mockWorkerStorageClient) Delete(ctx context.Context, key string) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, key)
+	}
+	return nil
+}
+
+func (m *mockWorkerStorageClient) GetPresignedURL(context.Context, string, time.Duration) (string, error) {
+	return "", nil
+}
+
+func (m *mockWorkerStorageClient) EnsureBucket(context.Context) error {
+	return nil
+}
+
+func TestProcessDeleteStorageObject(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	t.Run("Success", func(t *testing.T) {
+		deletedKey := ""
+		store := &mockWorkerStorageClient{
+			deleteFn: func(_ context.Context, key string) error {
+				deletedKey = key
+				return nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			storage: store,
+			log:     log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "tasks/123/file.pdf",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.NoError(t, err)
+		assert.Equal(t, "tasks/123/file.pdf", deletedKey)
+	})
+
+	t.Run("RetryOnTransientError", func(t *testing.T) {
+		store := &mockWorkerStorageClient{
+			deleteFn: func(_ context.Context, _ string) error {
+				return errors.New("connection reset by peer")
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			storage: store,
+			log:     log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "tasks/123/file.pdf",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.Error(t, err)
+		assert.False(t, errors.Is(err, asynq.SkipRetry), "transient error must trigger Asynq retry")
+	})
+
+	t.Run("SkipRetryWhenObjectNotFound", func(t *testing.T) {
+		store := &mockWorkerStorageClient{
+			deleteFn: func(_ context.Context, _ string) error {
+				return storage.ErrObjectNotFound
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			storage: store,
+			log:     log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "tasks/123/file.pdf",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.NoError(t, err, "non-existent object must be skipped and considered done")
+	})
+
+	t.Run("SkipRetryWhenMinIONoSuchKeyError", func(t *testing.T) {
+		store := &mockWorkerStorageClient{
+			deleteFn: func(_ context.Context, _ string) error {
+				return errors.New("The specified key does not exist. (NoSuchKey)")
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			storage: store,
+			log:     log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "tasks/123/file.pdf",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.NoError(t, err, "NoSuchKey error must be skipped and considered done")
+	})
+
+	t.Run("SkipRetryOnInvalidPayloadJSON", func(t *testing.T) {
+		processor := &RedisTaskProcessor{
+			log: log,
+		}
+
+		task := asynq.NewTask(TypeDeleteStorageObject, []byte("invalid-json"))
+		err := processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, asynq.SkipRetry), "corrupt payload must not be retried")
+	})
+
+	t.Run("SkipOnEmptyStorageKey", func(t *testing.T) {
+		processor := &RedisTaskProcessor{
+			log: log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ErrorWhenStorageNotConfigured", func(t *testing.T) {
+		processor := &RedisTaskProcessor{
+			storage: nil,
+			log:     log,
+		}
+
+		task, err := NewDeleteStorageObjectTask(DeleteStorageObjectPayload{
+			StorageKey: "tasks/123/file.pdf",
+		})
+		require.NoError(t, err)
+
+		err = processor.ProcessDeleteStorageObject(context.Background(), task)
+		assert.Error(t, err)
 	})
 }
