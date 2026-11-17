@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -22,26 +23,73 @@ type Client interface {
 
 // MinIOClient implements Client for MinIO and AWS S3 compatible endpoints.
 type MinIOClient struct {
-	client *minio.Client
-	bucket string
-	region string
+	client       *minio.Client
+	signerClient *minio.Client
+	bucket       string
+	region       string
+}
+
+// parseEndpoint extracts host and determines SSL for an endpoint string.
+func parseEndpoint(raw string, defaultSSL bool) (string, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", defaultSSL, nil
+	}
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", false, fmt.Errorf("invalid endpoint url: %w", err)
+		}
+		return u.Host, u.Scheme == "https", nil
+	}
+	return raw, defaultSSL, nil
 }
 
 // NewMinIOClient initializes a new MinIO/S3 storage client.
 func NewMinIOClient(endpoint, accessKey, secretKey, bucket, region string, useSSL bool) (*MinIOClient, error) {
-	client, err := minio.New(endpoint, &minio.Options{
+	return NewMinIOClientWithPublic(endpoint, "", accessKey, secretKey, bucket, region, useSSL)
+}
+
+// NewMinIOClientWithPublic initializes a new MinIO/S3 storage client with an optional public endpoint.
+// When publicEndpoint is provided, it uses a dedicated signing client solely to compute presigned URLs
+// with the public host, avoiding any network connectivity requirements on the signing path.
+func NewMinIOClientWithPublic(endpoint, publicEndpoint, accessKey, secretKey, bucket, region string, useSSL bool) (*MinIOClient, error) {
+	internalHost, internalSSL, err := parseEndpoint(endpoint, useSSL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse internal s3 endpoint: %w", err)
+	}
+
+	client, err := minio.New(internalHost, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
+		Secure: internalSSL,
 		Region: region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize minio client: %w", err)
 	}
 
+	signerClient := client
+	if strings.TrimSpace(publicEndpoint) != "" {
+		pubHost, pubSSL, pErr := parseEndpoint(publicEndpoint, useSSL)
+		if pErr != nil {
+			return nil, fmt.Errorf("failed to parse public s3 endpoint: %w", pErr)
+		}
+		sClient, sErr := minio.New(pubHost, &minio.Options{
+			Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+			Secure: pubSSL,
+			Region: region,
+		})
+		if sErr != nil {
+			return nil, fmt.Errorf("failed to initialize minio signer client: %w", sErr)
+		}
+		signerClient = sClient
+	}
+
 	return &MinIOClient{
-		client: client,
-		bucket: bucket,
-		region: region,
+		client:       client,
+		signerClient: signerClient,
+		bucket:       bucket,
+		region:       region,
 	}, nil
 }
 
@@ -107,7 +155,7 @@ func (m *MinIOClient) Delete(ctx context.Context, key string) error {
 // GetPresignedURL generates a temporary presigned GET URL for secure downloading.
 func (m *MinIOClient) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	reqParams := make(url.Values)
-	u, err := m.client.PresignedGetObject(ctx, m.bucket, key, expiry, reqParams)
+	u, err := m.signerClient.PresignedGetObject(ctx, m.bucket, key, expiry, reqParams)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned url for %s: %w", key, err)
 	}
