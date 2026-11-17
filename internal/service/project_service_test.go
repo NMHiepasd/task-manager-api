@@ -14,23 +14,31 @@ import (
 
 type mockProjectQuerier struct {
 	mockQuerier
-	createProjectFn              func(ctx context.Context, arg repository.CreateProjectParams) (repository.Project, error)
-	getProjectByIDFn             func(ctx context.Context, id uuid.UUID) (repository.Project, error)
-	listProjectsByOwnerFn        func(ctx context.Context, arg repository.ListProjectsByOwnerParams) ([]repository.Project, error)
-	listProjectsKeysetFn         func(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error)
-	listProjectsByMemberFn       func(ctx context.Context, arg repository.ListProjectsByMemberParams) ([]repository.ListProjectsByMemberRow, error)
-	listProjectsByMemberKeysetFn func(ctx context.Context, arg repository.ListProjectsByMemberKeysetParams) ([]repository.ListProjectsByMemberKeysetRow, error)
-	countProjectsByMemberFn      func(ctx context.Context, userID uuid.UUID) (int64, error)
-	countProjectsByOwnerFn       func(ctx context.Context, ownerID uuid.UUID) (int64, error)
-	updateProjectFn              func(ctx context.Context, arg repository.UpdateProjectParams) (repository.Project, error)
-	softDeleteProjectFn          func(ctx context.Context, arg repository.SoftDeleteProjectParams) error
-	addProjectMemberFn           func(ctx context.Context, arg repository.AddProjectMemberParams) (repository.ProjectMember, error)
-	getProjectMemberFn           func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
-	listProjectMembersFn         func(ctx context.Context, projectID uuid.UUID) ([]repository.ListProjectMembersRow, error)
-	updateProjectMemberRoleFn    func(ctx context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error)
-	deleteProjectMemberFn        func(ctx context.Context, arg repository.DeleteProjectMemberParams) error
-	getUserByEmailFn             func(ctx context.Context, email string) (repository.User, error)
-	getUserByIDFn                func(ctx context.Context, id uuid.UUID) (repository.User, error)
+	createProjectFn                   func(ctx context.Context, arg repository.CreateProjectParams) (repository.Project, error)
+	getProjectByIDFn                  func(ctx context.Context, id uuid.UUID) (repository.Project, error)
+	listProjectsByOwnerFn             func(ctx context.Context, arg repository.ListProjectsByOwnerParams) ([]repository.Project, error)
+	listProjectsKeysetFn              func(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error)
+	listProjectsByMemberFn            func(ctx context.Context, arg repository.ListProjectsByMemberParams) ([]repository.ListProjectsByMemberRow, error)
+	listProjectsByMemberKeysetFn      func(ctx context.Context, arg repository.ListProjectsByMemberKeysetParams) ([]repository.ListProjectsByMemberKeysetRow, error)
+	countProjectsByMemberFn           func(ctx context.Context, userID uuid.UUID) (int64, error)
+	countProjectsByOwnerFn            func(ctx context.Context, ownerID uuid.UUID) (int64, error)
+	updateProjectFn                   func(ctx context.Context, arg repository.UpdateProjectParams) (repository.Project, error)
+	softDeleteProjectFn               func(ctx context.Context, arg repository.SoftDeleteProjectParams) error
+	addProjectMemberFn                func(ctx context.Context, arg repository.AddProjectMemberParams) (repository.ProjectMember, error)
+	getProjectMemberFn                func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
+	listProjectMembersFn              func(ctx context.Context, projectID uuid.UUID) ([]repository.ListProjectMembersRow, error)
+	updateProjectMemberRoleFn         func(ctx context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error)
+	deleteProjectMemberFn             func(ctx context.Context, arg repository.DeleteProjectMemberParams) error
+	deactivateProjectWebhooksByUserFn func(ctx context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error
+	getUserByEmailFn                  func(ctx context.Context, email string) (repository.User, error)
+	getUserByIDFn                     func(ctx context.Context, id uuid.UUID) (repository.User, error)
+}
+
+func (m *mockProjectQuerier) DeactivateProjectWebhooksByUser(ctx context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error {
+	if m.deactivateProjectWebhooksByUserFn != nil {
+		return m.deactivateProjectWebhooksByUserFn(ctx, arg)
+	}
+	return m.mockQuerier.DeactivateProjectWebhooksByUser(ctx, arg)
 }
 
 func (m *mockProjectQuerier) ListProjectsKeyset(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error) {
@@ -552,6 +560,7 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 	})
 
 	t.Run("UpdateMemberRole_Success", func(t *testing.T) {
+		deactivated := false
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
 				return project, nil
@@ -568,6 +577,12 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 					Role:      arg.Role,
 				}, nil
 			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error {
+				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
+				require.Equal(t, targetUserID, arg.UserID)
+				deactivated = true
+				return nil
+			},
 			getUserByIDFn: func(_ context.Context, _ uuid.UUID) (repository.User, error) {
 				return targetUser, nil
 			},
@@ -577,6 +592,41 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 		updated, err := svc.UpdateMemberRole(context.Background(), ownerID, projectID, targetUserID, UpdateProjectMemberRoleInput{Role: "viewer"})
 		require.NoError(t, err)
 		require.Equal(t, "viewer", updated.Role)
+		require.True(t, deactivated, "webhooks should be deactivated when demoted to viewer")
+	})
+
+	t.Run("UpdateMemberRole_PromoteToEditor_DoesNotDeactivateWebhooks", func(t *testing.T) {
+		deactivated := false
+		mock := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID, Role: "viewer"}, nil
+			},
+			updateProjectMemberRoleFn: func(_ context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+				require.Equal(t, "editor", arg.Role)
+				return repository.ProjectMember{
+					ID:        uuid.New(),
+					ProjectID: arg.ProjectID,
+					UserID:    arg.UserID,
+					Role:      arg.Role,
+				}, nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				deactivated = true
+				return nil
+			},
+			getUserByIDFn: func(_ context.Context, _ uuid.UUID) (repository.User, error) {
+				return targetUser, nil
+			},
+		}
+
+		svc := NewProjectService(mock, nil)
+		updated, err := svc.UpdateMemberRole(context.Background(), ownerID, projectID, targetUserID, UpdateProjectMemberRoleInput{Role: "editor"})
+		require.NoError(t, err)
+		require.Equal(t, "editor", updated.Role)
+		require.False(t, deactivated, "webhooks should not be deactivated when role is editor")
 	})
 
 	t.Run("UpdateMemberRole_CannotModifyOwner", func(t *testing.T) {
@@ -593,6 +643,7 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 
 	t.Run("RemoveMember_OwnerRemovesMember_Success", func(t *testing.T) {
 		deleted := false
+		deactivated := false
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
 				return project, nil
@@ -604,16 +655,24 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 				deleted = true
 				return nil
 			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error {
+				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
+				require.Equal(t, targetUserID, arg.UserID)
+				deactivated = true
+				return nil
+			},
 		}
 
 		svc := NewProjectService(mock, nil)
 		err := svc.RemoveMember(context.Background(), ownerID, projectID, targetUserID)
 		require.NoError(t, err)
 		require.True(t, deleted)
+		require.True(t, deactivated, "webhooks should be deactivated when member is removed")
 	})
 
 	t.Run("RemoveMember_MemberLeaves_Success", func(t *testing.T) {
 		deleted := false
+		deactivated := false
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
 				return project, nil
@@ -623,6 +682,12 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 			},
 			deleteProjectMemberFn: func(_ context.Context, _ repository.DeleteProjectMemberParams) error {
 				deleted = true
+				return nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error {
+				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
+				require.Equal(t, targetUserID, arg.UserID)
+				deactivated = true
 				return nil
 			},
 		}
@@ -632,6 +697,7 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 		err := svc.RemoveMember(context.Background(), targetUserID, projectID, targetUserID)
 		require.NoError(t, err)
 		require.True(t, deleted)
+		require.True(t, deactivated, "webhooks should be deactivated when member leaves project")
 	})
 
 	t.Run("RemoveMember_CannotRemoveOwner", func(t *testing.T) {

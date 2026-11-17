@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"task-manager-api/internal/repository"
+	"task-manager-api/internal/service"
 )
 
 func TestIntegration_Webhook_ProjectANotReceivesProjectB(t *testing.T) {
@@ -182,4 +183,109 @@ func TestIntegration_Webhook_PersonalWebhookReceivesOwnerEvents(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "Personal webhook should receive events triggered by its owner")
+}
+
+func TestIntegration_Webhook_DeactivatedOnMemberRemoveAndDemote(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Create Owner and Member users
+	ownerEmail := fmt.Sprintf("deact_owner_%d@example.com", time.Now().UnixNano())
+	owner, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        ownerEmail,
+		PasswordHash: "hashed_secret_123",
+		FullName:     "Deact Owner",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	memberEmail := fmt.Sprintf("deact_member_%d@example.com", time.Now().UnixNano())
+	member, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        memberEmail,
+		PasswordHash: "hashed_secret_123",
+		FullName:     "Deact Member",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	// 2. Create Project owned by Owner and add Member as editor
+	proj, err := testStore.CreateProject(ctx, repository.CreateProjectParams{
+		OwnerID:     owner.ID,
+		Name:        "Deactivation Test Project",
+		Description: "Testing webhook deactivation",
+		Color:       "#3b82f6",
+	})
+	require.NoError(t, err)
+
+	_, err = testStore.AddProjectMember(ctx, repository.AddProjectMemberParams{
+		ProjectID: proj.ID,
+		UserID:    member.ID,
+		Role:      "editor",
+	})
+	require.NoError(t, err)
+
+	// 3. Member creates a project webhook AND a personal webhook
+	projWebhook, err := testStore.CreateWebhook(ctx, repository.CreateWebhookParams{
+		UserID:    member.ID,
+		ProjectID: pgtype.UUID{Bytes: proj.ID, Valid: true},
+		Url:       "https://example.com/project-hook",
+		Secret:    "whsec_proj_secret_32bytes_minimum!",
+		Events:    []string{"task:created", "task:updated"},
+		IsActive:  true,
+	})
+	require.NoError(t, err)
+	require.True(t, projWebhook.IsActive)
+
+	personalWebhook, err := testStore.CreateWebhook(ctx, repository.CreateWebhookParams{
+		UserID:    member.ID,
+		ProjectID: pgtype.UUID{Valid: false},
+		Url:       "https://example.com/personal-hook",
+		Secret:    "whsec_personal_secret_32bytes_min!",
+		Events:    []string{"task:created"},
+		IsActive:  true,
+	})
+	require.NoError(t, err)
+	require.True(t, personalWebhook.IsActive)
+
+	// 4. Test DeactivateProjectWebhooksByUser directly & via ProjectService
+	// First test Demote to viewer via ProjectService
+	projSvc := service.NewProjectService(testStore, nil)
+	_, err = projSvc.UpdateMemberRole(ctx, owner.ID, proj.ID, member.ID, service.UpdateProjectMemberRoleInput{
+		Role: "viewer",
+	})
+	require.NoError(t, err)
+
+	// Fetch both webhooks from database
+	updatedProjWh, err := testStore.GetWebhookByID(ctx, projWebhook.ID)
+	require.NoError(t, err)
+	assert.False(t, updatedProjWh.IsActive, "Project webhook must be deactivated (is_active = false) after demotion to viewer")
+
+	updatedPersonalWh, err := testStore.GetWebhookByID(ctx, personalWebhook.ID)
+	require.NoError(t, err)
+	assert.True(t, updatedPersonalWh.IsActive, "Personal webhook (project_id IS NULL) must remain untouched (is_active = true)")
+
+	// Reactivate project webhook manually to test RemoveMember
+	_, err = testStore.UpdateWebhook(ctx, repository.UpdateWebhookParams{
+		ID:       projWebhook.ID,
+		IsActive: pgtype.Bool{Bool: true, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Verify it's active again
+	refreshedWh, err := testStore.GetWebhookByID(ctx, projWebhook.ID)
+	require.NoError(t, err)
+	require.True(t, refreshedWh.IsActive)
+
+	// Now Remove member via ProjectService
+	err = projSvc.RemoveMember(ctx, owner.ID, proj.ID, member.ID)
+	require.NoError(t, err)
+
+	// Verify project webhook is deactivated again
+	afterRemoveProjWh, err := testStore.GetWebhookByID(ctx, projWebhook.ID)
+	require.NoError(t, err)
+	assert.False(t, afterRemoveProjWh.IsActive, "Project webhook must be deactivated (is_active = false) after member removal")
+
+	// Verify personal webhook is STILL active
+	stillActivePersonalWh, err := testStore.GetWebhookByID(ctx, personalWebhook.ID)
+	require.NoError(t, err)
+	assert.True(t, stillActivePersonalWh.IsActive, "Personal webhook must remain active after member removal from project")
 }

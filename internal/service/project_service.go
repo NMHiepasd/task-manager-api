@@ -544,6 +544,15 @@ func (s *projectService) UpdateMemberRole(ctx context.Context, currentUserID uui
 		return nil, fmt.Errorf("failed to update member role: %w", err)
 	}
 
+	if role == "viewer" {
+		if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+			ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+			UserID:    targetUserID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to deactivate project webhooks: %w", err)
+		}
+	}
+
 	// Get target user info
 	targetUser, err := s.repo.GetUserByID(ctx, targetUserID)
 	if err != nil {
@@ -602,6 +611,13 @@ func (s *projectService) RemoveMember(ctx context.Context, currentUserID uuid.UU
 		UserID:    targetUserID,
 	}); err != nil {
 		return fmt.Errorf("failed to remove project member: %w", err)
+	}
+
+	if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+		UserID:    targetUserID,
+	}); err != nil {
+		return fmt.Errorf("failed to deactivate project webhooks: %w", err)
 	}
 
 	_ = s.cache.Delete(ctx, fmt.Sprintf("project:%s:%s", targetUserID, projectID))
