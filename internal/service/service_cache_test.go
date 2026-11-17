@@ -361,7 +361,7 @@ func (m *mockQuerierWithHooks) CreateTaskComment(context.Context, repository.Cre
 	return repository.TaskComment{}, nil
 }
 
-func (m *mockQuerierWithHooks) DeleteTaskComment(context.Context, uuid.UUID) error {
+func (m *mockQuerierWithHooks) DeleteTaskComment(context.Context, repository.DeleteTaskCommentParams) error {
 	return nil
 }
 
@@ -393,7 +393,7 @@ func (m *mockQuerierWithHooks) ListTaskAttachmentsByTaskID(context.Context, uuid
 	return nil, nil
 }
 
-func (m *mockQuerierWithHooks) DeleteTaskAttachment(context.Context, uuid.UUID) error {
+func (m *mockQuerierWithHooks) DeleteTaskAttachment(context.Context, repository.DeleteTaskAttachmentParams) error {
 	return nil
 }
 

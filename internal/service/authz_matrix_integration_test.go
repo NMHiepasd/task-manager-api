@@ -596,3 +596,69 @@ func TestIntegration_AuthzPersonalTasks(t *testing.T) {
 		assert.ErrorIs(t, err, service.ErrTaskNotFound)
 	})
 }
+
+func TestSQLConstraint_DeleteCommentAndAttachment_MismatchedTaskID(t *testing.T) {
+	ctx := context.Background()
+
+	commentService := service.NewCommentService(testStore)
+	attachmentService := service.NewAttachmentService(testStore, &inMemoryStorage{}, 10)
+
+	owner := createTestUser(ctx, t, "d4_owner")
+	proj := createTestProject(ctx, t, owner.ID, "D4 SQL Constraint Project")
+	task1 := createTestTask(ctx, t, owner.ID, &proj.ID, nil, "Task 1")
+	task2 := createTestTask(ctx, t, owner.ID, &proj.ID, nil, "Task 2")
+
+	// 1. Create a comment on task1
+	cRes, err := commentService.CreateComment(ctx, owner.ID, task1.ID, service.CreateCommentInput{Content: "D4 Comment on Task 1"})
+	require.NoError(t, err)
+
+	// 2. Create an attachment on task1
+	aRes, err := attachmentService.UploadAttachment(ctx, owner.ID, task1.ID, "d4_file.txt", 12, "text/plain", bytes.NewReader([]byte("d4 file data")))
+	require.NoError(t, err)
+
+	// Direct DB query test: Delete with wrong task_id should affect 0 rows (comment remains in DB)
+	err = testStore.DeleteTaskComment(ctx, repository.DeleteTaskCommentParams{
+		ID:     cRes.ID,
+		TaskID: task2.ID, // wrong task ID!
+	})
+	require.NoError(t, err) // exec does not error on 0 rows affected
+
+	// Verify comment still exists in DB
+	cDB, err := testStore.GetTaskCommentByID(ctx, cRes.ID)
+	require.NoError(t, err)
+	assert.Equal(t, cRes.ID, cDB.ID)
+
+	// Direct DB query test: Delete attachment with wrong task_id should affect 0 rows (attachment remains in DB)
+	err = testStore.DeleteTaskAttachment(ctx, repository.DeleteTaskAttachmentParams{
+		ID:     aRes.ID,
+		TaskID: task2.ID, // wrong task ID!
+	})
+	require.NoError(t, err)
+
+	// Verify attachment still exists in DB
+	aDB, err := testStore.GetTaskAttachmentByID(ctx, aRes.ID)
+	require.NoError(t, err)
+	assert.Equal(t, aRes.ID, aDB.ID)
+
+	// Service-level test: Delete comment via task2 returns ErrCommentNotFound (anti-IDOR)
+	err = commentService.DeleteComment(ctx, owner.ID, task2.ID, cRes.ID)
+	assert.ErrorIs(t, err, service.ErrCommentNotFound)
+
+	// Service-level test: Delete attachment via task2 returns ErrAttachmentNotFound (anti-IDOR)
+	err = attachmentService.DeleteAttachment(ctx, owner.ID, task2.ID, aRes.ID)
+	assert.ErrorIs(t, err, service.ErrAttachmentNotFound)
+
+	// Now delete with the matching task1.ID: should succeed
+	err = commentService.DeleteComment(ctx, owner.ID, task1.ID, cRes.ID)
+	require.NoError(t, err)
+
+	err = attachmentService.DeleteAttachment(ctx, owner.ID, task1.ID, aRes.ID)
+	require.NoError(t, err)
+
+	// Verify both are deleted from DB
+	_, err = testStore.GetTaskCommentByID(ctx, cRes.ID)
+	assert.Error(t, err)
+
+	_, err = testStore.GetTaskAttachmentByID(ctx, aRes.ID)
+	assert.Error(t, err)
+}

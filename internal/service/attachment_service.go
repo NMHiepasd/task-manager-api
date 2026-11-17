@@ -333,7 +333,10 @@ func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID
 		return ErrInsufficientProjectRole
 	}
 
-	if err := s.queries.DeleteTaskAttachment(ctx, attachmentID); err != nil {
+	if err := s.queries.DeleteTaskAttachment(ctx, repository.DeleteTaskAttachmentParams{
+		ID:     attachmentID,
+		TaskID: taskID,
+	}); err != nil {
 		return fmt.Errorf("failed to delete attachment from db: %w", err)
 	}
 

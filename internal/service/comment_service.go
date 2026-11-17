@@ -390,7 +390,10 @@ func (s *commentService) DeleteComment(ctx context.Context, userID uuid.UUID, ta
 		return ErrInsufficientProjectRole
 	}
 
-	if err := s.repo.DeleteTaskComment(ctx, commentID); err != nil {
+	if err := s.repo.DeleteTaskComment(ctx, repository.DeleteTaskCommentParams{
+		ID:     commentID,
+		TaskID: taskID,
+	}); err != nil {
 		return fmt.Errorf("failed to delete comment: %w", err)
 	}
 

@@ -24,7 +24,7 @@ type mockCommentQuerier struct {
 	listTaskCommentsKeysetFn func(ctx context.Context, arg repository.ListTaskCommentsKeysetParams) ([]repository.ListTaskCommentsKeysetRow, error)
 	countTaskCommentsFn      func(ctx context.Context, taskID uuid.UUID) (int64, error)
 	updateTaskCommentFn      func(ctx context.Context, arg repository.UpdateTaskCommentParams) (repository.TaskComment, error)
-	deleteTaskCommentFn      func(ctx context.Context, id uuid.UUID) error
+	deleteTaskCommentFn      func(ctx context.Context, arg repository.DeleteTaskCommentParams) error
 }
 
 func (m *mockCommentQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (repository.Task, error) {
@@ -97,9 +97,9 @@ func (m *mockCommentQuerier) UpdateTaskComment(ctx context.Context, arg reposito
 	return repository.TaskComment{}, pgx.ErrNoRows
 }
 
-func (m *mockCommentQuerier) DeleteTaskComment(ctx context.Context, id uuid.UUID) error {
+func (m *mockCommentQuerier) DeleteTaskComment(ctx context.Context, arg repository.DeleteTaskCommentParams) error {
 	if m.deleteTaskCommentFn != nil {
-		return m.deleteTaskCommentFn(ctx, id)
+		return m.deleteTaskCommentFn(ctx, arg)
 	}
 	return nil
 }
@@ -380,8 +380,9 @@ func TestCommentService_DeleteComment(t *testing.T) {
 			getTaskCommentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
 				return commentRow, nil
 			},
-			deleteTaskCommentFn: func(_ context.Context, id uuid.UUID) error {
-				require.Equal(t, commentID, id)
+			deleteTaskCommentFn: func(_ context.Context, arg repository.DeleteTaskCommentParams) error {
+				require.Equal(t, commentID, arg.ID)
+				require.Equal(t, taskID, arg.TaskID)
 				deleted = true
 				return nil
 			},
@@ -405,8 +406,9 @@ func TestCommentService_DeleteComment(t *testing.T) {
 			getTaskCommentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
 				return commentRow, nil
 			},
-			deleteTaskCommentFn: func(_ context.Context, id uuid.UUID) error {
-				require.Equal(t, commentID, id)
+			deleteTaskCommentFn: func(_ context.Context, arg repository.DeleteTaskCommentParams) error {
+				require.Equal(t, commentID, arg.ID)
+				require.Equal(t, taskID, arg.TaskID)
 				deleted = true
 				return nil
 			},
@@ -435,8 +437,9 @@ func TestCommentService_DeleteComment(t *testing.T) {
 			getTaskCommentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.GetTaskCommentByIDRow, error) {
 				return personalCommentRow, nil
 			},
-			deleteTaskCommentFn: func(_ context.Context, id uuid.UUID) error {
-				require.Equal(t, commentID, id)
+			deleteTaskCommentFn: func(_ context.Context, arg repository.DeleteTaskCommentParams) error {
+				require.Equal(t, commentID, arg.ID)
+				require.Equal(t, personalTaskID, arg.TaskID)
 				deleted = true
 				return nil
 			},
@@ -557,7 +560,7 @@ func TestCommentService_ADR018_ViewerPermissions(t *testing.T) {
 				UserID: viewerID, // authored by viewer
 			}, nil
 		}
-		mock.deleteTaskCommentFn = func(_ context.Context, _ uuid.UUID) error {
+		mock.deleteTaskCommentFn = func(_ context.Context, _ repository.DeleteTaskCommentParams) error {
 			deleted = true
 			return nil
 		}
@@ -663,7 +666,7 @@ func TestCommentService_ADR018_OwnerCanModerate(t *testing.T) {
 				UserID: authorID, // different member
 			}, nil
 		},
-		deleteTaskCommentFn: func(_ context.Context, _ uuid.UUID) error {
+		deleteTaskCommentFn: func(_ context.Context, _ repository.DeleteTaskCommentParams) error {
 			deleted = true
 			return nil
 		},

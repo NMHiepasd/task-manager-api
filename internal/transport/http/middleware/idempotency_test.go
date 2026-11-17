@@ -296,7 +296,7 @@ func (m *mockIdempotencyQuerier) CreateTaskComment(context.Context, repository.C
 	return repository.TaskComment{}, nil
 }
 
-func (m *mockIdempotencyQuerier) DeleteTaskComment(context.Context, uuid.UUID) error {
+func (m *mockIdempotencyQuerier) DeleteTaskComment(context.Context, repository.DeleteTaskCommentParams) error {
 	return nil
 }
 
@@ -328,7 +328,7 @@ func (m *mockIdempotencyQuerier) ListTaskAttachmentsByTaskID(context.Context, uu
 	return nil, nil
 }
 
-func (m *mockIdempotencyQuerier) DeleteTaskAttachment(context.Context, uuid.UUID) error {
+func (m *mockIdempotencyQuerier) DeleteTaskAttachment(context.Context, repository.DeleteTaskAttachmentParams) error {
 	return nil
 }
 

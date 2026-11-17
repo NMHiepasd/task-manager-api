@@ -67,7 +67,7 @@ type mockAttachmentQuerier struct {
 	createTaskAttachmentFn           func(ctx context.Context, arg repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error)
 	getTaskAttachmentByIDFn          func(ctx context.Context, id uuid.UUID) (repository.TaskAttachment, error)
 	listTaskAttachmentsByTaskIDFn    func(ctx context.Context, id uuid.UUID) ([]repository.TaskAttachment, error)
-	deleteTaskAttachmentFn           func(ctx context.Context, id uuid.UUID) error
+	deleteTaskAttachmentFn           func(ctx context.Context, arg repository.DeleteTaskAttachmentParams) error
 	countAttachmentsByTaskIDFn       func(ctx context.Context, taskID uuid.UUID) (int64, error)
 	getTotalAttachmentSizeByUserIDFn func(ctx context.Context, userID uuid.UUID) (int64, error)
 }
@@ -114,9 +114,9 @@ func (m *mockAttachmentQuerier) ListTaskAttachmentsByTaskID(ctx context.Context,
 	return nil, nil
 }
 
-func (m *mockAttachmentQuerier) DeleteTaskAttachment(ctx context.Context, id uuid.UUID) error {
+func (m *mockAttachmentQuerier) DeleteTaskAttachment(ctx context.Context, arg repository.DeleteTaskAttachmentParams) error {
 	if m.deleteTaskAttachmentFn != nil {
-		return m.deleteTaskAttachmentFn(ctx, id)
+		return m.deleteTaskAttachmentFn(ctx, arg)
 	}
 	return nil
 }
@@ -454,8 +454,9 @@ func TestAttachmentService_DeleteAttachment(t *testing.T) {
 			getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
 				return attachment, nil
 			},
-			deleteTaskAttachmentFn: func(_ context.Context, id uuid.UUID) error {
-				deletedDBID = id
+			deleteTaskAttachmentFn: func(_ context.Context, arg repository.DeleteTaskAttachmentParams) error {
+				deletedDBID = arg.ID
+				assert.Equal(t, taskID, arg.TaskID)
 				return nil
 			},
 		}
@@ -481,7 +482,9 @@ func TestAttachmentService_DeleteAttachment(t *testing.T) {
 			getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
 				return attachment, nil
 			},
-			deleteTaskAttachmentFn: func(_ context.Context, _ uuid.UUID) error {
+			deleteTaskAttachmentFn: func(_ context.Context, arg repository.DeleteTaskAttachmentParams) error {
+				assert.Equal(t, taskID, arg.TaskID)
+				assert.Equal(t, attachmentID, arg.ID)
 				return nil
 			},
 		}
@@ -712,8 +715,8 @@ func TestAttachmentService_ADR018_OwnerCanModerate(t *testing.T) {
 		getTaskAttachmentByIDFn: func(_ context.Context, _ uuid.UUID) (repository.TaskAttachment, error) {
 			return attachment, nil
 		},
-		deleteTaskAttachmentFn: func(_ context.Context, id uuid.UUID) error {
-			if id == attachmentID {
+		deleteTaskAttachmentFn: func(_ context.Context, arg repository.DeleteTaskAttachmentParams) error {
+			if arg.ID == attachmentID && arg.TaskID == taskID {
 				deletedDB = true
 			}
 			return nil
