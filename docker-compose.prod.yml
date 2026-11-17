@@ -1,6 +1,6 @@
 services:
   caddy:
-    image: caddy:2.8-alpine
+    image: caddy:2.8-alpine@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17
     container_name: task_manager_caddy
     restart: unless-stopped
     ports:
@@ -21,7 +21,7 @@ services:
         ipv4_address: 172.28.0.2
 
   migration:
-    image: migrate/migrate:v4.18.2
+    image: migrate/migrate:v4.18.2@sha256:acded13a336f2b6f35fd9ce14a32834cf1e6b2a7887fe5dfc977b3e563eba39e
     container_name: task_manager_migration_prod
     restart: "no"
     volumes:
@@ -95,7 +95,7 @@ services:
       - task_network_prod
 
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e
     container_name: task_manager_db_prod
     restart: unless-stopped
     environment:
@@ -113,7 +113,7 @@ services:
       - task_network_prod
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
     container_name: task_manager_redis_prod
     restart: unless-stopped
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
@@ -130,7 +130,7 @@ services:
       - task_network_prod
 
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    image: cgr.dev/chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
     container_name: task_manager_minio_prod
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]

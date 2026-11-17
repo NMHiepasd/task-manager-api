@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e
     container_name: task_manager_db
     restart: unless-stopped
     environment:
@@ -63,7 +63,7 @@ services:
       - task_network
 
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    image: cgr.dev/chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
     container_name: task_manager_minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
@@ -84,7 +84,7 @@ services:
       - task_network
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
     container_name: task_manager_redis
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly no
@@ -99,7 +99,7 @@ services:
       - task_network
 
   adminer:
-    image: adminer:latest
+    image: adminer:4.8.1@sha256:34d37131366c5aa84e1693dbed48593ed6f95fb450b576c1a7a59d3a9c9e8802
     container_name: task_manager_adminer
     restart: unless-stopped
     environment:
@@ -112,7 +112,7 @@ services:
       - task_network
 
   alertmanager:
-    image: prom/alertmanager:v0.27.0
+    image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
     container_name: task_manager_alertmanager
     restart: unless-stopped
     ports:
@@ -124,7 +124,7 @@ services:
       - task_network
 
   prometheus:
-    image: prom/prometheus:v2.54.1
+    image: prom/prometheus:v2.54.1@sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94
     container_name: task_manager_prometheus
     restart: unless-stopped
     ports:
@@ -142,7 +142,7 @@ services:
       - task_network
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.2.0@sha256:408afb9726de5122b00a2576763a8a57a3c86d5b0eff5305bc994ceb3eb96c3f
     container_name: task_manager_grafana
     restart: unless-stopped
     ports:

@@ -351,6 +351,28 @@ docker compose up --build -d
    make swagger
    ```
 
+### Container Image Security & Digest Pinning
+
+All container images across `Dockerfile`, [docker-compose.yml](file:///e:/golang/task-manager-api/docker-compose.yml), and [docker-compose.prod.yml](file:///e:/golang/task-manager-api/docker-compose.prod.yml) are pinned to immutable multi-architecture SHA256 digests (`image:tag@sha256:...`) to eliminate floating tags (e.g. `latest`), prevent accidental drift, and protect against upstream supply-chain tampering.
+
+#### Automated Updates
+- **Dependabot**: Configured in [.github/dependabot.yml](file:///e:/golang/task-manager-api/.github/dependabot.yml) with weekly schedules for both `docker` (Dockerfile) and `docker-compose` (`docker-compose*.yml`) ecosystems.
+
+#### Manual Digest Lookup & Update
+To manually retrieve the canonical multi-platform manifest digest for any image before updating:
+```bash
+# Query the canonical multi-platform manifest digest
+docker buildx imagetools inspect <image>:<tag>
+
+# Examples:
+docker buildx imagetools inspect postgres:16-alpine
+docker buildx imagetools inspect redis:7-alpine
+docker buildx imagetools inspect cgr.dev/chainguard/minio:latest
+docker buildx imagetools inspect caddy:2.8-alpine
+docker buildx imagetools inspect migrate/migrate:v4.18.2
+```
+Look for the top-level `Digest: sha256:...` in the output and update the corresponding `image:` declaration.
+
 ---
 
 ## Observability & Monitoring

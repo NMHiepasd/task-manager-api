@@ -29,3 +29,13 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+
+  # Maintain Docker Compose dependencies
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "docker-compose"
