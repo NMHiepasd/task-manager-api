@@ -14,6 +14,8 @@ func validProductionConfig() *config.Config {
 	return &config.Config{
 		AppPort:            8080,
 		AppEnv:             "production",
+		GinMode:            "release",
+		RedisPassword:      "super-secure-production-redis-password-12345",
 		JWTSecret:          "prod-super-secure-random-secret-key-64bytes-very-long!",
 		JWTExpiration:      15 * time.Minute,
 		S3AccessKey:        "actual-prod-access-key-id",
@@ -142,4 +144,127 @@ func TestConfig_Load_S3PublicEndpointAndPresign(t *testing.T) {
 	assert.False(t, cfg.AttachmentPresignEnabled)
 	assert.Equal(t, int64(50), cfg.MaxAttachmentsPerTask)
 	assert.Equal(t, int64(1000), cfg.MaxUserStorageMB)
+}
+
+func TestConfig_Validate_AppEnvAllowedValues(t *testing.T) {
+	testCases := []struct {
+		name        string
+		env         string
+		expectError bool
+	}{
+		{"DevelopmentValid", "development", false},
+		{"StagingValid", "staging", false},
+		{"ProductionValid", "production", false},
+		{"TestValid", "test", false},
+		{"LocalInvalid", "local", true},
+		{"DevInvalid", "dev", true},
+		{"ProdInvalid", "prod", true},
+		{"CustomInvalid", "qa-environment", true},
+		{"EmptyInvalid", "unknown", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validProductionConfig()
+			cfg.AppEnv = tc.env
+
+			err := cfg.Validate(tc.env)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid APP_ENV")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_Validate_Production_GinMode(t *testing.T) {
+	testCases := []struct {
+		name        string
+		ginMode     string
+		expectError bool
+	}{
+		{"ReleaseModeValid", "release", false},
+		{"DebugModeForbidden", "debug", true},
+		{"TestModeForbidden", "test", true},
+		{"EmptyModeForbidden", "", true},
+		{"CustomModeForbidden", "custom", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validProductionConfig()
+			cfg.GinMode = tc.ginMode
+
+			err := cfg.Validate("production")
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "GIN_MODE")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_Validate_Production_RedisPassword(t *testing.T) {
+	testCases := []struct {
+		name          string
+		redisPassword string
+		expectError   bool
+	}{
+		{"StrongPasswordValid", "super-secret-redis-password", false},
+		{"SimplePasswordValid", "redis123", false},
+		{"EmptyPasswordForbidden", "", true},
+		{"WhitespaceOnlyPasswordForbidden", "   ", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validProductionConfig()
+			cfg.RedisPassword = tc.redisPassword
+
+			err := cfg.Validate("production")
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "REDIS_PASSWORD")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_Validate_RequestTimeout_LessThan_InProgressLockTTL(t *testing.T) {
+	testCases := []struct {
+		name           string
+		requestTimeout time.Duration
+		expectError    bool
+	}{
+		{"NormalTimeoutPass", 30 * time.Second, false},
+		{"FastTimeoutPass", 5 * time.Second, false},
+		{"NearLimitTimeoutPass", 59 * time.Second, false},
+		{"Exact60sLimitFails", 60 * time.Second, true},
+		{"Over60sLimitFails", 61 * time.Second, true},
+		{"HighTimeoutFails", 120 * time.Second, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validProductionConfig()
+			cfg.RequestTimeout = tc.requestTimeout
+			// Ensure ServerWriteTimeout >= RequestTimeout so write timeout misalignment is not triggered
+			cfg.ServerWriteTimeout = tc.requestTimeout + 10*time.Second
+
+			err := cfg.Validate("production")
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "RequestTimeout")
+				assert.Contains(t, err.Error(), "InProgressLockTTL")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

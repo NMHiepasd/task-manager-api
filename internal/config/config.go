@@ -99,14 +99,47 @@ func Load() (*Config, error) {
 func (c *Config) Validate(env string) error {
 	var errs []error
 
+	targetEnv := env
+	if targetEnv == "" {
+		targetEnv = c.AppEnv
+	}
+
+	// 1. APP_ENV validation: must be one of development, staging, production, test
+	validEnvs := map[string]struct{}{
+		"development": {},
+		"staging":     {},
+		"production":  {},
+		"test":        {},
+	}
+	if _, ok := validEnvs[targetEnv]; !ok {
+		errs = append(errs, fmt.Errorf("invalid APP_ENV %q: must be one of development, staging, production, test", targetEnv))
+	}
+
+	// 2. Timeout validations
 	// Always verify timeout alignment: server write timeout must be >= request timeout
 	// so the timeout middleware can complete and return a 504 Problem Details before the server cuts the connection.
 	if c.ServerWriteTimeout > 0 && c.RequestTimeout > 0 && c.ServerWriteTimeout < c.RequestTimeout {
 		errs = append(errs, fmt.Errorf("ServerWriteTimeout (%v) must be greater than or equal to RequestTimeout (%v)", c.ServerWriteTimeout, c.RequestTimeout))
 	}
 
-	if env == "production" {
-		// 1. Insecure default JWT secret check
+	// RequestTimeout must be strictly less than InProgressLockTTL (60s) to prevent lock expiration during active processing
+	const inProgressLockTTL = 60 * time.Second
+	if c.RequestTimeout >= inProgressLockTTL {
+		errs = append(errs, fmt.Errorf("RequestTimeout (%v) must be less than InProgressLockTTL (%v)", c.RequestTimeout, inProgressLockTTL))
+	}
+
+	if targetEnv == "production" {
+		// Enforce GIN_MODE=release in production
+		if c.GinMode != "release" {
+			errs = append(errs, fmt.Errorf("GIN_MODE must be 'release' in production, got %q", c.GinMode))
+		}
+
+		// Enforce non-empty REDIS_PASSWORD in production
+		if strings.TrimSpace(c.RedisPassword) == "" {
+			errs = append(errs, errors.New("REDIS_PASSWORD cannot be empty in production"))
+		}
+
+		// Insecure default JWT secret check
 		insecureSecrets := map[string]struct{}{
 			"change-this-to-a-secure-random-secret-key-in-production": {},
 			"task-manager-dev-secret-key-32bytes-min!":                {},
