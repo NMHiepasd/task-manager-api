@@ -42,4 +42,4 @@ Key requirements:
 - 100% covered by property fuzzing and contract tests in Schemathesis.
 
 ### Negative / Trade-offs
-- Comment listing performs an indexed join on `users` to provide author details (`full_name`, `email`) in a single query.
+- Comment listing performs an indexed join on `users` to provide author details (`full_name`) in a single query (email address is excluded from responses and webhook payloads to preserve user privacy).

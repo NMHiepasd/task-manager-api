@@ -263,8 +263,6 @@ definitions:
         type: string
       created_at:
         type: string
-      email:
-        type: string
       id:
         type: string
       task_id:

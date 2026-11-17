@@ -49,6 +49,8 @@ Webhook events wrap their payload in a standardized JSON envelope:
 
 > [!NOTE]
 > The top-level `"id"` field inside the JSON envelope matches the `X-Webhook-Id` header.
+>
+> **Privacy Hardening**: In compliance with user privacy protections, event payloads (such as `comment.created`) do not expose personal emails. They only include public identifiers: `user_id` (author UUID) and `author` (display name).
 
 ---
 

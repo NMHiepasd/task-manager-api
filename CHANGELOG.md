@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Breaking Changes
+- **User Privacy Hardening (Task Comments)**:
+  - Removed `email` field from `CommentResponse` DTO (`GET /api/v1/tasks/{id}/comments`, `POST /api/v1/tasks/{id}/comments`, `PATCH /api/v1/tasks/{id}/comments/{commentId}`).
+  - Removed `email` field from `comment.created` webhook event data payload. Only public attributes (`author` display name, `user_id` UUID) are exposed to project collaborators and webhook subscribers.
 - **Webhook V2 Signature & Anti-Replay Architecture**:
   - Deprecated legacy `X-Webhook-Signature: sha256=<hex>` header.
   - Upgraded all deliveries to **Webhook V2** standard:
