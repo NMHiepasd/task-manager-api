@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"task-manager-api/internal/authz"
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/pagination"
@@ -240,6 +241,49 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 	return resp, nil
 }
 
+// loadTaskResource retrieves task details and constructs the authorization Resource.
+func (s *taskService) loadTaskResource(ctx context.Context, userID uuid.UUID, task repository.Task) (authz.Resource, error) {
+	res := authz.Resource{
+		TaskID:    task.ID,
+		CreatorID: task.CreatorID,
+	}
+	if task.AssigneeID.Valid {
+		assigneeID := uuid.UUID(task.AssigneeID.Bytes)
+		res.AssigneeID = &assigneeID
+	}
+
+	if task.ProjectID.Valid {
+		projectID := uuid.UUID(task.ProjectID.Bytes)
+		res.ProjectID = &projectID
+
+		project, pErr := s.repo.GetProjectByID(ctx, projectID)
+		if pErr != nil {
+			if errors.Is(pErr, pgx.ErrNoRows) {
+				return authz.Resource{}, ErrTaskNotFound
+			}
+			return authz.Resource{}, fmt.Errorf("failed to get project: %w", pErr)
+		}
+
+		if project.DeletedAt.Valid {
+			res.ProjectDeleted = true
+		}
+
+		if project.OwnerID == userID {
+			res.MemberRole = authz.RolePtr(authz.RoleOwner)
+		} else {
+			member, mErr := s.repo.GetProjectMember(ctx, repository.GetProjectMemberParams{
+				ProjectID: projectID,
+				UserID:    userID,
+			})
+			if mErr == nil {
+				res.MemberRole = authz.ParseRole(member.Role)
+			}
+		}
+	}
+
+	return res, nil
+}
+
 // GetTaskByID retrieves task and its tags, verifying access permissions.
 func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*TaskResponse, error) {
 	task, err := s.repo.GetTaskByID(ctx, taskID)
@@ -250,13 +294,17 @@ func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID 
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	// Verify permission: creator, assignee, or project collaborator
-	hasAccess := task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID)
-	if !hasAccess && task.ProjectID.Valid {
-		hasAccess = s.checkProjectAccess(ctx, task.ProjectID.Bytes, userID, "owner", "editor", "viewer")
+	if task.DeletedAt.Valid {
+		return nil, ErrTaskNotFound
 	}
 
-	if !hasAccess {
+	res, err := s.loadTaskResource(ctx, userID, task)
+	if err != nil {
+		return nil, err
+	}
+
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
 		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
 	}
 
@@ -268,9 +316,9 @@ func (s *taskService) GetTaskByID(ctx context.Context, userID uuid.UUID, taskID 
 	return s.mapTask(task, tags), nil
 }
 
-// ListProjectTasks lists all tasks belonging to a specific project after verifying ownership.
+// ListProjectTasks lists all tasks belonging to a specific project after verifying access.
 func (s *taskService) ListProjectTasks(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, filter ListTasksFilter) (*PaginatedTasksResponse, error) {
-	// Verify project ownership (anti-IDOR: return 404 if project doesn't exist or belong to user)
+	// Verify project access (anti-IDOR: return 404 if project doesn't exist, is soft-deleted, or user lacks access)
 	project, err := s.repo.GetProjectByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -278,7 +326,10 @@ func (s *taskService) ListProjectTasks(ctx context.Context, userID uuid.UUID, pr
 		}
 		return nil, fmt.Errorf("failed to fetch project: %w", err)
 	}
-	if project.OwnerID != userID {
+	if project.DeletedAt.Valid {
+		return nil, ErrProjectNotFound
+	}
+	if project.OwnerID != userID && !s.checkProjectAccess(ctx, projectID, userID, "owner", "editor", "viewer") {
 		return nil, ErrProjectNotFound // anti-IDOR
 	}
 

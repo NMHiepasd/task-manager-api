@@ -15,18 +15,26 @@ import (
 
 type mockTaskQuerier struct {
 	mockQuerier
-	createTaskFn      func(ctx context.Context, arg repository.CreateTaskParams) (repository.Task, error)
-	getTaskByIDFn     func(ctx context.Context, id uuid.UUID) (repository.Task, error)
-	listTasksFn       func(ctx context.Context, arg repository.ListTasksParams) ([]repository.Task, error)
-	listTasksKeysetFn func(ctx context.Context, arg repository.ListTasksKeysetParams) ([]repository.Task, error)
-	countTasksFn      func(ctx context.Context, arg repository.CountTasksParams) (int64, error)
-	updateTaskFn      func(ctx context.Context, arg repository.UpdateTaskParams) (repository.Task, error)
-	softDeleteTaskFn  func(ctx context.Context, id uuid.UUID) error
-	getProjectByIDFn  func(ctx context.Context, id uuid.UUID) (repository.Project, error)
-	getTagsForTaskFn  func(ctx context.Context, taskID uuid.UUID) ([]repository.Tag, error)
-	getTagsForTasksFn func(ctx context.Context, taskIDs []uuid.UUID) ([]repository.GetTagsForTasksRow, error)
-	clearTaskTagsFn   func(ctx context.Context, taskID uuid.UUID) error
-	addTagToTaskFn    func(ctx context.Context, arg repository.AddTagToTaskParams) error
+	createTaskFn       func(ctx context.Context, arg repository.CreateTaskParams) (repository.Task, error)
+	getTaskByIDFn      func(ctx context.Context, id uuid.UUID) (repository.Task, error)
+	listTasksFn        func(ctx context.Context, arg repository.ListTasksParams) ([]repository.Task, error)
+	listTasksKeysetFn  func(ctx context.Context, arg repository.ListTasksKeysetParams) ([]repository.Task, error)
+	countTasksFn       func(ctx context.Context, arg repository.CountTasksParams) (int64, error)
+	updateTaskFn       func(ctx context.Context, arg repository.UpdateTaskParams) (repository.Task, error)
+	softDeleteTaskFn   func(ctx context.Context, id uuid.UUID) error
+	getProjectByIDFn   func(ctx context.Context, id uuid.UUID) (repository.Project, error)
+	getProjectMemberFn func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
+	getTagsForTaskFn   func(ctx context.Context, taskID uuid.UUID) ([]repository.Tag, error)
+	getTagsForTasksFn  func(ctx context.Context, taskIDs []uuid.UUID) ([]repository.GetTagsForTasksRow, error)
+	clearTaskTagsFn    func(ctx context.Context, taskID uuid.UUID) error
+	addTagToTaskFn     func(ctx context.Context, arg repository.AddTagToTaskParams) error
+}
+
+func (m *mockTaskQuerier) GetProjectMember(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+	if m.getProjectMemberFn != nil {
+		return m.getProjectMemberFn(ctx, arg)
+	}
+	return repository.ProjectMember{}, pgx.ErrNoRows
 }
 
 func (m *mockTaskQuerier) ClearTaskTags(ctx context.Context, taskID uuid.UUID) error {
@@ -303,6 +311,106 @@ func TestTaskService_GetTaskByID(t *testing.T) {
 
 		svc := NewTaskService(mock)
 		_, err := svc.GetTaskByID(context.Background(), userID, taskID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_RemovedCreatorGets404", func(t *testing.T) {
+		removedCreatorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: removedCreatorID, // Original creator
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Project Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{
+					ID:      id,
+					OwnerID: ownerID, // Different owner
+				}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{}, pgx.ErrNoRows // Removed from project!
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.GetTaskByID(context.Background(), removedCreatorID, tID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_ViewerCanRead", func(t *testing.T) {
+		viewerID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Viewer Read Task",
+					Status:    "todo",
+					Priority:  "medium",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{
+					ID:      id,
+					OwnerID: ownerID,
+				}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == viewerID {
+					return repository.ProjectMember{ProjectID: projID, UserID: viewerID, Role: "viewer"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+			getTagsForTaskFn: func(_ context.Context, _ uuid.UUID) ([]repository.Tag, error) {
+				return nil, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.GetTaskByID(context.Background(), viewerID, tID)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "Viewer Read Task", res.Title)
+	})
+
+	t.Run("ADR018_SoftDeletedProjectGets404", func(t *testing.T) {
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Deleted Project Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{
+					ID:        id,
+					OwnerID:   ownerID,
+					DeletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, // Soft-deleted project!
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.GetTaskByID(context.Background(), ownerID, tID)
 		require.ErrorIs(t, err, ErrTaskNotFound)
 	})
 }
