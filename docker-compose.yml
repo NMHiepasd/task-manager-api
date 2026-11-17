@@ -99,7 +99,7 @@ services:
       - task_network
 
   adminer:
-    image: adminer:4.8.1@sha256:34d37131366c5aa84e1693dbed48593ed6f95fb450b576c1a7a59d3a9c9e8802
+    image: adminer:6.2.0@sha256:400af848ac3f57938abde4867677df1b195674d232c8896a27d111d04b9c088c
     container_name: task_manager_adminer
     restart: unless-stopped
     environment:
