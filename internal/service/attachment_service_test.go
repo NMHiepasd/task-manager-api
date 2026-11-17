@@ -61,13 +61,15 @@ func (m *mockStorageClient) EnsureBucket(ctx context.Context) error {
 
 type mockAttachmentQuerier struct {
 	mockQuerier
-	getTaskByIDFn                 func(ctx context.Context, id uuid.UUID) (repository.Task, error)
-	getProjectByIDFn              func(ctx context.Context, id uuid.UUID) (repository.Project, error)
-	getProjectMemberFn            func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
-	createTaskAttachmentFn        func(ctx context.Context, arg repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error)
-	getTaskAttachmentByIDFn       func(ctx context.Context, id uuid.UUID) (repository.TaskAttachment, error)
-	listTaskAttachmentsByTaskIDFn func(ctx context.Context, id uuid.UUID) ([]repository.TaskAttachment, error)
-	deleteTaskAttachmentFn        func(ctx context.Context, id uuid.UUID) error
+	getTaskByIDFn                    func(ctx context.Context, id uuid.UUID) (repository.Task, error)
+	getProjectByIDFn                 func(ctx context.Context, id uuid.UUID) (repository.Project, error)
+	getProjectMemberFn               func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
+	createTaskAttachmentFn           func(ctx context.Context, arg repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error)
+	getTaskAttachmentByIDFn          func(ctx context.Context, id uuid.UUID) (repository.TaskAttachment, error)
+	listTaskAttachmentsByTaskIDFn    func(ctx context.Context, id uuid.UUID) ([]repository.TaskAttachment, error)
+	deleteTaskAttachmentFn           func(ctx context.Context, id uuid.UUID) error
+	countAttachmentsByTaskIDFn       func(ctx context.Context, taskID uuid.UUID) (int64, error)
+	getTotalAttachmentSizeByUserIDFn func(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
 func (m *mockAttachmentQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (repository.Task, error) {
@@ -117,6 +119,20 @@ func (m *mockAttachmentQuerier) DeleteTaskAttachment(ctx context.Context, id uui
 		return m.deleteTaskAttachmentFn(ctx, id)
 	}
 	return nil
+}
+
+func (m *mockAttachmentQuerier) CountAttachmentsByTaskID(ctx context.Context, taskID uuid.UUID) (int64, error) {
+	if m.countAttachmentsByTaskIDFn != nil {
+		return m.countAttachmentsByTaskIDFn(ctx, taskID)
+	}
+	return 0, nil
+}
+
+func (m *mockAttachmentQuerier) GetTotalAttachmentSizeByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	if m.getTotalAttachmentSizeByUserIDFn != nil {
+		return m.getTotalAttachmentSizeByUserIDFn(ctx, userID)
+	}
+	return 0, nil
 }
 
 func TestAttachmentService_UploadAttachment(t *testing.T) {
@@ -248,6 +264,58 @@ func TestAttachmentService_UploadAttachment(t *testing.T) {
 		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10)
 		_, err := svc.UploadAttachment(ctx, viewerID, taskID, "doc.pdf", 100, "application/pdf", strings.NewReader("%PDF-1.4 content"))
 		assert.ErrorIs(t, err, ErrInsufficientProjectRole)
+	})
+
+	t.Run("QuotaExceeded_MaxAttachmentsPerTask", func(t *testing.T) {
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			countAttachmentsByTaskIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 3, nil
+			},
+			getTotalAttachmentSizeByUserIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 100, nil
+			},
+		}
+		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10, 3, 500)
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "doc.pdf", 100, "application/pdf", strings.NewReader("%PDF-1.4 content"))
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrAttachmentQuotaExceeded)
+		assert.Contains(t, err.Error(), "maximum attachment limit of 3 files per task reached")
+	})
+
+	t.Run("QuotaExceeded_MaxUserStorageMB", func(t *testing.T) {
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			countAttachmentsByTaskIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 1, nil
+			},
+			getTotalAttachmentSizeByUserIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 4900 * 1024, nil
+			},
+		}
+		svc := NewAttachmentService(mockRepo, &mockStorageClient{}, 10, 20, 5)
+		fileBytes := make([]byte, 300*1024)
+		copy(fileBytes, "%PDF-1.4 content")
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "doc.pdf", int64(len(fileBytes)), "application/pdf", bytes.NewReader(fileBytes))
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrAttachmentQuotaExceeded)
+		assert.Contains(t, err.Error(), "user storage quota of 5 MB exceeded")
 	})
 }
 

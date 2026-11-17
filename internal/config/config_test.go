@@ -133,9 +133,13 @@ func TestConfig_Load_S3PublicEndpointAndPresign(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!")
 	t.Setenv("S3_PUBLIC_ENDPOINT", "https://cdn.example.com")
 	t.Setenv("ATTACHMENT_PRESIGN_ENABLED", "false")
+	t.Setenv("MAX_ATTACHMENTS_PER_TASK", "50")
+	t.Setenv("MAX_USER_STORAGE_MB", "1000")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "https://cdn.example.com", cfg.S3PublicEndpoint)
 	assert.False(t, cfg.AttachmentPresignEnabled)
+	assert.Equal(t, int64(50), cfg.MaxAttachmentsPerTask)
+	assert.Equal(t, int64(1000), cfg.MaxUserStorageMB)
 }

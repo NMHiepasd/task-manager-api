@@ -73,6 +73,8 @@ type Config struct {
 	S3Region                 string `env:"S3_REGION" envDefault:"us-east-1"`
 	MaxUploadSizeMB          int64  `env:"MAX_UPLOAD_SIZE_MB" envDefault:"10"`
 	AttachmentPresignEnabled bool   `env:"ATTACHMENT_PRESIGN_ENABLED" envDefault:"true"`
+	MaxAttachmentsPerTask    int64  `env:"MAX_ATTACHMENTS_PER_TASK" envDefault:"20"`
+	MaxUserStorageMB         int64  `env:"MAX_USER_STORAGE_MB" envDefault:"500"`
 
 	// Webhooks
 	AllowLocalWebhooks bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`

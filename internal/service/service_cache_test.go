@@ -444,3 +444,11 @@ func (m *mockQuerierWithHooks) GetWebhookDeliveryByID(context.Context, uuid.UUID
 func (m *mockQuerierWithHooks) ListWebhookDeliveries(context.Context, repository.ListWebhookDeliveriesParams) ([]repository.WebhookDelivery, error) {
 	return nil, nil
 }
+
+func (m *mockQuerierWithHooks) CountAttachmentsByTaskID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) GetTotalAttachmentSizeByUserID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}

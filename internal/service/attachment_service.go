@@ -99,10 +99,12 @@ type AttachmentService interface {
 }
 
 type attachmentService struct {
-	queries            repository.Querier
-	storage            storage.Client
-	maxUploadSizeBytes int64
-	dispatcher         EventDispatcher
+	queries               repository.Querier
+	storage               storage.Client
+	maxUploadSizeBytes    int64
+	maxAttachmentsPerTask int64
+	maxUserStorageBytes   int64
+	dispatcher            EventDispatcher
 }
 
 // SetEventDispatcher registers an event dispatcher for webhook notifications.
@@ -111,14 +113,25 @@ func (s *attachmentService) SetEventDispatcher(dispatcher EventDispatcher) {
 }
 
 // NewAttachmentService creates a new AttachmentService instance.
-func NewAttachmentService(queries repository.Querier, storage storage.Client, maxUploadSizeMB int64) AttachmentService {
+// Optional quotaLimits: quotaLimits[0] = maxAttachmentsPerTask, quotaLimits[1] = maxUserStorageMB.
+func NewAttachmentService(queries repository.Querier, storage storage.Client, maxUploadSizeMB int64, quotaLimits ...int64) AttachmentService {
 	if maxUploadSizeMB <= 0 {
 		maxUploadSizeMB = 10
 	}
+	maxAttachmentsPerTask := int64(20)
+	if len(quotaLimits) > 0 && quotaLimits[0] > 0 {
+		maxAttachmentsPerTask = quotaLimits[0]
+	}
+	maxUserStorageMB := int64(500)
+	if len(quotaLimits) > 1 && quotaLimits[1] > 0 {
+		maxUserStorageMB = quotaLimits[1]
+	}
 	return &attachmentService{
-		queries:            queries,
-		storage:            storage,
-		maxUploadSizeBytes: maxUploadSizeMB * 1024 * 1024,
+		queries:               queries,
+		storage:               storage,
+		maxUploadSizeBytes:    maxUploadSizeMB * 1024 * 1024,
+		maxAttachmentsPerTask: maxAttachmentsPerTask,
+		maxUserStorageBytes:   maxUserStorageMB * 1024 * 1024,
 	}
 }
 
@@ -161,6 +174,24 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	task, _, err := s.verifyTaskAccess(ctx, userID, taskID, authz.ActionUpload)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify task attachment count quota
+	count, err := s.queries.CountAttachmentsByTaskID(ctx, task.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count task attachments: %w", err)
+	}
+	if count >= s.maxAttachmentsPerTask {
+		return nil, fmt.Errorf("%w: maximum attachment limit of %d files per task reached", ErrAttachmentQuotaExceeded, s.maxAttachmentsPerTask)
+	}
+
+	// Verify user total storage quota
+	totalUserStorage, err := s.queries.GetTotalAttachmentSizeByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate user storage usage: %w", err)
+	}
+	if totalUserStorage+fileSize > s.maxUserStorageBytes {
+		return nil, fmt.Errorf("%w: user storage quota of %d MB exceeded", ErrAttachmentQuotaExceeded, s.maxUserStorageBytes/(1024*1024))
 	}
 
 	// Generate safe unique storage key: tasks/{taskID}/{uuid}_{cleanFileName}

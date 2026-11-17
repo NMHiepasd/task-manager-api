@@ -328,6 +328,14 @@ func (m *mockQuerier) ListWebhookDeliveries(context.Context, repository.ListWebh
 	return nil, nil
 }
 
+func (m *mockQuerier) CountAttachmentsByTaskID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerier) GetTotalAttachmentSizeByUserID(context.Context, uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {
