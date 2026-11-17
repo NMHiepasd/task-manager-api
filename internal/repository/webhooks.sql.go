@@ -107,6 +107,24 @@ func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDe
 	return i, err
 }
 
+const deactivateProjectWebhooksByUser = `-- name: DeactivateProjectWebhooksByUser :exec
+UPDATE webhooks
+SET is_active = false,
+    updated_at = NOW()
+WHERE project_id = $1
+  AND user_id = $2
+`
+
+type DeactivateProjectWebhooksByUserParams struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	UserID    uuid.UUID   `json:"user_id"`
+}
+
+func (q *Queries) DeactivateProjectWebhooksByUser(ctx context.Context, arg DeactivateProjectWebhooksByUserParams) error {
+	_, err := q.db.Exec(ctx, deactivateProjectWebhooksByUser, arg.ProjectID, arg.UserID)
+	return err
+}
+
 const deleteWebhook = `-- name: DeleteWebhook :exec
 DELETE FROM webhooks
 WHERE id = $1

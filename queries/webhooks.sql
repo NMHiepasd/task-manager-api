@@ -38,6 +38,13 @@ RETURNING *;
 DELETE FROM webhooks
 WHERE id = $1;
 
+-- name: DeactivateProjectWebhooksByUser :exec
+UPDATE webhooks
+SET is_active = false,
+    updated_at = NOW()
+WHERE project_id = $1
+  AND user_id = $2;
+
 -- name: ListActiveWebhooksForEvent :many
 SELECT w.* FROM webhooks w
 LEFT JOIN projects p ON p.id = w.project_id AND p.deleted_at IS NULL

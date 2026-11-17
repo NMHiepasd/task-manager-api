@@ -30,6 +30,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
 	CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) (WebhookDelivery, error)
+	DeactivateProjectWebhooksByUser(ctx context.Context, arg DeactivateProjectWebhooksByUserParams) error
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotencyKeyParams) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error

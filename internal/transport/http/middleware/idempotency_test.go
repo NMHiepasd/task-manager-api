@@ -111,6 +111,10 @@ func (m *mockIdempotencyQuerier) setRecord(rec repository.IdempotencyKey) {
 }
 
 // Stubs to fulfill repository.Querier
+func (m *mockIdempotencyQuerier) DeactivateProjectWebhooksByUser(context.Context, repository.DeactivateProjectWebhooksByUserParams) error {
+	return nil
+}
+
 func (m *mockIdempotencyQuerier) DeleteOldIdempotencyKeys(context.Context, pgtype.Timestamptz) error {
 	return nil
 }

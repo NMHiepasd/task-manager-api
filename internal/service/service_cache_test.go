@@ -421,6 +421,10 @@ func (m *mockQuerierWithHooks) DeleteWebhook(context.Context, uuid.UUID) error {
 	return nil
 }
 
+func (m *mockQuerierWithHooks) DeactivateProjectWebhooksByUser(context.Context, repository.DeactivateProjectWebhooksByUserParams) error {
+	return nil
+}
+
 func (m *mockQuerierWithHooks) ListActiveWebhooksForEvent(context.Context, repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
 	return nil, nil
 }
