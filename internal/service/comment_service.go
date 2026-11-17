@@ -33,7 +33,6 @@ type CommentResponse struct {
 	TaskID    uuid.UUID `json:"task_id"`
 	UserID    uuid.UUID `json:"user_id"`
 	Author    string    `json:"author"`
-	Email     string    `json:"email"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -178,7 +177,6 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		TaskID:    created.TaskID,
 		UserID:    created.UserID,
 		Author:    user.FullName,
-		Email:     user.Email,
 		Content:   created.Content,
 		CreatedAt: created.CreatedAt.Time,
 		UpdatedAt: created.UpdatedAt.Time,
@@ -248,7 +246,6 @@ func (s *commentService) ListComments(ctx context.Context, userID uuid.UUID, tas
 				TaskID:    r.TaskID,
 				UserID:    r.UserID,
 				Author:    r.FullName,
-				Email:     r.Email,
 				Content:   r.Content,
 				CreatedAt: r.CreatedAt.Time,
 				UpdatedAt: r.UpdatedAt.Time,
@@ -291,7 +288,6 @@ func (s *commentService) ListComments(ctx context.Context, userID uuid.UUID, tas
 			TaskID:    r.TaskID,
 			UserID:    r.UserID,
 			Author:    r.FullName,
-			Email:     r.Email,
 			Content:   r.Content,
 			CreatedAt: r.CreatedAt.Time,
 			UpdatedAt: r.UpdatedAt.Time,
@@ -358,7 +354,6 @@ func (s *commentService) UpdateComment(ctx context.Context, userID uuid.UUID, ta
 		TaskID:    updated.TaskID,
 		UserID:    updated.UserID,
 		Author:    existing.FullName,
-		Email:     existing.Email,
 		Content:   updated.Content,
 		CreatedAt: updated.CreatedAt.Time,
 		UpdatedAt: updated.UpdatedAt.Time,

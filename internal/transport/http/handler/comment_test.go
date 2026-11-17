@@ -80,7 +80,6 @@ func TestCommentHandler_Create(t *testing.T) {
 					TaskID:    tID,
 					UserID:    uID,
 					Author:    "Test Author",
-					Email:     "author@test.com",
 					Content:   input.Content,
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),

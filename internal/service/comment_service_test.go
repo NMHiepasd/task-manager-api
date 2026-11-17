@@ -154,7 +154,6 @@ func TestCommentService_CreateComment(t *testing.T) {
 		require.Equal(t, commentID, resp.ID)
 		require.Equal(t, "This is a comment", resp.Content)
 		require.Equal(t, "Author User", resp.Author)
-		require.Equal(t, "author@example.com", resp.Email)
 	})
 
 	t.Run("EmptyContent", func(t *testing.T) {
