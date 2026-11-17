@@ -3,6 +3,7 @@ package middleware_test
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"task-manager-api/internal/cache"
@@ -135,6 +136,13 @@ func TestRateLimiter_FallbackToInMemory_OnRedisError(t *testing.T) {
 
 func TestRateLimiter_DistributedWithRedis(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	conn, dialErr := net.DialTimeout("tcp", "localhost:6379", 200*time.Millisecond)
+	if dialErr != nil {
+		t.Skip("Skipping Redis test: local redis container not available on localhost:6379")
+		return
+	}
+	_ = conn.Close()
 
 	ctx := context.Background()
 	redisCache, err := cache.NewRedisCache(ctx, "redis://localhost:6379/2", "", 2)

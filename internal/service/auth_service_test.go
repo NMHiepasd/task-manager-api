@@ -185,6 +185,10 @@ func (m *mockQuerier) DeactivateProjectWebhooksByUser(context.Context, repositor
 	return nil
 }
 
+func (m *mockQuerier) UnassignTasksByProjectAndUser(context.Context, repository.UnassignTasksByProjectAndUserParams) error {
+	return nil
+}
+
 func (m *mockQuerier) GetIdempotencyKey(context.Context, repository.GetIdempotencyKeyParams) (repository.IdempotencyKey, error) {
 	return repository.IdempotencyKey{}, nil
 }

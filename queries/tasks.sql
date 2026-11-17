@@ -109,3 +109,9 @@ WHERE t.deleted_at IS NULL
 ORDER BY t.due_date ASC
 LIMIT $2;
 
+-- name: UnassignTasksByProjectAndUser :exec
+UPDATE tasks
+SET assignee_id = NULL
+WHERE project_id = $1 AND assignee_id = $2;
+
+

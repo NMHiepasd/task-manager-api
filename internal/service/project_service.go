@@ -620,6 +620,13 @@ func (s *projectService) RemoveMember(ctx context.Context, currentUserID uuid.UU
 		return fmt.Errorf("failed to deactivate project webhooks: %w", err)
 	}
 
+	if err := s.repo.UnassignTasksByProjectAndUser(ctx, repository.UnassignTasksByProjectAndUserParams{
+		ProjectID:  pgtype.UUID{Bytes: projectID, Valid: true},
+		AssigneeID: pgtype.UUID{Bytes: targetUserID, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("failed to unassign project tasks: %w", err)
+	}
+
 	_ = s.cache.Delete(ctx, fmt.Sprintf("project:%s:%s", targetUserID, projectID))
 
 	return nil

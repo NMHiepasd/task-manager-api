@@ -411,6 +411,22 @@ func (q *Queries) SoftDeleteTask(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const unassignTasksByProjectAndUser = `-- name: UnassignTasksByProjectAndUser :exec
+UPDATE tasks
+SET assignee_id = NULL
+WHERE project_id = $1 AND assignee_id = $2
+`
+
+type UnassignTasksByProjectAndUserParams struct {
+	ProjectID  pgtype.UUID `json:"project_id"`
+	AssigneeID pgtype.UUID `json:"assignee_id"`
+}
+
+func (q *Queries) UnassignTasksByProjectAndUser(ctx context.Context, arg UnassignTasksByProjectAndUserParams) error {
+	_, err := q.db.Exec(ctx, unassignTasksByProjectAndUser, arg.ProjectID, arg.AssigneeID)
+	return err
+}
+
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET 

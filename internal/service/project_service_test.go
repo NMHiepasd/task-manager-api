@@ -30,6 +30,7 @@ type mockProjectQuerier struct {
 	updateProjectMemberRoleFn         func(ctx context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error)
 	deleteProjectMemberFn             func(ctx context.Context, arg repository.DeleteProjectMemberParams) error
 	deactivateProjectWebhooksByUserFn func(ctx context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error
+	unassignTasksByProjectAndUserFn   func(ctx context.Context, arg repository.UnassignTasksByProjectAndUserParams) error
 	getUserByEmailFn                  func(ctx context.Context, email string) (repository.User, error)
 	getUserByIDFn                     func(ctx context.Context, id uuid.UUID) (repository.User, error)
 }
@@ -39,6 +40,13 @@ func (m *mockProjectQuerier) DeactivateProjectWebhooksByUser(ctx context.Context
 		return m.deactivateProjectWebhooksByUserFn(ctx, arg)
 	}
 	return m.mockQuerier.DeactivateProjectWebhooksByUser(ctx, arg)
+}
+
+func (m *mockProjectQuerier) UnassignTasksByProjectAndUser(ctx context.Context, arg repository.UnassignTasksByProjectAndUserParams) error {
+	if m.unassignTasksByProjectAndUserFn != nil {
+		return m.unassignTasksByProjectAndUserFn(ctx, arg)
+	}
+	return nil
 }
 
 func (m *mockProjectQuerier) ListProjectsKeyset(ctx context.Context, arg repository.ListProjectsKeysetParams) ([]repository.Project, error) {
@@ -644,6 +652,7 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 	t.Run("RemoveMember_OwnerRemovesMember_Success", func(t *testing.T) {
 		deleted := false
 		deactivated := false
+		unassigned := false
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
 				return project, nil
@@ -659,6 +668,12 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
 				require.Equal(t, targetUserID, arg.UserID)
 				deactivated = true
+				return nil
+			},
+			unassignTasksByProjectAndUserFn: func(_ context.Context, arg repository.UnassignTasksByProjectAndUserParams) error {
+				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
+				require.Equal(t, targetUserID, uuid.UUID(arg.AssigneeID.Bytes))
+				unassigned = true
 				return nil
 			},
 		}
@@ -668,11 +683,13 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, deleted)
 		require.True(t, deactivated, "webhooks should be deactivated when member is removed")
+		require.True(t, unassigned, "tasks assigned to removed member must be unassigned")
 	})
 
 	t.Run("RemoveMember_MemberLeaves_Success", func(t *testing.T) {
 		deleted := false
 		deactivated := false
+		unassigned := false
 		mock := &mockProjectQuerier{
 			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
 				return project, nil
@@ -688,6 +705,12 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
 				require.Equal(t, targetUserID, arg.UserID)
 				deactivated = true
+				return nil
+			},
+			unassignTasksByProjectAndUserFn: func(_ context.Context, arg repository.UnassignTasksByProjectAndUserParams) error {
+				require.Equal(t, projectID, uuid.UUID(arg.ProjectID.Bytes))
+				require.Equal(t, targetUserID, uuid.UUID(arg.AssigneeID.Bytes))
+				unassigned = true
 				return nil
 			},
 		}
@@ -698,6 +721,7 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, deleted)
 		require.True(t, deactivated, "webhooks should be deactivated when member leaves project")
+		require.True(t, unassigned, "tasks assigned to departing member must be unassigned")
 	})
 
 	t.Run("RemoveMember_CannotRemoveOwner", func(t *testing.T) {

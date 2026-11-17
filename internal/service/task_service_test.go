@@ -532,6 +532,148 @@ func TestTaskService_UpdateTask(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrAssigneeNotInProject)
 	})
+
+	t.Run("ADR018_EditorCanUpdate", func(t *testing.T) {
+		editorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Old Title",
+					Status:    "todo",
+					Priority:  "medium",
+					Version:   1,
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == editorID {
+					return repository.ProjectMember{ProjectID: projID, UserID: editorID, Role: "editor"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+			updateTaskFn: func(_ context.Context, arg repository.UpdateTaskParams) (repository.Task, error) {
+				return repository.Task{
+					ID:        arg.ID,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     arg.Title,
+					Status:    arg.Status,
+					Priority:  arg.Priority,
+					Version:   2,
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		res, err := svc.UpdateTask(context.Background(), editorID, tID, UpdateTaskInput{
+			Title:   "Editor Updated Title",
+			Version: 1,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "Editor Updated Title", res.Title)
+	})
+
+	t.Run("ADR018_ViewerCannotUpdate_Returns403", func(t *testing.T) {
+		viewerID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Old Title",
+					Version:   1,
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == viewerID {
+					return repository.ProjectMember{ProjectID: projID, UserID: viewerID, Role: "viewer"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.UpdateTask(context.Background(), viewerID, tID, UpdateTaskInput{
+			Title:   "Hacked Title",
+			Version: 1,
+		})
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
+	})
+
+	t.Run("ADR018_RemovedCreatorCannotUpdate_Returns404", func(t *testing.T) {
+		removedCreatorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: removedCreatorID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Old Title",
+					Version:   1,
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{}, pgx.ErrNoRows // Removed!
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.UpdateTask(context.Background(), removedCreatorID, tID, UpdateTaskInput{
+			Title:   "Hacked Title",
+			Version: 1,
+		})
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_AssigneeOnPersonalTaskCannotUpdate_Returns403", func(t *testing.T) {
+		creatorID := uuid.New()
+		assigneeID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:         id,
+					CreatorID:  creatorID,
+					AssigneeID: pgtype.UUID{Bytes: assigneeID, Valid: true},
+					Title:      "Personal Task",
+					Version:    1,
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.UpdateTask(context.Background(), assigneeID, tID, UpdateTaskInput{
+			Title:   "Assignee Overriding Title",
+			Version: 1,
+		})
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
+	})
 }
 
 func TestTaskService_DeleteTask(t *testing.T) {
@@ -563,6 +705,125 @@ func TestTaskService_DeleteTask(t *testing.T) {
 		svc := NewTaskService(mock)
 		err := svc.DeleteTask(context.Background(), userID, taskID)
 		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_EditorCanDelete", func(t *testing.T) {
+		editorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+		deleted := false
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Task To Delete",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == editorID {
+					return repository.ProjectMember{ProjectID: projID, UserID: editorID, Role: "editor"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+			softDeleteTaskFn: func(_ context.Context, id uuid.UUID) error {
+				if id == tID {
+					deleted = true
+				}
+				return nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		err := svc.DeleteTask(context.Background(), editorID, tID)
+		require.NoError(t, err)
+		require.True(t, deleted)
+	})
+
+	t.Run("ADR018_ViewerCannotDelete_Returns403", func(t *testing.T) {
+		viewerID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == viewerID {
+					return repository.ProjectMember{ProjectID: projID, UserID: viewerID, Role: "viewer"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := NewTaskService(mock)
+		err := svc.DeleteTask(context.Background(), viewerID, tID)
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
+	})
+
+	t.Run("ADR018_RemovedCreatorCannotDelete_Returns404", func(t *testing.T) {
+		removedCreatorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: removedCreatorID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{}, pgx.ErrNoRows // Removed!
+			},
+		}
+
+		svc := NewTaskService(mock)
+		err := svc.DeleteTask(context.Background(), removedCreatorID, tID)
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_AssigneeOnPersonalTaskCannotDelete_Returns403", func(t *testing.T) {
+		creatorID := uuid.New()
+		assigneeID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:         id,
+					CreatorID:  creatorID,
+					AssigneeID: pgtype.UUID{Bytes: assigneeID, Valid: true},
+					Title:      "Personal Task",
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		err := svc.DeleteTask(context.Background(), assigneeID, tID)
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
 	})
 }
 
@@ -698,5 +959,130 @@ func TestTaskService_SetTaskTags(t *testing.T) {
 		svc := NewTaskService(mock)
 		_, err := svc.SetTaskTags(context.Background(), userID, taskID, []uuid.UUID{tagID})
 		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_EditorCanSetTags", func(t *testing.T) {
+		editorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+		tgID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Project Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == editorID {
+					return repository.ProjectMember{ProjectID: projID, UserID: editorID, Role: "editor"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+			clearTaskTagsFn: func(_ context.Context, _ uuid.UUID) error {
+				return nil
+			},
+			addTagToTaskFn: func(_ context.Context, _ repository.AddTagToTaskParams) error {
+				return nil
+			},
+			getTagsForTaskFn: func(_ context.Context, _ uuid.UUID) ([]repository.Tag, error) {
+				return []repository.Tag{
+					{ID: tgID, UserID: editorID, Name: "feature", Color: "#10b981"},
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		tags, err := svc.SetTaskTags(context.Background(), editorID, tID, []uuid.UUID{tgID})
+		require.NoError(t, err)
+		require.Len(t, tags, 1)
+		assert.Equal(t, "feature", tags[0].Name)
+	})
+
+	t.Run("ADR018_ViewerCannotSetTags_Returns403", func(t *testing.T) {
+		viewerID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: ownerID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Project Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				if arg.UserID == viewerID {
+					return repository.ProjectMember{ProjectID: projID, UserID: viewerID, Role: "viewer"}, nil
+				}
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.SetTaskTags(context.Background(), viewerID, tID, []uuid.UUID{uuid.New()})
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
+	})
+
+	t.Run("ADR018_RemovedCreatorCannotSetTags_Returns404", func(t *testing.T) {
+		removedCreatorID := uuid.New()
+		ownerID := uuid.New()
+		projID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: removedCreatorID,
+					ProjectID: pgtype.UUID{Bytes: projID, Valid: true},
+					Title:     "Project Task",
+				}, nil
+			},
+			getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+				return repository.Project{ID: id, OwnerID: ownerID}, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{}, pgx.ErrNoRows // Removed!
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.SetTaskTags(context.Background(), removedCreatorID, tID, []uuid.UUID{uuid.New()})
+		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+
+	t.Run("ADR018_AssigneeOnPersonalTaskCannotSetTags_Returns403", func(t *testing.T) {
+		creatorID := uuid.New()
+		assigneeID := uuid.New()
+		tID := uuid.New()
+
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:         id,
+					CreatorID:  creatorID,
+					AssigneeID: pgtype.UUID{Bytes: assigneeID, Valid: true},
+					Title:      "Personal Task",
+				}, nil
+			},
+		}
+
+		svc := NewTaskService(mock)
+		_, err := svc.SetTaskTags(context.Background(), assigneeID, tID, []uuid.UUID{uuid.New()})
+		require.ErrorIs(t, err, ErrInsufficientProjectRole)
 	})
 }

@@ -372,6 +372,10 @@ func (m *mockIdempotencyQuerier) ListWebhookDeliveries(context.Context, reposito
 	return nil, nil
 }
 
+func (m *mockIdempotencyQuerier) UnassignTasksByProjectAndUser(context.Context, repository.UnassignTasksByProjectAndUserParams) error {
+	return nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

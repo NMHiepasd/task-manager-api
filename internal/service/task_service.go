@@ -157,6 +157,9 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 			}
 			return nil, fmt.Errorf("failed to verify project: %w", err)
 		}
+		if project.DeletedAt.Valid {
+			return nil, ErrProjectNotFound
+		}
 		if project.OwnerID != userID && !s.checkProjectAccess(ctx, *input.ProjectID, userID, "owner", "editor") {
 			return nil, ErrProjectNotFound // anti-IDOR: return 404 instead of 403
 		}
@@ -532,12 +535,22 @@ func (s *taskService) SetTaskTags(ctx context.Context, userID uuid.UUID, taskID 
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	hasAccess := task.CreatorID == userID || (task.AssigneeID.Valid && task.AssigneeID.Bytes == userID)
-	if !hasAccess && task.ProjectID.Valid {
-		hasAccess = s.checkProjectAccess(ctx, task.ProjectID.Bytes, userID, "owner", "editor")
+	if task.DeletedAt.Valid {
+		return nil, ErrTaskNotFound
 	}
-	if !hasAccess {
+
+	res, err := s.loadTaskResource(ctx, userID, task)
+	if err != nil {
+		return nil, err
+	}
+
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
 		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
+	}
+
+	if !authz.Can(sub, res, authz.ActionEdit) {
+		return nil, ErrInsufficientProjectRole
 	}
 
 	// Use transaction if store supports WithTx
@@ -589,16 +602,16 @@ func (s *taskService) SetTaskTags(ctx context.Context, userID uuid.UUID, taskID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch updated tags: %w", err)
 	}
-	var res []TagResponse
+	var updatedTagResponses []TagResponse
 	for _, t := range tags {
-		res = append(res, TagResponse{
+		updatedTagResponses = append(updatedTagResponses, TagResponse{
 			ID:        t.ID,
 			Name:      t.Name,
 			Color:     t.Color,
 			CreatedAt: t.CreatedAt.Time,
 		})
 	}
-	return res, nil
+	return updatedTagResponses, nil
 }
 
 // UpdateTask updates task fields with optimistic lock version verification.
@@ -611,12 +624,22 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 		return nil, fmt.Errorf("failed to check existing task: %w", err)
 	}
 
-	hasAccess := existing.CreatorID == userID || (existing.AssigneeID.Valid && existing.AssigneeID.Bytes == userID)
-	if !hasAccess && existing.ProjectID.Valid {
-		hasAccess = s.checkProjectAccess(ctx, existing.ProjectID.Bytes, userID, "owner", "editor")
+	if existing.DeletedAt.Valid {
+		return nil, ErrTaskNotFound
 	}
-	if !hasAccess {
+
+	res, err := s.loadTaskResource(ctx, userID, existing)
+	if err != nil {
+		return nil, err
+	}
+
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
 		return nil, ErrTaskNotFound // anti-IDOR: return 404 instead of 403
+	}
+
+	if !authz.Can(sub, res, authz.ActionEdit) {
+		return nil, ErrInsufficientProjectRole
 	}
 
 	if existing.Version != input.Version {
@@ -719,12 +742,22 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 		return fmt.Errorf("failed to find task before deletion: %w", err)
 	}
 
-	hasAccess := existing.CreatorID == userID
-	if !hasAccess && existing.ProjectID.Valid {
-		hasAccess = s.checkProjectAccess(ctx, existing.ProjectID.Bytes, userID, "owner", "editor")
+	if existing.DeletedAt.Valid {
+		return ErrTaskNotFound
 	}
-	if !hasAccess {
+
+	res, err := s.loadTaskResource(ctx, userID, existing)
+	if err != nil {
+		return err
+	}
+
+	sub := authz.Subject{UserID: userID}
+	if !authz.Can(sub, res, authz.ActionRead) {
 		return ErrTaskNotFound // anti-IDOR: return 404 instead of 403
+	}
+
+	if !authz.Can(sub, res, authz.ActionDelete) {
+		return ErrInsufficientProjectRole
 	}
 
 	if err := s.repo.SoftDeleteTask(ctx, taskID); err != nil {

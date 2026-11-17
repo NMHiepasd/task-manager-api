@@ -425,6 +425,10 @@ func (m *mockQuerierWithHooks) DeactivateProjectWebhooksByUser(context.Context, 
 	return nil
 }
 
+func (m *mockQuerierWithHooks) UnassignTasksByProjectAndUser(context.Context, repository.UnassignTasksByProjectAndUserParams) error {
+	return nil
+}
+
 func (m *mockQuerierWithHooks) ListActiveWebhooksForEvent(context.Context, repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
 	return nil, nil
 }
