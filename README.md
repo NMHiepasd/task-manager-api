@@ -21,6 +21,10 @@ Production-ready, highly secure Task Manager REST API built in Go adhering to **
   - [Environment Configuration](#environment-configuration)
   - [Quickstart with Docker](#quickstart-with-docker)
   - [Local Development Setup](#local-development-setup)
+- [Observability & Monitoring](#observability--monitoring)
+- [Background Jobs & Task Scheduling (`asynq`)](#background-jobs--task-scheduling-asynq)
+- [Task Access & Authorization Policy](#task-access--authorization-policy)
+- [Event-Driven Webhook System](#event-driven-webhook-system)
 - [Testing Strategy](#testing-strategy)
 - [Available Commands (`Makefile`)](#available-commands-makefile)
 - [Architecture Decision Records (ADR)](#architecture-decision-records-adr)
@@ -421,6 +425,54 @@ Asynchronous task processing and recurring jobs are powered by **Asynq** backed 
   - **Expired Refresh Tokens Pruning**: Scheduled periodically (`CLEANUP_CRON_SCHEDULE`, default `@every 6h`) to clean expired tokens from PostgreSQL.
   - **Upcoming Task Deadline Reminder**: Scheduled periodically (`DEADLINE_REMINDER_CRON_SCHEDULE`, default `@hourly`) to detect tasks approaching deadline within 24 hours and fan out individual alert tasks.
 - **Resilience**: Configurable concurrency, automatic exponential backoff retries, and graceful worker draining on SIGTERM/SIGINT.
+
+---
+
+## Task Access & Authorization Policy
+
+The Task Manager REST API implements a strict, centralized access control engine (`internal/authz`) governed by **[ADR-0018: Task Access Policy](docs/adr/0018-task-access-policy.md)**.
+
+### Core Access Principles
+1. **Personal vs. Collaborative Scope**:
+   - **Personal Tasks** (`project_id == nil`): Accessible exclusively by the task `creator`.
+   - **Project-Scoped Tasks** (`project_id != nil`): Membership in the parent project strictly supersedes individual creator/assignee status. If a user is removed from a project, they immediately forfeit all access to its tasks, comments, and attachments—even for tasks they personally created.
+2. **Assignee Cleanup**:
+   - When a member is removed from a project (`DELETE /api/v1/projects/:id/members/:userId`), all tasks assigned to that member are automatically unassigned (`assignee_id = NULL`) to prevent orphan delegations.
+3. **Anti-IDOR Information Masking**:
+   - All unauthorized lookup and mutation attempts return **RFC 9457 `404 Not Found`** instead of `403 Forbidden` to prevent malicious tenant enumeration of existing UUIDs.
+
+### Permission Matrix Summary
+
+| Project Role / Actor | View Task / Comments / Files | Create Task / Comments / Upload | Edit Task Details | Delete Task | Moderate / Delete Other's Comments & Files |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Project Owner** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Project Editor** | ✅ | ✅ | ✅ | ❌ *(Owner only)* | ❌ *(Own items only)* |
+| **Project Viewer** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Removed Member / Non-Member** | ❌ `404` | ❌ `404` | ❌ `404` | ❌ `404` | ❌ `404` |
+
+For detailed rule specifications, edge cases (e.g. soft-deleted tasks/projects), and test matrices, consult **[`docs/adr/0018-task-access-policy.md`](docs/adr/0018-task-access-policy.md)**.
+
+---
+
+## Event-Driven Webhook System
+
+The API features an asynchronous, enterprise-grade webhook delivery pipeline powered by **Redis** and **Asynq**, detailed in **[`docs/webhooks.md`](docs/webhooks.md)** and **[ADR-0017](docs/adr/0017-webhooks-system-asynq.md)**.
+
+### Key Capabilities & Security Controls
+- **Event Catalog**:
+  - `task.created`, `task.updated`, `task.deleted`, `task.status_changed`, `task.comment_created`, `task.attachment_uploaded`.
+- **Anti-SSRF Protection**:
+  - Outbound delivery uses a hardened `safehttp.Client` custom dialer with DNS re-resolution before connection. Outbound traffic to private, loopback, link-local, CGNAT, and cloud metadata ranges (RFC 1918, RFC 3927, RFC 6598, AWS IMDS `169.254.169.254`) is blocked at the socket level.
+- **Webhook V2 Signature Standard (Anti-Replay)**:
+  - Deliveries include `X-Webhook-Id` (stable across retries), `X-Webhook-Timestamp` (fresh per attempt), and `X-Webhook-Signature: v1=<hmac_sha256>`.
+  - Signatures are computed over `t.<timestamp>.id.<delivery_id>.<body>` using HMAC-SHA256 with constant-time verification.
+- **Write-Only Secret Disclosure**:
+  - Webhook secrets are returned **once** upon creation (`POST /api/v1/webhooks`) and masked in all subsequent GET/LIST queries.
+  - User-supplied secrets require a minimum of 32 characters; server auto-generates a secure 24-byte crypto-random secret if omitted.
+- **Collaborator Lifecycle Synchronization**:
+  - If a member is removed from a project or demoted to `viewer`, all their project-scoped webhooks are automatically deactivated (`is_active = false`) within the same atomic transaction.
+
+For signature verification implementations in Go, Node.js, and Python, see **[`docs/webhooks.md`](docs/webhooks.md)**.
 
 ---
 

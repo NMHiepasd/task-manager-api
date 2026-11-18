@@ -9,10 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] - 2026-11-18
+
 ### Breaking Changes
-- **User Privacy Hardening (Task Comments)**:
+- **User Privacy Hardening (Task Comments & Webhooks)**:
   - Removed `email` field from `CommentResponse` DTO (`GET /api/v1/tasks/{id}/comments`, `POST /api/v1/tasks/{id}/comments`, `PATCH /api/v1/tasks/{id}/comments/{commentId}`).
-  - Removed `email` field from `comment.created` webhook event data payload. Only public attributes (`author` display name, `user_id` UUID) are exposed to project collaborators and webhook subscribers.
+  - Removed `email` field from `comment.created` webhook event data payload. Only non-sensitive public attributes (`author` display name, `user_id` UUID) are exposed to project collaborators and webhook subscribers.
 - **Webhook V2 Signature & Anti-Replay Architecture**:
   - Deprecated legacy `X-Webhook-Signature: sha256=<hex>` header.
   - Upgraded all deliveries to **Webhook V2** standard:
@@ -24,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Write-Only Secret Visibility**: Webhook secrets are returned only once upon creation (`POST /api/v1/webhooks`) and masked (`""` / omitted) in `GET`, `LIST`, and `PATCH` endpoints.
 
 ### Added
+- **Centralized Authorization & Task Access Policy (ADR-0018)**:
+  - Introduced pure functional authorization package `internal/authz` implementing the comprehensive permission matrix defined in [ADR-0018](docs/adr/0018-task-access-policy.md).
+  - Integrated `authz.Can` across all service layers: `TaskService`, `CommentService`, and `AttachmentService`.
+  - Added project collaborator cleanup: removing a member automatically resets assigned tasks (`assignee_id = NULL`) and deactivates their project webhooks.
+  - Anti-IDOR enforcement: unauthorized access attempts return RFC 9457 `404 Not Found` (never 403) to prevent resource existence enumeration.
+  - Comprehensive live database integration test matrix in `internal/service/authz_matrix_integration_test.go` using Testcontainers.
 - **Webhook V2 Verification Library**:
   - Introduced `pkg/webhook.SignV2` and `pkg/webhook.VerifyV2` with constant-time comparison and 5-minute configurable timestamp tolerance window.
   - Added sentinel errors: `ErrSignatureMismatch`, `ErrTimestampExpired`, `ErrInvalidSignatureFormat`, `ErrInvalidTimestampFormat`.
@@ -33,6 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Sentinel error `webhook.ErrBlockedIP` for anti-SSRF dialer rejections, replacing string-based matching in worker processor.
   - Automatic deactivation of project webhooks (`DeactivateProjectWebhooksByUser`) when project collaborators are removed or demoted to `viewer`.
   - Restricted `ListActiveWebhooksForEvent` to ensure project webhooks strictly dispatch events to active project owners/editors.
+- **Attachment Quotas & Secure Download**:
+  - Enforced storage limits via `MAX_ATTACHMENTS_PER_TASK` (default 20) and `MAX_USER_STORAGE_MB` (default 500MB).
+  - Safe attachment download streaming using `mime.FormatMediaType` and `X-Content-Type-Options: nosniff`.
+  - Resilient orphan cleanup: failed `storage.Delete` calls enqueue background retry tasks (`storage:delete_object`).
+- **Production Hardening & CI/CD Enhancements**:
+  - Strict configuration startup validation for `APP_ENV`, `GIN_MODE=release`, `REDIS_PASSWORD`, and `RequestTimeout < InProgressLockTTL`.
+  - Race-safe idempotency handling: conditional stale lock deletion using `locked_at` and HTTP 409 `IDEMPOTENCY_IN_PROGRESS` on race collisions.
+  - Base container images pinned by immutable SHA-256 digests across all Compose configurations.
+  - Full Git history secret scanning via Gitleaks action.
+  - Code coverage threshold enforcement ($\ge 65\%$ on service layer) and artifact report uploads.
+  - Production smoke test automation scripts for POSIX Bash (`scripts/smoke-prod.sh`) and Windows PowerShell (`scripts/smoke-prod.ps1`).
 
 ---
 
