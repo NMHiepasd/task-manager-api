@@ -63,7 +63,7 @@ services:
       - task_network
 
   minio:
-    image: cgr.dev/chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
+    image: cgr.dev/chainguard/minio:latest@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
     container_name: task_manager_minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
