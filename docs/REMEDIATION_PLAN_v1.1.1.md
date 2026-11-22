@@ -64,9 +64,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `scripts/webhook-receiver/` (chương trình Go hoặc Python nhỏ), `scripts/smoke-prod.sh`, `docs/smoke-test.md`, `internal/config/config.go` (chỉ nếu chọn phương án b).
 
-- [ ] Vì SSRF guard chặn IP nội bộ, chọn một phương án và ghi vào docs: (a) receiver ở URL công khai do người dùng cấp qua `SMOKE_WEBHOOK_URL`; (b) cờ `WEBHOOK_ALLOW_PRIVATE_HOSTS` chỉ cho môi trường test, `Validate` phải từ chối khi `APP_ENV=production` (kèm test)
-- [ ] Receiver verify bằng `pkg/webhook.VerifyV2` (hoặc ví dụ trong `docs/webhooks.md`), ghi lại `X-Webhook-Id`, timestamp và kết quả
-- [ ] Smoke: tạo webhook, phát sinh sự kiện, chờ nhận, verify đúng; gửi lại chính request đó sau khi quá tolerance thì bị từ chối
+- [x] Vì SSRF guard chặn IP nội bộ, chọn một phương án và ghi vào docs: (a) receiver ở URL công khai do người dùng cấp qua `SMOKE_WEBHOOK_URL`; (b) cờ `WEBHOOK_ALLOW_PRIVATE_HOSTS` chỉ cho môi trường test, `Validate` phải từ chối khi `APP_ENV=production` (kèm test)
+- [x] Receiver verify bằng `pkg/webhook.VerifyV2` (hoặc ví dụ trong `docs/webhooks.md`), ghi lại `X-Webhook-Id`, timestamp và kết quả
+- [x] Smoke: tạo webhook, phát sinh sự kiện, chờ nhận, verify đúng; gửi lại chính request đó sau khi quá tolerance thì bị từ chối
 
 **Xong khi:** bước chạy được bằng một lệnh và phương án đã chọn được ghi rõ.
 

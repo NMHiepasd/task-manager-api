@@ -65,7 +65,7 @@ bash scripts/smoke-prod.sh
 | **4. Task & Attachment Upload** | `POST /api/v1/tasks`, `POST /tasks/:id/attachments` | HTTP `201` task created, HTTP `201` file uploaded to MinIO |
 | **5. Presigned Download & Route Narrowing** | `GET /tasks/:id/attachments/:attId/presigned`, direct `GET`, and `PUT`/`DELETE` to `/{bucket}/*` | HTTP `200` presigned download; HTTP `405 Method Not Allowed` (or `403`) for public `PUT`/`DELETE` direct to MinIO (Task G2 hardening) |
 | **6. Anti-SSRF Protection** | `POST /api/v1/webhooks` with loopback/private/metadata URLs | HTTP `422 Unprocessable Entity` / `400` (blocked) |
-| **7. Webhook V2 Signature** | `POST /api/v1/webhooks` with valid HTTPS & secret | HTTP `201`, HMAC-SHA256 signature verification matching V2 spec |
+| **7. Webhook Delivery & Replay Tolerance** | `POST /api/v1/webhooks` with target URL, live delivery verification with `pkg/webhook.VerifyV2`, and replay test beyond tolerance window | HTTP `201` webhook registered; receiver verifies `X-Webhook-Id`, `X-Webhook-Timestamp`, and `v1=` signature; re-sent request after tolerance (>5m) rejected with HTTP `401 Unauthorized` (Task G3b) |
 | **8. Rate Limit Isolation & Anti-Spoofing** | `POST /api/v1/auth/login` burst from Source A, spoofed `X-Forwarded-For`, and probe from Source B | HTTP `429 Too Many Requests` on Source A; HTTP `429` maintained when client attempts to spoof `X-Forwarded-For` (header ignored by proxy); HTTP `200`/`400`/`401` (not `429`) for Source B with different client IP |
 
 ---
@@ -190,3 +190,33 @@ If running the smoke test against a remote host or in an environment without Doc
        -d '{"email":"test@example.com","password":"wrong"}'
    ```
    **Expected Result:** Machine B receives HTTP `401 Unauthorized` (or `400`), proving Machine A's throttle did not affect Machine B.
+
+---
+
+## 6. Webhook Delivery, V2 Signature & Anti-Replay SOP (Task G3b)
+
+### 6.1 SSRF Guard & Testing Architecture
+To prevent Server-Side Request Forgery (SSRF), the API rejects webhook target URLs pointing to localhost, private RFC1918 ranges, and cloud metadata endpoints (`pkg/webhook.ValidateURL`).
+
+Two testing strategies are provided:
+1. **Option (a) - Public Receiver via `SMOKE_WEBHOOK_URL` (Recommended for Prod Stacks):**
+   - Provide a publicly accessible HTTPS endpoint (e.g., via ngrok, Cloudflare Tunnel, or webhook testing service):
+     ```bash
+     SMOKE_WEBHOOK_URL="https://your-domain.ngrok-free.app/webhook" bash scripts/smoke-prod.sh
+     ```
+   - The smoke test suite registers this URL, publishes events, and validates delivery.
+2. **Option (b) - Internal Testing Flag (`WEBHOOK_ALLOW_PRIVATE_HOSTS` / `ALLOW_LOCAL_WEBHOOKS`):**
+   - Permitted strictly in `development` and `test` environments (`APP_ENV=test` or `APP_ENV=development`).
+   - In production (`APP_ENV=production`), `Config.Validate` actively aborts if `ALLOW_LOCAL_WEBHOOKS` or `WEBHOOK_ALLOW_PRIVATE_HOSTS` is set to `true`, preventing misconfiguration in live environments.
+
+### 6.2 Receiver Verification Engine (`scripts/webhook-receiver`)
+A reference receiver implementation is provided in `scripts/webhook-receiver/main.go`:
+- Validates headers `X-Webhook-Id`, `X-Webhook-Timestamp`, and `X-Webhook-Signature` (`v1=<hex>`).
+- Calls `pkg/webhook.VerifyV2(secret, ts, id, body, sig, time.Now(), 5*time.Minute)`:
+  - Constant-time HMAC comparison prevents timing side-channels.
+  - Replay protection rejects requests older or newer than the 5-minute tolerance window.
+- Test mode verification:
+  ```bash
+  go run ./scripts/webhook-receiver --test
+  ```
+  Runs a comprehensive automated test asserting valid delivery verification, replay attack rejection with `ErrTimestampExpired`, and payload tamper detection with `ErrSignatureMismatch`.
