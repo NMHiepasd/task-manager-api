@@ -74,9 +74,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `docs/smoke-test.md`, `docs/security.md`.
 
-- [ ] Người dùng chạy smoke đầy đủ trên commit candidate của v1.1.1 và dán đầu ra (ngày, commit, kết quả)
-- [ ] Giữ kết quả cũ (commit `4de7e5d`) dưới mục Lịch sử, không xóa
-- [ ] Chạy lại govulncheck, gosec, trivy, gitleaks và cập nhật bảng kết quả
+- [x] Người dùng chạy smoke đầy đủ trên commit candidate của v1.1.1 và dán đầu ra (ngày, commit, kết quả)
+- [x] Giữ kết quả cũ (commit `4de7e5d`) dưới mục Lịch sử, không xóa
+- [x] Chạy lại govulncheck, gosec, trivy, gitleaks và cập nhật bảng kết quả
 
 **Xong khi:** mọi kết quả gắn với commit thật. Agent chỉ chuẩn bị mẫu và chỗ điền.
 

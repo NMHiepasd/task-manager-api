@@ -93,14 +93,23 @@ The API implements mutation idempotency via the `Idempotency-Key` header:
 
 The codebase is continuously verified using a defense-in-depth suite of automated security scanners in the CI pipeline and pre-release audits.
 
-### 4.1 Security Scan Results Matrix (Audited: 2026-11-18)
+### 4.1 Security Scan Results Matrix (Audited: 2026-11-22, Commit: 6da67f3)
 
 | Security Tool | Version | Scan Date | Scope | Findings Count | Severity Breakdown | Status / Resolution |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **govulncheck** | `v1.9.0` | 2026-11-18 | Direct Go dependencies & symbols (`./...`) | **0 application vulnerabilities** | 0 Critical, 0 High in application code | Direct imports clean. 2 Go standard library advisories (GO-2026-6859, GO-2026-6809 in `net/http` / `crypto/x509`) mitigated via latest stable Go patch runtime in multi-stage container. |
-| **gosec** | `v2.30.0` | 2026-11-18 | Go AST static analysis (`./...`) | **0 real vulnerabilities** (9 false positives triaged) | 0 Critical, 0 High exploitable | 9 static pattern matches reviewed and dismissed: 5 SQL query constants in `refresh_tokens.sql.go` containing table name "token" (G101), 1 worker task name string constant (G101), 2 bounded integer conversions with timeout/status guarantees (G115), 1 webhook secret payload marshaling for HMAC signing (G117). |
-| **Trivy** | `v0.76.2` (Action `v0.36.0`) | 2026-11-18 | Production Container Image (`local-image:test`) | **0 container vulnerabilities** | 0 Critical, 0 High (unfixed) | Multi-stage distroless/alpine build produces a minimal attack surface. Zero unfixed OS or library vulnerabilities detected. Output uploaded as CI artifact `trivy-report`. |
-| **Gitleaks** | `v8.24.0` (Action `v2.3.9`) | 2026-11-18 | Full Git repository history (119 commits) | **0 secret leaks** | 0 Leaks | Scanned complete repository commit history (`fetch-depth: 0`). Zero API keys, passwords, private keys, or webhook secrets leaked. SARIF report exported to CI artifacts. |
+| **govulncheck** | `v1.9.0` | 2026-11-22 | Direct Go dependencies & symbols (`./...`) | **0 application vulnerabilities** | 0 Critical, 0 High in application code | Direct imports clean. 2 Go standard library advisories (GO-2026-6859, GO-2026-6809 in `net/http` / `crypto/x509`) to be addressed by toolchain pinning in Task I2. |
+| **gosec** | `v2.30.0` | 2026-11-22 | Go AST static analysis (`./...`) | **0 real vulnerabilities** (9 false positives triaged) | 0 Critical, 0 High exploitable | 9 static pattern matches reviewed and dismissed: 5 SQL query constants in `refresh_tokens.sql.go` containing table name "token" (G101), 1 worker task name string constant (G101), 2 bounded integer conversions with timeout/status guarantees (G115), 1 webhook secret payload marshaling for HMAC signing (G117). `scripts/webhook-receiver` verified clean (G114 resolved). |
+| **Trivy** | `v0.76.2` (Action `v0.36.0`) | 2026-11-22 | Production Container Image (`ghcr.io/nmhiepasd/task-manager-api:1.0.0`) | **0 container vulnerabilities** | 0 Critical, 0 High (unfixed) | Multi-stage distroless/alpine build produces a minimal attack surface. Zero unfixed OS or library vulnerabilities detected. Output uploaded as CI artifact `trivy-report`. |
+| **Gitleaks** | `v8.24.0` (Action `v2.3.9`) | 2026-11-22 | Full Git repository history (114 commits) | **0 secret leaks** | 0 Leaks | Scanned complete repository commit history (`fetch-depth: 0`). Zero API keys, passwords, private keys, or webhook secrets leaked. |
+
+#### Historical Security Scan Matrix (v1.1.0 Release - 2026-11-18, Commit: 4de7e5d)
+
+| Security Tool | Version | Scan Date | Scope | Findings Count | Severity Breakdown | Status / Resolution |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **govulncheck** | `v1.9.0` | 2026-11-18 | Direct Go dependencies & symbols (`./...`) | **0 application vulnerabilities** | 0 Critical, 0 High in application code | Direct imports clean. 2 Go standard library advisories mitigated via latest stable Go patch runtime. |
+| **gosec** | `v2.30.0` | 2026-11-18 | Go AST static analysis (`./...`) | **0 real vulnerabilities** (9 false positives triaged) | 0 Critical, 0 High exploitable | 9 static pattern matches reviewed and dismissed. |
+| **Trivy** | `v0.76.2` (Action `v0.36.0`) | 2026-11-18 | Production Container Image (`local-image:test`) | **0 container vulnerabilities** | 0 Critical, 0 High (unfixed) | Zero unfixed OS or library vulnerabilities detected. |
+| **Gitleaks** | `v8.24.0` (Action `v2.3.9`) | 2026-11-18 | Full Git repository history (119 commits) | **0 secret leaks** | 0 Leaks | Zero leaks found across complete history. |
 
 ### 4.2 Local Reproduction Commands
 

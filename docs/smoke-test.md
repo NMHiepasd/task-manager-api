@@ -72,7 +72,66 @@ bash scripts/smoke-prod.sh
 
 ## 4. Execution Evidence & Actual Output Log
 
-### Run Record: v1.1.0 Pre-Release Smoke Test
+### 4.1 Run Record: v1.1.1 Release Candidate Smoke Test
+
+* **Date:** `2026-11-22 12:50:04Z`
+* **Git Commit:** `6da67f3` (Release Candidate)
+* **Environment:** `docker-compose.prod.yml` (clean volumes)
+* **Operator:** Automated Smoke Test Suite (`scripts/smoke-prod.sh` & `scripts/smoke-prod.ps1`)
+
+#### 1. POSIX Bash Run Output (`bash scripts/smoke-prod.sh`):
+```text
+========================================================================
+  TASK MANAGER API - PRODUCTION SMOKE TEST
+  Date:       2026-11-22 12:50:04Z
+  Commit:     6da67f3
+  Target URL: https://localhost
+========================================================================
+
+[1/8] Checking service readiness (/readyz)... PASSED (HTTP 200, status: ready)
+[2/8] Verifying Caddy blocks public /metrics and /swagger... PASSED (/metrics: 403, /swagger: 403, /debug/pprof: 403)
+[3/8] Testing user registration and authentication... PASSED (Registered smoke_1795351804@example.com, JWT verified)
+[4/8] Creating task and uploading file attachment... PASSED (Task 01a2034e-7fa0-7e4c-8da9-bacbfa960993, Attachment 93606220-f22c-4ac4-8aeb-8d75075ace9f)
+[5/8] Generating presigned URL and verifying download... PASSED (Presigned download verified & PUT/DELETE rejected with 405/403)
+[6/8] Verifying Webhook Anti-SSRF protections... PASSED (127.0.0.1, 169.254.x, 10.x all rejected with HTTP 422/400)
+[7/8] Testing Webhook registration, V2 delivery & replay tolerance... PASSED (Webhook ID: a2c0e22f-4e99-4478-91b0-8147002c7b03 registered, see docs/smoke-test.md for receiver setup)
+[8/8] Testing rate limit isolation by Client IP & anti-spoofing... PASSED (Source A throttled: 429, Spoof blocked: 429; see docs/smoke-test.md for 2-machine SOP)
+
+========================================================================
+  ALL SMOKE TESTS COMPLETED SUCCESSFULLY! [8/8 PASSED]
+  Date:    2026-11-22 12:50:04Z
+  Commit:  6da67f3
+  Result:  SUCCESS - STACK FULLY FUNCTIONAL AND SECURED
+========================================================================
+```
+
+#### 2. Native Windows PowerShell Run Output (`.\scripts\smoke-prod.ps1`):
+```text
+========================================================================
+  TASK MANAGER API - PRODUCTION SMOKE TEST (POWERSHELL)
+  Date:       2026-11-22 12:49:33Z
+  Commit:     6da67f3
+  Target URL: https://localhost
+========================================================================
+
+[1/8] Checking service readiness (/readyz)... PASSED (HTTP 200, status: ready)
+[2/8] Verifying Caddy blocks public /metrics and /swagger... PASSED (/metrics: 403, /swagger: 403, /debug/pprof: 403)
+[3/8] Testing user registration and authentication... PASSED (Registered smoke_1795351773@example.com, JWT verified)
+[4/8] Creating task and uploading file attachment... PASSED (Task 01a2034e-082a-734a-9254-2179ecaa84e9, Attachment ee2f2c90-5803-4fab-9b8e-ef14ac4effea)
+[5/8] Generating presigned URL and verifying download... PASSED (Presigned download verified & PUT/DELETE rejected with 405/403)
+[6/8] Verifying Webhook Anti-SSRF protections... PASSED (127.0.0.1, 169.254.x, 10.x all rejected with HTTP 422/400)
+[7/8] Testing Webhook registration, V2 delivery & replay tolerance... PASSED (Webhook ID: 34923a07-d150-4565-8fbe-04439a9a5462, V2 delivery verified, replay attack rejected after tolerance)
+[8/8] Testing rate limit isolation by Client IP & anti-spoofing... PASSED (Source A: 429, Spoof blocked: 429, Source B isolated: verified (Source B got HTTP 401))
+
+========================================================================
+  ALL SMOKE TESTS COMPLETED SUCCESSFULLY! [8/8 PASSED]
+  Date:    2026-11-22 12:49:33Z
+  Commit:  6da67f3
+  Result:  SUCCESS - STACK FULLY FUNCTIONAL AND SECURED
+========================================================================
+```
+
+### 4.2 Historical Run Records (v1.1.0 Release - Commit 4de7e5d)
 
 * **Date:** `2026-11-17 16:51:50Z`
 * **Git Commit:** `4de7e5d`
