@@ -118,8 +118,8 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `internal/service/webhook_service.go`, `internal/transport/http/handler/webhook.go`, test, `docs/webhooks.md`.
 
-- [ ] Sửa `authorizeWebhookAccess` theo ADR-0019; người không có quyền nhận 404
-- [ ] Test ma trận: người tạo, owner, editor khác, viewer, member đã rời nhân với get, update, delete, deliveries, test ping
+- [x] Sửa `authorizeWebhookAccess` theo ADR-0019; người không có quyền nhận 404
+- [x] Test ma trận: người tạo, owner, editor khác, viewer, member đã rời nhân với get, update, delete, deliveries, test ping
 
 **Xong khi:** test xanh, tài liệu cập nhật.
 

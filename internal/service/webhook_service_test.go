@@ -404,3 +404,258 @@ func TestWebhookService_TriggerTestPingAndDispatch(t *testing.T) {
 		assert.Equal(t, dist.sent[1].DeliveryID.String(), parsed2["id"])
 	})
 }
+
+func TestWebhookService_ADR0019_AuthorizationMatrix(t *testing.T) {
+	ctx := context.Background()
+	projectID := uuid.New()
+	ownerID := uuid.New()
+	creatorID := uuid.New()
+	peerEditorID := uuid.New()
+	viewerID := uuid.New()
+	formerMemberID := uuid.New()
+	demotedCreatorID := uuid.New()
+
+	webhookID := uuid.New()
+	demotedWebhookID := uuid.New()
+
+	//nolint:gosec // G101: Test fixture dummy secret
+	targetWebhook := repository.Webhook{
+		ID:        webhookID,
+		UserID:    creatorID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+		Url:       "https://example.com/target",
+		Secret:    "whsec_target_secret",
+		Events:    []string{"task.created"},
+		IsActive:  true,
+		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	//nolint:gosec // G101: Test fixture dummy secret
+	demotedWebhook := repository.Webhook{
+		ID:        demotedWebhookID,
+		UserID:    demotedCreatorID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+		Url:       "https://example.com/demoted",
+		Secret:    "whsec_demoted_secret",
+		Events:    []string{"task.created"},
+		IsActive:  false, // Deactivated on demotion
+		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: ownerID,
+	}
+
+	mockQ := &mockWebhookQuerier{
+		getWebhookByIDFn: func(_ context.Context, id uuid.UUID) (repository.Webhook, error) {
+			if id == webhookID {
+				return targetWebhook, nil
+			}
+			if id == demotedWebhookID {
+				return demotedWebhook, nil
+			}
+			return repository.Webhook{}, pgx.ErrNoRows
+		},
+		getProjectByIDFn: func(_ context.Context, id uuid.UUID) (repository.Project, error) {
+			if id == projectID {
+				return project, nil
+			}
+			return repository.Project{}, pgx.ErrNoRows
+		},
+		getProjectMemberFn: func(_ context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+			if arg.ProjectID != projectID {
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			}
+			switch arg.UserID {
+			case creatorID:
+				return repository.ProjectMember{ProjectID: projectID, UserID: creatorID, Role: "editor"}, nil
+			case peerEditorID:
+				return repository.ProjectMember{ProjectID: projectID, UserID: peerEditorID, Role: "editor"}, nil
+			case viewerID:
+				return repository.ProjectMember{ProjectID: projectID, UserID: viewerID, Role: "viewer"}, nil
+			case demotedCreatorID:
+				return repository.ProjectMember{ProjectID: projectID, UserID: demotedCreatorID, Role: "viewer"}, nil
+			default:
+				return repository.ProjectMember{}, pgx.ErrNoRows
+			}
+		},
+		updateWebhookFn: func(_ context.Context, arg repository.UpdateWebhookParams) (repository.Webhook, error) {
+			return repository.Webhook{
+				ID:        arg.ID,
+				UserID:    creatorID,
+				ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+				Url:       "https://example.com/updated",
+				IsActive:  true,
+			}, nil
+		},
+		deleteWebhookFn: func(_ context.Context, _ uuid.UUID) error {
+			return nil
+		},
+		listWebhookDeliveriesFn: func(_ context.Context, _ repository.ListWebhookDeliveriesParams) ([]repository.WebhookDelivery, error) {
+			return []repository.WebhookDelivery{
+				{ID: uuid.New(), WebhookID: webhookID, Status: "success"},
+			}, nil
+		},
+		listWebhooksByProjectIDFn: func(_ context.Context, _ pgtype.UUID) ([]repository.Webhook, error) {
+			return []repository.Webhook{targetWebhook, demotedWebhook}, nil
+		},
+	}
+
+	dist := &mockWebhookDistributor{}
+	svc := NewWebhookService(mockQ, dist, false)
+
+	newURL := "https://example.com/updated"
+	updateReq := UpdateWebhookRequest{URL: &newURL}
+
+	// 1. Project Owner: ALLOW for all 5 operations
+	t.Run("ProjectOwner_AllowedAllOperations", func(t *testing.T) {
+		res, err := svc.GetWebhook(ctx, ownerID, webhookID)
+		require.NoError(t, err)
+		assert.Equal(t, webhookID, res.ID)
+
+		upRes, err := svc.UpdateWebhook(ctx, ownerID, webhookID, updateReq)
+		require.NoError(t, err)
+		assert.Equal(t, "https://example.com/updated", upRes.URL)
+
+		err = svc.TriggerTestPing(ctx, ownerID, webhookID)
+		require.NoError(t, err)
+
+		deliveries, err := svc.ListDeliveries(ctx, ownerID, webhookID, 10, 0)
+		require.NoError(t, err)
+		assert.Len(t, deliveries, 1)
+
+		err = svc.DeleteWebhook(ctx, ownerID, webhookID)
+		require.NoError(t, err)
+	})
+
+	// 2. Creator (Active Editor): ALLOW for all 5 operations
+	t.Run("Creator_ActiveEditor_AllowedAllOperations", func(t *testing.T) {
+		res, err := svc.GetWebhook(ctx, creatorID, webhookID)
+		require.NoError(t, err)
+		assert.Equal(t, webhookID, res.ID)
+
+		upRes, err := svc.UpdateWebhook(ctx, creatorID, webhookID, updateReq)
+		require.NoError(t, err)
+		assert.Equal(t, "https://example.com/updated", upRes.URL)
+
+		err = svc.TriggerTestPing(ctx, creatorID, webhookID)
+		require.NoError(t, err)
+
+		deliveries, err := svc.ListDeliveries(ctx, creatorID, webhookID, 10, 0)
+		require.NoError(t, err)
+		assert.Len(t, deliveries, 1)
+
+		err = svc.DeleteWebhook(ctx, creatorID, webhookID)
+		require.NoError(t, err)
+	})
+
+	// 3. Peer Editor: DENY (404) for all 5 operations
+	t.Run("PeerEditor_DeniedAllOperations_404", func(t *testing.T) {
+		_, err := svc.GetWebhook(ctx, peerEditorID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.UpdateWebhook(ctx, peerEditorID, webhookID, updateReq)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.TriggerTestPing(ctx, peerEditorID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.ListDeliveries(ctx, peerEditorID, webhookID, 10, 0)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.DeleteWebhook(ctx, peerEditorID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+	})
+
+	// 4. Project Viewer: DENY (404) for all 5 operations
+	t.Run("ProjectViewer_DeniedAllOperations_404", func(t *testing.T) {
+		_, err := svc.GetWebhook(ctx, viewerID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.UpdateWebhook(ctx, viewerID, webhookID, updateReq)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.TriggerTestPing(ctx, viewerID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.ListDeliveries(ctx, viewerID, webhookID, 10, 0)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.DeleteWebhook(ctx, viewerID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+	})
+
+	// 5. Former Member (Removed from project): DENY (404) for all 5 operations
+	t.Run("FormerMember_DeniedAllOperations_404", func(t *testing.T) {
+		_, err := svc.GetWebhook(ctx, formerMemberID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.UpdateWebhook(ctx, formerMemberID, webhookID, updateReq)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.TriggerTestPing(ctx, formerMemberID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.ListDeliveries(ctx, formerMemberID, webhookID, 10, 0)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.DeleteWebhook(ctx, formerMemberID, webhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+	})
+
+	// 6. Creator Demoted to Viewer: DENY (404) even for their own webhook
+	t.Run("DemotedCreator_DeniedAllOperations_404", func(t *testing.T) {
+		_, err := svc.GetWebhook(ctx, demotedCreatorID, demotedWebhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.UpdateWebhook(ctx, demotedCreatorID, demotedWebhookID, updateReq)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.TriggerTestPing(ctx, demotedCreatorID, demotedWebhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		_, err = svc.ListDeliveries(ctx, demotedCreatorID, demotedWebhookID, 10, 0)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+
+		err = svc.DeleteWebhook(ctx, demotedCreatorID, demotedWebhookID)
+		assert.ErrorIs(t, err, domain.ErrWebhookNotFound)
+	})
+
+	// 7. Project Owner can manage demoted member's inactive webhook
+	t.Run("ProjectOwner_CanManageDemotedMembersWebhook", func(t *testing.T) {
+		res, err := svc.GetWebhook(ctx, ownerID, demotedWebhookID)
+		require.NoError(t, err)
+		assert.Equal(t, demotedWebhookID, res.ID)
+		assert.False(t, res.IsActive, "webhook remains deactivated")
+
+		// Owner can re-activate or update
+		active := true
+		upRes, err := svc.UpdateWebhook(ctx, ownerID, demotedWebhookID, UpdateWebhookRequest{IsActive: &active})
+		require.NoError(t, err)
+		assert.NotNil(t, upRes)
+	})
+
+	// 8. ListWebhooks Filtering
+	t.Run("ListWebhooks_RoleFiltering", func(t *testing.T) {
+		// Owner sees all project webhooks (2)
+		ownerList, err := svc.ListWebhooks(ctx, ownerID, &projectID)
+		require.NoError(t, err)
+		assert.Len(t, ownerList, 2)
+
+		// Creator editor sees only their own webhook (1)
+		creatorList, err := svc.ListWebhooks(ctx, creatorID, &projectID)
+		require.NoError(t, err)
+		assert.Len(t, creatorList, 1)
+		assert.Equal(t, webhookID, creatorList[0].ID)
+
+		// Peer editor has 0 webhooks created by them
+		peerList, err := svc.ListWebhooks(ctx, peerEditorID, &projectID)
+		require.NoError(t, err)
+		assert.Empty(t, peerList)
+
+		// Viewer is rejected with 403
+		_, err = svc.ListWebhooks(ctx, viewerID, &projectID)
+		assert.ErrorIs(t, err, domain.ErrInsufficientProjectRole)
+	})
+}

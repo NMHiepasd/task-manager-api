@@ -171,19 +171,32 @@ func (s *webhookService) ListWebhooks(ctx context.Context, userID uuid.UUID, pro
 			}
 			return nil, pErr
 		}
-		if p.OwnerID != userID {
-			if _, mErr := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
+		isOwner := p.OwnerID == userID
+		if !isOwner {
+			member, mErr := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
 				ProjectID: *projectID,
 				UserID:    userID,
-			}); mErr != nil {
+			})
+			if mErr != nil || member.Role != "editor" {
 				return nil, domain.ErrInsufficientProjectRole
 			}
 		}
 		webhooks, err = s.queries.ListWebhooksByProjectID(ctx, pgtype.UUID{Bytes: *projectID, Valid: true})
-	} else {
-		webhooks, err = s.queries.ListWebhooksByUserID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list webhooks: %w", err)
+		}
+
+		responses := make([]WebhookResponse, 0, len(webhooks))
+		for _, wh := range webhooks {
+			if !isOwner && wh.UserID != userID {
+				continue
+			}
+			responses = append(responses, *mapWebhookToResponse(wh))
+		}
+		return responses, nil
 	}
 
+	webhooks, err = s.queries.ListWebhooksByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list webhooks: %w", err)
 	}
@@ -426,26 +439,38 @@ func (s *webhookService) DispatchEvent(ctx context.Context, actorID uuid.UUID, p
 }
 
 func (s *webhookService) authorizeWebhookAccess(ctx context.Context, userID uuid.UUID, wh repository.Webhook) error {
-	if wh.UserID == userID {
+	// 1. Personal Webhook (project_id is NULL): strictly isolated to the creator
+	if !wh.ProjectID.Valid {
+		if wh.UserID == userID {
+			return nil
+		}
+		return domain.ErrWebhookNotFound
+	}
+
+	// 2. Project Webhook (project_id IS NOT NULL): project is the security boundary
+	p, err := s.queries.GetProjectByID(ctx, wh.ProjectID.Bytes)
+	if err != nil {
+		return domain.ErrWebhookNotFound
+	}
+
+	// Project Owner has full administrative access to all webhooks in the project
+	if p.OwnerID == userID {
 		return nil
 	}
 
-	if wh.ProjectID.Valid {
-		p, err := s.queries.GetProjectByID(ctx, wh.ProjectID.Bytes)
-		if err == nil {
-			if p.OwnerID == userID {
-				return nil
-			}
-			member, mErr := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
-				ProjectID: wh.ProjectID.Bytes,
-				UserID:    userID,
-			})
-			if mErr == nil && member.Role == "editor" {
-				return nil
-			}
+	// Webhook Creator has access ONLY if they currently hold an active editor or owner role in the project
+	if wh.UserID == userID {
+		member, err := s.queries.GetProjectMember(ctx, repository.GetProjectMemberParams{
+			ProjectID: wh.ProjectID.Bytes,
+			UserID:    userID,
+		})
+		if err == nil && (member.Role == "editor" || member.Role == "owner") {
+			return nil
 		}
+		return domain.ErrWebhookNotFound
 	}
 
+	// Peer editors, viewers, former members, and outsiders are denied access (Anti-IDOR: 404)
 	return domain.ErrWebhookNotFound
 }
 

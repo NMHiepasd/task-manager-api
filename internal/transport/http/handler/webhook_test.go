@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"task-manager-api/internal/domain"
 	"task-manager-api/internal/service"
 	"task-manager-api/internal/transport/http/middleware"
 	"testing"
@@ -87,6 +89,7 @@ func (m *mockWebhookService) DispatchEvent(ctx context.Context, actorID uuid.UUI
 func setupWebhookRouter(handler *WebhookHandler, authUserID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(middleware.ErrorHandler(slog.Default()))
 	router.Use(func(c *gin.Context) {
 		c.Set(middleware.AuthorizationUserIDKey, authUserID)
 		c.Next()
@@ -305,5 +308,73 @@ func TestWebhookHandler_TriggerPingAndDeliveries(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.NotContains(t, w.Body.String(), `"secret"`, "secret must not be returned in GetByID")
+	})
+}
+
+func TestWebhookHandler_ADR0019_UnauthorizedReturns404(t *testing.T) {
+	unauthorizedUserID := uuid.New()
+	webhookID := uuid.New()
+
+	mockSvc := &mockWebhookService{
+		getWebhookFn: func(_ context.Context, _, _ uuid.UUID) (*service.WebhookResponse, error) {
+			return nil, domain.ErrWebhookNotFound
+		},
+		updateWebhookFn: func(_ context.Context, _, _ uuid.UUID, _ service.UpdateWebhookRequest) (*service.WebhookResponse, error) {
+			return nil, domain.ErrWebhookNotFound
+		},
+		deleteWebhookFn: func(_ context.Context, _, _ uuid.UUID) error {
+			return domain.ErrWebhookNotFound
+		},
+		triggerTestPingFn: func(_ context.Context, _, _ uuid.UUID) error {
+			return domain.ErrWebhookNotFound
+		},
+		listDeliveriesFn: func(_ context.Context, _, _ uuid.UUID, _, _ int32) ([]service.WebhookDeliveryResponse, error) {
+			return nil, domain.ErrWebhookNotFound
+		},
+	}
+
+	handler := NewWebhookHandler(mockSvc)
+	router := setupWebhookRouter(handler, unauthorizedUserID)
+
+	t.Run("GetByID_Returns404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/webhooks/"+webhookID.String(), nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"NOT_FOUND"`)
+	})
+
+	t.Run("Update_Returns404", func(t *testing.T) {
+		body := `{"url":"https://example.com/updated"}`
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/webhooks/"+webhookID.String(), bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"NOT_FOUND"`)
+	})
+
+	t.Run("Delete_Returns404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/webhooks/"+webhookID.String(), nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"NOT_FOUND"`)
+	})
+
+	t.Run("TriggerPing_Returns404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/"+webhookID.String()+"/test", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"NOT_FOUND"`)
+	})
+
+	t.Run("ListDeliveries_Returns404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/webhooks/"+webhookID.String()+"/deliveries", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"NOT_FOUND"`)
 	})
 }

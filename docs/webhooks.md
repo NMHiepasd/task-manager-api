@@ -262,3 +262,23 @@ def verify_webhook(secret: str, raw_body: bytes, headers: dict, tolerance_sec: i
 
     return True
 ```
+
+---
+
+## 8. Webhook Management & Authorization Policy (ADR-0019)
+
+The Task Manager API enforces strict Role-Based Access Control (RBAC) and Anti-IDOR boundaries on webhook management:
+
+### 8.1 Scoping Model
+- **Personal Webhooks (`project_id IS NULL`)**: Bound strictly to the creator's user account. Only the creator may view, update, delete, trigger test pings, or inspect deliveries.
+- **Project Webhooks (`project_id IS NOT NULL`)**: Bound to the project security boundary. Governed by project membership and role:
+  - **Project Owner**: Full administrative control across all project webhooks (view, update URL/events, toggle active status, delete, test ping, deliveries audit).
+  - **Webhook Creator (Active Editor/Owner)**: Full control over the webhooks they created in the project.
+  - **Peer Editor (Non-Creator)**: Denied access (returns `HTTP 404 Not Found`) to prevent tampering and disclosure of sensitive URL tokens (e.g. Slack webhook credentials).
+  - **Project Viewer / Former Member / Outsider**: Denied access (`HTTP 404 Not Found`).
+
+### 8.2 Departed & Demoted Member Lifecycle
+- When a member is removed from a project or demoted to `viewer`, all project webhooks created by that user are **automatically and atomically deactivated (`is_active = false`)** inside the database transaction.
+- Webhooks are **not deleted** in order to preserve forensic audit history (`webhook_deliveries`) and prevent disruption of shared company integrations.
+- Custody transitions exclusively to the **Project Owner**, who can audit, update credentials, re-activate, or permanently delete the integration.
+
