@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"task-manager-api/internal/cache"
 	"task-manager-api/internal/repository"
 	"testing"
 	"time"
@@ -33,6 +35,34 @@ type mockProjectQuerier struct {
 	unassignTasksByProjectAndUserFn   func(ctx context.Context, arg repository.UnassignTasksByProjectAndUserParams) error
 	getUserByEmailFn                  func(ctx context.Context, email string) (repository.User, error)
 	getUserByIDFn                     func(ctx context.Context, id uuid.UUID) (repository.User, error)
+}
+
+type mockProjectStore struct {
+	*mockProjectQuerier
+	withTxFn func(ctx context.Context, fn func(q repository.Querier) error) error
+}
+
+func (m *mockProjectStore) WithTx(ctx context.Context, fn func(q repository.Querier) error) error {
+	if m.withTxFn != nil {
+		return m.withTxFn(ctx, fn)
+	}
+	return fn(m.mockProjectQuerier)
+}
+
+type trackingCache struct {
+	cache.Cache
+	deletedKeys []string
+}
+
+func newTrackingCache() *trackingCache {
+	return &trackingCache{
+		Cache: cache.NewNoopCache(),
+	}
+}
+
+func (c *trackingCache) Delete(_ context.Context, keys ...string) error {
+	c.deletedKeys = append(c.deletedKeys, keys...)
+	return nil
 }
 
 func (m *mockProjectQuerier) DeactivateProjectWebhooksByUser(ctx context.Context, arg repository.DeactivateProjectWebhooksByUserParams) error {
@@ -734,5 +764,190 @@ func TestProjectService_MemberCollaboration(t *testing.T) {
 		svc := NewProjectService(mock, nil)
 		err := svc.RemoveMember(context.Background(), ownerID, projectID, ownerID)
 		require.ErrorIs(t, err, ErrCannotRemoveProjectOwner)
+	})
+
+	t.Run("RemoveMember_WithTx_Success_InvalidatesCache", func(t *testing.T) {
+		txInvoked := false
+		tc := newTrackingCache()
+		mockQ := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID}, nil
+			},
+			deleteProjectMemberFn: func(_ context.Context, _ repository.DeleteProjectMemberParams) error {
+				return nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				return nil
+			},
+			unassignTasksByProjectAndUserFn: func(_ context.Context, _ repository.UnassignTasksByProjectAndUserParams) error {
+				return nil
+			},
+		}
+		mockStore := &mockProjectStore{
+			mockProjectQuerier: mockQ,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				txInvoked = true
+				return fn(mockQ)
+			},
+		}
+
+		svc := NewProjectService(mockStore, tc)
+		err := svc.RemoveMember(context.Background(), ownerID, projectID, targetUserID)
+		require.NoError(t, err)
+		require.True(t, txInvoked, "WithTx must be invoked for RemoveMember")
+		require.Contains(t, tc.deletedKeys, fmt.Sprintf("project:%s:%s", targetUserID, projectID))
+	})
+
+	t.Run("RemoveMember_WithTx_RollbackOnWebhookError_DoesNotInvalidateCache", func(t *testing.T) {
+		txRolledBack := false
+		tc := newTrackingCache()
+		mockQ := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID}, nil
+			},
+			deleteProjectMemberFn: func(_ context.Context, _ repository.DeleteProjectMemberParams) error {
+				return nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				return fmt.Errorf("deactivate webhooks error")
+			},
+		}
+		mockStore := &mockProjectStore{
+			mockProjectQuerier: mockQ,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				err := fn(mockQ)
+				if err != nil {
+					txRolledBack = true
+					return err
+				}
+				return nil
+			},
+		}
+
+		svc := NewProjectService(mockStore, tc)
+		err := svc.RemoveMember(context.Background(), ownerID, projectID, targetUserID)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "deactivate webhooks error")
+		require.True(t, txRolledBack, "transaction must rollback when step fails")
+		require.Empty(t, tc.deletedKeys, "cache must NOT be invalidated when transaction rolls back")
+	})
+
+	t.Run("RemoveMember_WithTx_RollbackOnUnassignError_DoesNotInvalidateCache", func(t *testing.T) {
+		txRolledBack := false
+		tc := newTrackingCache()
+		mockQ := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID}, nil
+			},
+			deleteProjectMemberFn: func(_ context.Context, _ repository.DeleteProjectMemberParams) error {
+				return nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				return nil
+			},
+			unassignTasksByProjectAndUserFn: func(_ context.Context, _ repository.UnassignTasksByProjectAndUserParams) error {
+				return fmt.Errorf("unassign error")
+			},
+		}
+		mockStore := &mockProjectStore{
+			mockProjectQuerier: mockQ,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				err := fn(mockQ)
+				if err != nil {
+					txRolledBack = true
+					return err
+				}
+				return nil
+			},
+		}
+
+		svc := NewProjectService(mockStore, tc)
+		err := svc.RemoveMember(context.Background(), ownerID, projectID, targetUserID)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unassign error")
+		require.True(t, txRolledBack)
+		require.Empty(t, tc.deletedKeys)
+	})
+
+	t.Run("UpdateMemberRole_ToViewer_WithTx_Success_InvalidatesCache", func(t *testing.T) {
+		txInvoked := false
+		tc := newTrackingCache()
+		mockQ := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID, Role: "editor"}, nil
+			},
+			updateProjectMemberRoleFn: func(_ context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID, Role: arg.Role}, nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				return nil
+			},
+			getUserByIDFn: func(_ context.Context, id uuid.UUID) (repository.User, error) {
+				return repository.User{ID: id, Email: "target@test.com", FullName: "Target User"}, nil
+			},
+		}
+		mockStore := &mockProjectStore{
+			mockProjectQuerier: mockQ,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				txInvoked = true
+				return fn(mockQ)
+			},
+		}
+
+		svc := NewProjectService(mockStore, tc)
+		resp, err := svc.UpdateMemberRole(context.Background(), ownerID, projectID, targetUserID, UpdateProjectMemberRoleInput{Role: "viewer"})
+		require.NoError(t, err)
+		require.Equal(t, "viewer", resp.Role)
+		require.True(t, txInvoked)
+		require.Contains(t, tc.deletedKeys, fmt.Sprintf("project:%s:%s", targetUserID, projectID))
+	})
+
+	t.Run("UpdateMemberRole_ToViewer_WithTx_RollbackOnWebhookError_DoesNotInvalidateCache", func(t *testing.T) {
+		txRolledBack := false
+		tc := newTrackingCache()
+		mockQ := &mockProjectQuerier{
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID, Role: "editor"}, nil
+			},
+			updateProjectMemberRoleFn: func(_ context.Context, arg repository.UpdateProjectMemberRoleParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{ProjectID: projectID, UserID: targetUserID, Role: arg.Role}, nil
+			},
+			deactivateProjectWebhooksByUserFn: func(_ context.Context, _ repository.DeactivateProjectWebhooksByUserParams) error {
+				return fmt.Errorf("webhook deactivation failed")
+			},
+		}
+		mockStore := &mockProjectStore{
+			mockProjectQuerier: mockQ,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				err := fn(mockQ)
+				if err != nil {
+					txRolledBack = true
+					return err
+				}
+				return nil
+			},
+		}
+
+		svc := NewProjectService(mockStore, tc)
+		_, err := svc.UpdateMemberRole(context.Background(), ownerID, projectID, targetUserID, UpdateProjectMemberRoleInput{Role: "viewer"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "webhook deactivation failed")
+		require.True(t, txRolledBack)
+		require.Empty(t, tc.deletedKeys)
 	})
 }

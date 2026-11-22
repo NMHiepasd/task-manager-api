@@ -86,9 +86,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `internal/service/project_service.go`, test service và integration.
 
-- [ ] `RemoveMember` dùng `WithTx`: xóa member, vô hiệu webhook và gỡ assignee trong cùng transaction; chỉ xóa cache sau khi commit
-- [ ] `UpdateMemberRole` khi hạ xuống viewer cũng dùng transaction
-- [ ] Test: ép lỗi ở bước thứ hai hoặc thứ ba thì rollback, không bước nào được giữ lại
+- [x] `RemoveMember` dùng `WithTx`: xóa member, vô hiệu webhook và gỡ assignee trong cùng transaction; chỉ xóa cache sau khi commit
+- [x] `UpdateMemberRole` khi hạ xuống viewer cũng dùng transaction
+- [x] Test: ép lỗi ở bước thứ hai hoặc thứ ba thì rollback, không bước nào được giữ lại
 
 **Xong khi:** test rollback xanh.
 

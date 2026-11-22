@@ -535,21 +535,49 @@ func (s *projectService) UpdateMemberRole(ctx context.Context, currentUserID uui
 		return nil, fmt.Errorf("failed to verify project member: %w", err)
 	}
 
-	updated, err := s.repo.UpdateProjectMemberRole(ctx, repository.UpdateProjectMemberRoleParams{
-		ProjectID: projectID,
-		UserID:    targetUserID,
-		Role:      role,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update member role: %w", err)
-	}
+	var updated repository.ProjectMember
+	if store, ok := s.repo.(repository.Store); ok {
+		err = store.WithTx(ctx, func(q repository.Querier) error {
+			var txErr error
+			updated, txErr = q.UpdateProjectMemberRole(ctx, repository.UpdateProjectMemberRoleParams{
+				ProjectID: projectID,
+				UserID:    targetUserID,
+				Role:      role,
+			})
+			if txErr != nil {
+				return fmt.Errorf("failed to update member role: %w", txErr)
+			}
 
-	if role == "viewer" {
-		if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
-			ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+			if role == "viewer" {
+				if err := q.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+					ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+					UserID:    targetUserID,
+				}); err != nil {
+					return fmt.Errorf("failed to deactivate project webhooks: %w", err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		updated, err = s.repo.UpdateProjectMemberRole(ctx, repository.UpdateProjectMemberRoleParams{
+			ProjectID: projectID,
 			UserID:    targetUserID,
-		}); err != nil {
-			return nil, fmt.Errorf("failed to deactivate project webhooks: %w", err)
+			Role:      role,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update member role: %w", err)
+		}
+
+		if role == "viewer" {
+			if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+				ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+				UserID:    targetUserID,
+			}); err != nil {
+				return nil, fmt.Errorf("failed to deactivate project webhooks: %w", err)
+			}
 		}
 	}
 
@@ -606,25 +634,54 @@ func (s *projectService) RemoveMember(ctx context.Context, currentUserID uuid.UU
 		return fmt.Errorf("failed to verify member: %w", err)
 	}
 
-	if err := s.repo.DeleteProjectMember(ctx, repository.DeleteProjectMemberParams{
-		ProjectID: projectID,
-		UserID:    targetUserID,
-	}); err != nil {
-		return fmt.Errorf("failed to remove project member: %w", err)
-	}
+	if store, ok := s.repo.(repository.Store); ok {
+		err = store.WithTx(ctx, func(q repository.Querier) error {
+			if err := q.DeleteProjectMember(ctx, repository.DeleteProjectMemberParams{
+				ProjectID: projectID,
+				UserID:    targetUserID,
+			}); err != nil {
+				return fmt.Errorf("failed to remove project member: %w", err)
+			}
 
-	if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
-		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
-		UserID:    targetUserID,
-	}); err != nil {
-		return fmt.Errorf("failed to deactivate project webhooks: %w", err)
-	}
+			if err := q.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+				ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+				UserID:    targetUserID,
+			}); err != nil {
+				return fmt.Errorf("failed to deactivate project webhooks: %w", err)
+			}
 
-	if err := s.repo.UnassignTasksByProjectAndUser(ctx, repository.UnassignTasksByProjectAndUserParams{
-		ProjectID:  pgtype.UUID{Bytes: projectID, Valid: true},
-		AssigneeID: pgtype.UUID{Bytes: targetUserID, Valid: true},
-	}); err != nil {
-		return fmt.Errorf("failed to unassign project tasks: %w", err)
+			if err := q.UnassignTasksByProjectAndUser(ctx, repository.UnassignTasksByProjectAndUserParams{
+				ProjectID:  pgtype.UUID{Bytes: projectID, Valid: true},
+				AssigneeID: pgtype.UUID{Bytes: targetUserID, Valid: true},
+			}); err != nil {
+				return fmt.Errorf("failed to unassign project tasks: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		if err := s.repo.DeleteProjectMember(ctx, repository.DeleteProjectMemberParams{
+			ProjectID: projectID,
+			UserID:    targetUserID,
+		}); err != nil {
+			return fmt.Errorf("failed to remove project member: %w", err)
+		}
+
+		if err := s.repo.DeactivateProjectWebhooksByUser(ctx, repository.DeactivateProjectWebhooksByUserParams{
+			ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+			UserID:    targetUserID,
+		}); err != nil {
+			return fmt.Errorf("failed to deactivate project webhooks: %w", err)
+		}
+
+		if err := s.repo.UnassignTasksByProjectAndUser(ctx, repository.UnassignTasksByProjectAndUserParams{
+			ProjectID:  pgtype.UUID{Bytes: projectID, Valid: true},
+			AssigneeID: pgtype.UUID{Bytes: targetUserID, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("failed to unassign project tasks: %w", err)
+		}
 	}
 
 	_ = s.cache.Delete(ctx, fmt.Sprintf("project:%s:%s", targetUserID, projectID))
