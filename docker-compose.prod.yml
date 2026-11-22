@@ -37,12 +37,12 @@ services:
       - task_network_prod
 
   api:
-    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:-1.0.0}
+    image: ${IMAGE_NAME:-ghcr.io/nmhiepasd/task-manager-api}:${IMAGE_TAG:?IMAGE_TAG is required}
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        VERSION: ${IMAGE_TAG:-1.0.0}
+        VERSION: ${IMAGE_TAG:?IMAGE_TAG is required}
     container_name: task_manager_api_prod
     restart: unless-stopped
     expose:

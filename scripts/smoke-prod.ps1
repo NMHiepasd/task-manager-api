@@ -32,6 +32,19 @@ Write-Host "  Target URL: $BaseUrl"
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Pre-flight: verify compose configuration does not contain legacy default tag 1.0.0
+if (Test-Path "docker-compose.prod.yml") {
+    $composeContent = Get-Content "docker-compose.prod.yml" -Raw
+    if ($composeContent -match 'IMAGE_TAG:-1\.0\.0') {
+        Write-Error "Error: docker-compose.prod.yml still contains legacy default tag IMAGE_TAG:-1.0.0"
+        exit 1
+    }
+    if ($composeContent -notmatch 'IMAGE_TAG:\?') {
+        Write-Error "Error: docker-compose.prod.yml must enforce required IMAGE_TAG via `${IMAGE_TAG:?}"
+        exit 1
+    }
+}
+
 # Helper to execute curl POST with JSON body via temp file (immune to Windows CLI quoting bugs and BOM)
 $script:utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 

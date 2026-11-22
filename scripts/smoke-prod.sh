@@ -37,6 +37,18 @@ echo "  Target URL: ${BASE_URL}"
 echo "========================================================================"
 echo ""
 
+# Pre-flight: verify compose configuration does not contain legacy default tag 1.0.0
+if [ -f "docker-compose.prod.yml" ]; then
+    if grep -E 'IMAGE_TAG:-1\.0\.0' docker-compose.prod.yml >/dev/null 2>&1; then
+        echo "Error: docker-compose.prod.yml still contains legacy default tag IMAGE_TAG:-1.0.0" >&2
+        exit 1
+    fi
+    if ! grep -F 'IMAGE_TAG:?' docker-compose.prod.yml >/dev/null 2>&1; then
+        echo "Error: docker-compose.prod.yml must enforce required IMAGE_TAG via \${IMAGE_TAG:?}" >&2
+        exit 1
+    fi
+fi
+
 # Helper to extract JSON fields using python3 or jq
 json_extract() {
     local key="$1"

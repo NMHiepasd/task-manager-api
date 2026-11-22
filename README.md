@@ -296,6 +296,8 @@ cp .env.example .env
 
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
+| `IMAGE_TAG` | *(required in prod)* | Application container version tag (e.g. `1.1.1`). Enforced with `${IMAGE_TAG:?}` in `docker-compose.prod.yml` |
+| `IMAGE_NAME` | `ghcr.io/nmhiepasd/task-manager-api` | Container registry image repository name |
 | `APP_PORT` | `8080` | Server listening port |
 | `APP_ENV` | `development` | Environment (`development`, `staging`, `production`) |
 | `GIN_MODE` | `debug` | Gin operating mode (`debug`, `release`, `test`) |
@@ -360,7 +362,7 @@ docker compose up --build -d
 All container images across `Dockerfile`, [docker-compose.yml](file:///e:/golang/task-manager-api/docker-compose.yml), and [docker-compose.prod.yml](file:///e:/golang/task-manager-api/docker-compose.prod.yml) are pinned to immutable multi-architecture SHA256 digests (`image:tag@sha256:...`) to eliminate floating tags (e.g. `latest`), prevent accidental drift, and protect against upstream supply-chain tampering.
 
 #### Automated Updates
-- **Dependabot**: Configured in [.github/dependabot.yml](file:///e:/golang/task-manager-api/.github/dependabot.yml) with weekly schedules for both `docker` (Dockerfile) and `docker-compose` (`docker-compose*.yml`) ecosystems.
+- **Dependabot**: Configured in [.github/dependabot.yml](file:///e:/golang/task-manager-api/.github/dependabot.yml) with weekly schedules for Go dependencies (`gomod`) and GitHub Actions (`github-actions`). Infrastructure container digests are pinned immutably to prevent accidental breaking updates.
 
 #### Manual Digest Lookup & Update
 To manually retrieve the canonical multi-platform manifest digest for any image before updating:
