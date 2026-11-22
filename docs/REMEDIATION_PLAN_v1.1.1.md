@@ -106,9 +106,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `docs/adr/0019-webhook-management-policy.md`.
 
-- [ ] Ai được xem, sửa, xóa, bật/tắt webhook của project và xem deliveries: chỉ người tạo, owner hay cả editor?
-- [ ] Webhook của member đã rời: tự xóa, hay giữ ở trạng thái vô hiệu và chỉ owner quản lý
-- [ ] Ghi bảng quyền và lý do từng quyết định
+- [x] Ai được xem, sửa, xóa, bật/tắt webhook của project và xem deliveries: chỉ người tạo, owner hay cả editor?
+- [x] Webhook của member đã rời: tự xóa, hay giữ ở trạng thái vô hiệu và chỉ owner quản lý
+- [x] Ghi bảng quyền và lý do từng quyết định
 
 **Xong khi:** chỉ có file ADR, không đụng code.
 
