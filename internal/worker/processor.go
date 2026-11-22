@@ -101,7 +101,7 @@ func NewRedisTaskProcessor(
 		distributor: distributor,
 		storage:     st,
 		log:         log,
-		httpClient:  webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks, 10*time.Second),
+		httpClient:  webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts, 10*time.Second),
 	}
 
 	// Register task handlers

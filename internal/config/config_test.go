@@ -268,3 +268,34 @@ func TestConfig_Validate_RequestTimeout_LessThan_InProgressLockTTL(t *testing.T)
 		})
 	}
 }
+
+func TestConfig_Validate_ProductionDisallowsLocalWebhooks(t *testing.T) {
+	t.Run("DisallowAllowLocalWebhooksInProd", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.AllowLocalWebhooks = true
+
+		err := cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ALLOW_LOCAL_WEBHOOKS")
+	})
+
+	t.Run("DisallowWebhookAllowPrivateHostsInProd", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.WebhookAllowPrivateHosts = true
+
+		err := cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WEBHOOK_ALLOW_PRIVATE_HOSTS")
+	})
+
+	t.Run("AllowLocalWebhooksInNonProdEnvs", func(t *testing.T) {
+		for _, envName := range []string{"development", "test", "staging"} {
+			cfg := validProductionConfig()
+			cfg.AllowLocalWebhooks = true
+			cfg.WebhookAllowPrivateHosts = true
+
+			err := cfg.Validate(envName)
+			require.NoError(t, err, "env %s should allow local webhooks flag", envName)
+		}
+	})
+}

@@ -77,8 +77,9 @@ type Config struct {
 	MaxUserStorageMB         int64  `env:"MAX_USER_STORAGE_MB" envDefault:"500"`
 
 	// Webhooks
-	AllowLocalWebhooks bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
-	WebhookMaxRetry    int  `env:"WEBHOOK_MAX_RETRY" envDefault:"6"`
+	AllowLocalWebhooks       bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
+	WebhookAllowPrivateHosts bool `env:"WEBHOOK_ALLOW_PRIVATE_HOSTS" envDefault:"false"`
+	WebhookMaxRetry          int  `env:"WEBHOOK_MAX_RETRY" envDefault:"6"`
 }
 
 // Load parses environment variables into Config and validates required fields.
@@ -168,6 +169,11 @@ func (c *Config) Validate(env string) error {
 			} else if strings.Contains(trimmed, "localhost") || strings.Contains(trimmed, "127.0.0.1") {
 				errs = append(errs, fmt.Errorf("insecure CORS origin %q containing localhost/127.0.0.1 is not permitted in production", origin))
 			}
+		}
+
+		// 4. Webhook SSRF policy: local webhooks/private hosts strictly forbidden in production
+		if c.AllowLocalWebhooks || c.WebhookAllowPrivateHosts {
+			errs = append(errs, errors.New("ALLOW_LOCAL_WEBHOOKS / WEBHOOK_ALLOW_PRIVATE_HOSTS cannot be enabled in production"))
 		}
 	}
 

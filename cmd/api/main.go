@@ -198,7 +198,7 @@ func main() {
 		}
 	}
 
-	webhookService := service.NewWebhookService(store, taskDistributor, cfg.AllowLocalWebhooks)
+	webhookService := service.NewWebhookService(store, taskDistributor, cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts)
 	if d, ok := taskService.(service.EventDispatchable); ok {
 		d.SetEventDispatcher(webhookService)
 	}
