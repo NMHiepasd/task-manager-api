@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/worker"
 	"testing"
@@ -106,6 +109,26 @@ type mockAttachmentQuerier struct {
 	deleteTaskAttachmentFn           func(ctx context.Context, arg repository.DeleteTaskAttachmentParams) error
 	countAttachmentsByTaskIDFn       func(ctx context.Context, taskID uuid.UUID) (int64, error)
 	getTotalAttachmentSizeByUserIDFn func(ctx context.Context, userID uuid.UUID) (int64, error)
+	lockTaskAttachmentUploadFn       func(ctx context.Context, key int64) error
+}
+
+func (m *mockAttachmentQuerier) LockTaskAttachmentUpload(ctx context.Context, key int64) error {
+	if m.lockTaskAttachmentUploadFn != nil {
+		return m.lockTaskAttachmentUploadFn(ctx, key)
+	}
+	return nil
+}
+
+type mockAttachmentStore struct {
+	*mockAttachmentQuerier
+	withTxFn func(ctx context.Context, fn func(q repository.Querier) error) error
+}
+
+func (m *mockAttachmentStore) WithTx(ctx context.Context, fn func(q repository.Querier) error) error {
+	if m.withTxFn != nil {
+		return m.withTxFn(ctx, fn)
+	}
+	return fn(m.mockAttachmentQuerier)
 }
 
 func (m *mockAttachmentQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (repository.Task, error) {
@@ -859,5 +882,253 @@ func TestAttachmentService_ADR018_SoftDeletedProjectGets404(t *testing.T) {
 	t.Run("DeleteAttachment_Returns404", func(t *testing.T) {
 		err := svc.DeleteAttachment(ctx, ownerID, taskID, attachmentID)
 		require.ErrorIs(t, err, ErrTaskNotFound)
+	})
+}
+
+func TestAttachmentService_AtomicUploadTransactions(t *testing.T) {
+	ctx := context.Background()
+	taskID := uuid.New()
+	creatorID := uuid.New()
+	projectID := uuid.New()
+
+	task := repository.Task{
+		ID:        taskID,
+		CreatorID: creatorID,
+		ProjectID: pgtype.UUID{Bytes: projectID, Valid: true},
+	}
+	project := repository.Project{
+		ID:      projectID,
+		OwnerID: creatorID,
+	}
+
+	t.Run("WithTx_Success_LocksAndCreatesAttachment", func(t *testing.T) {
+		var lockedKeys []int64
+		txExecuted := false
+
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			countAttachmentsByTaskIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 1, nil
+			},
+			getTotalAttachmentSizeByUserIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 100, nil
+			},
+			lockTaskAttachmentUploadFn: func(_ context.Context, key int64) error {
+				lockedKeys = append(lockedKeys, key)
+				return nil
+			},
+			createTaskAttachmentFn: func(_ context.Context, arg repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+				return repository.TaskAttachment{
+					ID:          uuid.New(),
+					TaskID:      arg.TaskID,
+					UserID:      arg.UserID,
+					FileName:    arg.FileName,
+					FileSize:    arg.FileSize,
+					ContentType: arg.ContentType,
+					StorageKey:  arg.StorageKey,
+				}, nil
+			},
+		}
+
+		mockStore := &mockAttachmentStore{
+			mockAttachmentQuerier: mockRepo,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				txExecuted = true
+				return fn(mockRepo)
+			},
+		}
+
+		storageClient := &mockStorageClient{}
+		svc := NewAttachmentService(mockStore, storageClient, 10, 5, 100)
+
+		pdfContent := "%PDF-1.4 test atomic upload content"
+		resp, err := svc.UploadAttachment(ctx, creatorID, taskID, "atomic.pdf", int64(len(pdfContent)), "application/pdf", strings.NewReader(pdfContent))
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.True(t, txExecuted, "WithTx must be executed")
+		assert.Len(t, lockedKeys, 2, "Both user and task locks must be acquired")
+		assert.True(t, lockedKeys[0] <= lockedKeys[1], "Locks must be ordered deterministically")
+	})
+
+	t.Run("WithTx_RollbackOnQuotaExceeded_CleansUpStorage", func(t *testing.T) {
+		storageClient := &mockStorageClient{}
+		deletedKey := ""
+		storageClient.deleteFunc = func(_ context.Context, key string) error {
+			deletedKey = key
+			return nil
+		}
+
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			countAttachmentsByTaskIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				// Pre-check returns 1, but inside transaction it returns 2 (max quota)
+				return 2, nil
+			},
+			getTotalAttachmentSizeByUserIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 100, nil
+			},
+		}
+
+		preCheckDone := false
+		mockRepo.countAttachmentsByTaskIDFn = func(_ context.Context, _ uuid.UUID) (int64, error) {
+			if !preCheckDone {
+				preCheckDone = true
+				return 1, nil // Pre-check allows upload to storage
+			}
+			return 2, nil // Quota reached inside transaction!
+		}
+
+		mockStore := &mockAttachmentStore{
+			mockAttachmentQuerier: mockRepo,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				return fn(mockRepo)
+			},
+		}
+
+		svc := NewAttachmentService(mockStore, storageClient, 10, 2, 100)
+
+		pdfContent := "%PDF-1.4 test quota exceeded"
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "quota.pdf", int64(len(pdfContent)), "application/pdf", strings.NewReader(pdfContent))
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrAttachmentQuotaExceeded)
+		assert.NotEmpty(t, deletedKey, "Storage object must be deleted on transaction rollback")
+	})
+
+	t.Run("WithTx_StorageCleanupFailure_EnqueuesOrphanTask", func(t *testing.T) {
+		storageClient := &mockStorageClient{
+			deleteFunc: func(_ context.Context, _ string) error {
+				return errors.New("minio network timeout")
+			},
+		}
+
+		enqueuedCount := 0
+		distributor := &mockTaskDistributor{
+			distributeDeleteStorageObjectFn: func(_ context.Context, _ worker.DeleteStorageObjectPayload, _ ...asynq.Option) error {
+				enqueuedCount++
+				return nil
+			},
+		}
+
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			createTaskAttachmentFn: func(_ context.Context, _ repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+				return repository.TaskAttachment{}, errors.New("db unique constraint violation")
+			},
+		}
+
+		mockStore := &mockAttachmentStore{
+			mockAttachmentQuerier: mockRepo,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				return fn(mockRepo)
+			},
+		}
+
+		svc := NewAttachmentService(mockStore, storageClient, 10)
+		svcImpl, ok := svc.(*attachmentService)
+		require.True(t, ok)
+		svcImpl.SetTaskDistributor(distributor)
+
+		pdfContent := "%PDF-1.4 test orphan retry"
+		_, err := svc.UploadAttachment(ctx, creatorID, taskID, "orphan.pdf", int64(len(pdfContent)), "application/pdf", strings.NewReader(pdfContent))
+		require.Error(t, err)
+		assert.Equal(t, 1, enqueuedCount, "Orphan cleanup retry task must be enqueued via distributor")
+	})
+
+	t.Run("ConcurrentUploads_QuotaEnforced_NMinusOneSucceed", func(t *testing.T) {
+		const totalUploads = 6
+		const allowedQuota = totalUploads - 1 // 5 succeed, 1 fails
+
+		var mu sync.Mutex
+		var currentCount atomic.Int64
+		storageClient := &mockStorageClient{}
+
+		mockRepo := &mockAttachmentQuerier{
+			getTaskByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Task, error) {
+				return task, nil
+			},
+			getProjectByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Project, error) {
+				return project, nil
+			},
+			getProjectMemberFn: func(_ context.Context, _ repository.GetProjectMemberParams) (repository.ProjectMember, error) {
+				return repository.ProjectMember{Role: "editor"}, nil
+			},
+			countAttachmentsByTaskIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return currentCount.Load(), nil
+			},
+			getTotalAttachmentSizeByUserIDFn: func(_ context.Context, _ uuid.UUID) (int64, error) {
+				return 100, nil
+			},
+			createTaskAttachmentFn: func(_ context.Context, arg repository.CreateTaskAttachmentParams) (repository.TaskAttachment, error) {
+				currentCount.Add(1)
+				return repository.TaskAttachment{
+					ID:          uuid.New(),
+					TaskID:      arg.TaskID,
+					UserID:      arg.UserID,
+					FileName:    arg.FileName,
+					FileSize:    arg.FileSize,
+					ContentType: arg.ContentType,
+					StorageKey:  arg.StorageKey,
+				}, nil
+			},
+		}
+
+		mockStore := &mockAttachmentStore{
+			mockAttachmentQuerier: mockRepo,
+			withTxFn: func(_ context.Context, fn func(q repository.Querier) error) error {
+				// Simulate advisory lock transaction serialization
+				mu.Lock()
+				defer mu.Unlock()
+				return fn(mockRepo)
+			},
+		}
+
+		svc := NewAttachmentService(mockStore, storageClient, 10, allowedQuota, 100)
+
+		var wg sync.WaitGroup
+		successCount := atomic.Int32{}
+		quotaErrorCount := atomic.Int32{}
+
+		for i := 0; i < totalUploads; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				fileName := fmt.Sprintf("concurrent_%d.pdf", idx)
+				pdf := fmt.Sprintf("%%PDF-1.4 file payload %d", idx)
+				_, err := svc.UploadAttachment(ctx, creatorID, taskID, fileName, int64(len(pdf)), "application/pdf", strings.NewReader(pdf))
+				if err == nil {
+					successCount.Add(1)
+				} else if errors.Is(err, ErrAttachmentQuotaExceeded) {
+					quotaErrorCount.Add(1)
+				}
+			}(i)
+		}
+
+		wg.Wait()
+		assert.Equal(t, int32(allowedQuota), successCount.Load(), "Exactly N-1 uploads must succeed")
+		assert.Equal(t, int32(1), quotaErrorCount.Load(), "Exactly 1 upload must fail with ErrAttachmentQuotaExceeded")
 	})
 }

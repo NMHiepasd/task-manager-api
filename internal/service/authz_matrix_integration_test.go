@@ -5,11 +5,15 @@ package service_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -662,3 +666,70 @@ func TestSQLConstraint_DeleteCommentAndAttachment_MismatchedTaskID(t *testing.T)
 	_, err = testStore.GetTaskAttachmentByID(ctx, aRes.ID)
 	assert.Error(t, err)
 }
+
+func TestIntegration_AttachmentQuota_ConcurrentUploads(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Create a user and a task
+	owner, err := testStore.CreateUser(ctx, repository.CreateUserParams{
+		Email:        fmt.Sprintf("quota_owner_%s@example.com", uuid.New().String()[:8]),
+		PasswordHash: "dummyhash",
+		Role:         "user",
+	})
+	require.NoError(t, err)
+
+	task, err := testStore.CreateTask(ctx, repository.CreateTaskParams{
+		Title:       "Task for Concurrent Attachment Quota",
+		Description: "Testing atomic quota check",
+		Status:      "todo",
+		Priority:    "medium",
+		CreatorID:   owner.ID,
+	})
+	require.NoError(t, err)
+
+	// 2. Setup attachment service with quota N-1 (N=6 => quota=5)
+	const totalUploads = 6
+	const allowedQuota = totalUploads - 1
+
+	attachmentService := service.NewAttachmentService(testStore, &inMemoryStorage{}, 10, allowedQuota, 100)
+
+	// 3. Launch N uploads concurrently
+	var wg sync.WaitGroup
+	successCount := atomic.Int32{}
+	quotaErrorCount := atomic.Int32{}
+
+	for i := 0; i < totalUploads; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			fileName := fmt.Sprintf("concurrent_%d.pdf", idx)
+			pdfContent := fmt.Sprintf("%%PDF-1.4 sample file content for upload %d", idx)
+			_, uploadErr := attachmentService.UploadAttachment(
+				ctx,
+				owner.ID,
+				task.ID,
+				fileName,
+				int64(len(pdfContent)),
+				"application/pdf",
+				strings.NewReader(pdfContent),
+			)
+			if uploadErr == nil {
+				successCount.Add(1)
+			} else if errors.Is(uploadErr, service.ErrAttachmentQuotaExceeded) {
+				quotaErrorCount.Add(1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// 4. Verify exactly N-1 succeed and 1 fails
+	assert.Equal(t, int32(allowedQuota), successCount.Load(), "Exactly N-1 uploads must succeed")
+	assert.Equal(t, int32(1), quotaErrorCount.Load(), "Exactly 1 upload must fail with ErrAttachmentQuotaExceeded")
+
+	// 5. Verify database contains exactly N-1 records
+	dbCount, err := testStore.CountAttachmentsByTaskID(ctx, task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(allowedQuota), dbCount, "DB record count must exactly match quota limit")
+}
+

@@ -96,9 +96,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `internal/service/attachment_service.go`, `queries/task_attachments.sql`, test integration.
 
-- [ ] Chọn thiết kế và ghi lý do trong commit: (a) đặt chỗ bằng bản ghi trạng thái pending rồi mới upload, hoặc (b) khóa ngắn quanh bước kiểm tra quota và insert bằng `pg_advisory_xact_lock` theo user; không giữ khóa suốt lúc upload
-- [ ] Lỗi sau khi đặt chỗ phải dọn bản ghi/object (tái dùng job dọn object mồ côi)
-- [ ] Test integration: N upload song song với quota N-1 thì đúng N-1 thành công
+- [x] Chọn thiết kế và ghi lý do trong commit: (a) đặt chỗ bằng bản ghi trạng thái pending rồi mới upload, hoặc (b) khóa ngắn quanh bước kiểm tra quota và insert bằng `pg_advisory_xact_lock` theo user; không giữ khóa suốt lúc upload
+- [x] Lỗi sau khi đặt chỗ phải dọn bản ghi/object (tái dùng job dọn object mồ côi)
+- [x] Test integration: N upload song song với quota N-1 thì đúng N-1 thành công
 
 **Xong khi:** test song song xanh với `-race`.
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -142,6 +143,24 @@ func NewAttachmentService(queries repository.Querier, storage storage.Client, ma
 	}
 }
 
+func (s *attachmentService) cleanupStorageObject(ctx context.Context, storageKey string) {
+	if err := s.storage.Delete(ctx, storageKey); err != nil {
+		if s.distributor != nil {
+			_ = s.distributor.DistributeDeleteStorageObject(ctx, worker.DeleteStorageObjectPayload{
+				StorageKey: storageKey,
+			})
+		}
+	}
+}
+
+// hashUUIDWithPrefix derives a 64-bit integer key for advisory locking partitioned by namespace.
+func hashUUIDWithPrefix(prefix byte, id uuid.UUID) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte{prefix})
+	_, _ = h.Write(id[:])
+	return int64(h.Sum64() & 0x7fffffffffffffff)
+}
+
 // UploadAttachment validates the file against allowlist, sniffs MIME type, checks authorization, uploads to storage, and saves metadata.
 func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID uuid.UUID, fileName string, fileSize int64, _ string, reader io.Reader) (*AttachmentResponse, error) {
 	if fileSize <= 0 {
@@ -183,7 +202,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 		return nil, err
 	}
 
-	// Verify task attachment count quota
+	// Fast pre-check: verify task attachment count quota before streaming to storage
 	count, err := s.queries.CountAttachmentsByTaskID(ctx, task.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count task attachments: %w", err)
@@ -192,7 +211,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 		return nil, fmt.Errorf("%w: maximum attachment limit of %d files per task reached", ErrAttachmentQuotaExceeded, s.maxAttachmentsPerTask)
 	}
 
-	// Verify user total storage quota
+	// Fast pre-check: verify user total storage quota before streaming to storage
 	totalUserStorage, err := s.queries.GetTotalAttachmentSizeByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate user storage usage: %w", err)
@@ -205,24 +224,97 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	attachmentID := uuid.New()
 	storageKey := fmt.Sprintf("tasks/%s/%s_%s", taskID.String(), attachmentID.String(), cleanFileName)
 
-	// Stream file to object storage
+	// Stream file to object storage without holding any database lock
 	if err := s.storage.Upload(ctx, storageKey, fullReader, fileSize, safeContentType); err != nil {
 		return nil, fmt.Errorf("failed to upload attachment to storage: %w", err)
 	}
 
-	// Persist attachment metadata in DB
-	record, err := s.queries.CreateTaskAttachment(ctx, repository.CreateTaskAttachmentParams{
-		TaskID:      taskID,
-		UserID:      userID,
-		FileName:    cleanFileName,
-		FileSize:    fileSize,
-		ContentType: safeContentType,
-		StorageKey:  storageKey,
-	})
+	// Atomic quota check and metadata insertion
+	var record repository.TaskAttachment
+	if store, ok := s.queries.(repository.Store); ok {
+		userLockKey := hashUUIDWithPrefix(0x01, userID)
+		taskLockKey := hashUUIDWithPrefix(0x02, task.ID)
+		firstKey, secondKey := userLockKey, taskLockKey
+		if firstKey > secondKey {
+			firstKey, secondKey = secondKey, firstKey
+		}
+
+		err = store.WithTx(ctx, func(q repository.Querier) error {
+			// Acquire short-lived advisory locks in deterministic order to prevent deadlocks
+			if err := q.LockTaskAttachmentUpload(ctx, firstKey); err != nil {
+				return fmt.Errorf("failed to acquire advisory lock: %w", err)
+			}
+			if firstKey != secondKey {
+				if err := q.LockTaskAttachmentUpload(ctx, secondKey); err != nil {
+					return fmt.Errorf("failed to acquire advisory lock: %w", err)
+				}
+			}
+
+			// Authoritative quota verification inside locked transaction
+			c, err := q.CountAttachmentsByTaskID(ctx, task.ID)
+			if err != nil {
+				return fmt.Errorf("failed to count task attachments: %w", err)
+			}
+			if c >= s.maxAttachmentsPerTask {
+				return fmt.Errorf("%w: maximum attachment limit of %d files per task reached", ErrAttachmentQuotaExceeded, s.maxAttachmentsPerTask)
+			}
+
+			totalSize, err := q.GetTotalAttachmentSizeByUserID(ctx, userID)
+			if err != nil {
+				return fmt.Errorf("failed to calculate user storage usage: %w", err)
+			}
+			if totalSize+fileSize > s.maxUserStorageBytes {
+				return fmt.Errorf("%w: user storage quota of %d MB exceeded", ErrAttachmentQuotaExceeded, s.maxUserStorageBytes/(1024*1024))
+			}
+
+			// Persist attachment metadata in DB
+			rec, err := q.CreateTaskAttachment(ctx, repository.CreateTaskAttachmentParams{
+				TaskID:      taskID,
+				UserID:      userID,
+				FileName:    cleanFileName,
+				FileSize:    fileSize,
+				ContentType: safeContentType,
+				StorageKey:  storageKey,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to save attachment record: %w", err)
+			}
+			record = rec
+			return nil
+		})
+	} else {
+		// Fallback for mocks/queriers without Store support
+		var c int64
+		c, err = s.queries.CountAttachmentsByTaskID(ctx, task.ID)
+		if err == nil && c >= s.maxAttachmentsPerTask {
+			err = fmt.Errorf("%w: maximum attachment limit of %d files per task reached", ErrAttachmentQuotaExceeded, s.maxAttachmentsPerTask)
+		}
+		if err == nil {
+			var totalSize int64
+			totalSize, err = s.queries.GetTotalAttachmentSizeByUserID(ctx, userID)
+			if err == nil && totalSize+fileSize > s.maxUserStorageBytes {
+				err = fmt.Errorf("%w: user storage quota of %d MB exceeded", ErrAttachmentQuotaExceeded, s.maxUserStorageBytes/(1024*1024))
+			}
+		}
+		if err == nil {
+			record, err = s.queries.CreateTaskAttachment(ctx, repository.CreateTaskAttachmentParams{
+				TaskID:      taskID,
+				UserID:      userID,
+				FileName:    cleanFileName,
+				FileSize:    fileSize,
+				ContentType: safeContentType,
+				StorageKey:  storageKey,
+			})
+			if err != nil {
+				err = fmt.Errorf("failed to save attachment record: %w", err)
+			}
+		}
+	}
+
 	if err != nil {
-		// Rollback uploaded file from storage on database failure
-		_ = s.storage.Delete(ctx, storageKey)
-		return nil, fmt.Errorf("failed to save attachment record: %w", err)
+		// Rollback uploaded file from storage on quota conflict or DB failure
+		s.cleanupStorageObject(ctx, storageKey)
+		return nil, err
 	}
 
 	resp := toAttachmentResponse(record)
@@ -348,13 +440,7 @@ func (s *attachmentService) DeleteAttachment(ctx context.Context, userID, taskID
 	}
 
 	// Delete from storage (best-effort, enqueue background retry on failure)
-	if err := s.storage.Delete(ctx, record.StorageKey); err != nil {
-		if s.distributor != nil {
-			_ = s.distributor.DistributeDeleteStorageObject(ctx, worker.DeleteStorageObjectPayload{
-				StorageKey: record.StorageKey,
-			})
-		}
-	}
+	s.cleanupStorageObject(ctx, record.StorageKey)
 
 	return nil
 }
