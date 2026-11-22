@@ -8,27 +8,25 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"sync"
-	"time"
-
 	"task-manager-api/pkg/webhook"
+	"time"
 )
 
 // DeliveryRecord stores received webhook payload and verification outcome.
 type DeliveryRecord struct {
-	ID          string    `json:"id"`
-	Event       string    `json:"event"`
-	Timestamp   string    `json:"timestamp"`
-	Signature   string    `json:"signature"`
-	Body        string    `json:"body"`
-	Verified    bool      `json:"verified"`
-	Error       string    `json:"error,omitempty"`
-	ReceivedAt  time.Time `json:"received_at"`
+	ID         string    `json:"id"`
+	Event      string    `json:"event"`
+	Timestamp  string    `json:"timestamp"`
+	Signature  string    `json:"signature"`
+	Body       string    `json:"body"`
+	Verified   bool      `json:"verified"`
+	Error      string    `json:"error,omitempty"`
+	ReceivedAt time.Time `json:"received_at"`
 }
 
 type ReceiverServer struct {
@@ -113,7 +111,7 @@ func (s *ReceiverServer) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *ReceiverServer) handleLastDelivery(w http.ResponseWriter, r *http.Request) {
+func (s *ReceiverServer) handleLastDelivery(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -126,7 +124,7 @@ func (s *ReceiverServer) handleLastDelivery(w http.ResponseWriter, r *http.Reque
 	_ = json.NewEncoder(w).Encode(s.lastDelivery)
 }
 
-func (s *ReceiverServer) handleHealthz(w http.ResponseWriter, r *http.Request) {
+func (s *ReceiverServer) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ready"}`))
@@ -275,7 +273,14 @@ func main() {
 	fmt.Printf("Webhook Receiver listening on %s (secret length: %d bytes)\n", addr, len(*secret))
 	fmt.Printf("Endpoints:\n  POST %s/webhook\n  GET  %s/last-delivery\n  GET  %s/healthz\n", addr, addr, addr)
 
-	if err := http.ListenAndServe(addr, server.Routes()); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("Receiver server failed: %v", err)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           server.Routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		fmt.Printf("Receiver server failed: %v\n", err)
+		os.Exit(1)
 	}
 }
