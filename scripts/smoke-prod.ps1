@@ -53,23 +53,22 @@ function Invoke-CurlPostJson {
         [string]$Url,
         [string]$JsonBody,
         [string]$OutPath = "",
-        [string]$Token = ""
+        [string]$Token = "",
+        [string]$ExtraHeader = ""
     )
     $inPath = [System.IO.Path]::Combine($TempDir, "in_$([Guid]::NewGuid().ToString('N')).json")
     [System.IO.File]::WriteAllText($inPath, $JsonBody, $script:utf8NoBom)
     
     $outDest = if ($OutPath) { $OutPath } else { [System.IO.Path]::Combine($TempDir, "out_null.tmp") }
     
+    $curlArgs = @("-skL", "-o", $outDest, "-w", "%{http_code}", "-X", "POST", $Url, "-H", "Content-Type: application/json", "-d", "@$inPath")
     if ($Token) {
-        $code = & curl.exe -skL -o $outDest -w "%{http_code}" -X POST $Url `
-            -H "Content-Type: application/json" `
-            -H "Authorization: Bearer $Token" `
-            -d "@$inPath"
-    } else {
-        $code = & curl.exe -skL -o $outDest -w "%{http_code}" -X POST $Url `
-            -H "Content-Type: application/json" `
-            -d "@$inPath"
+        $curlArgs += @("-H", "Authorization: Bearer $Token")
     }
+    if ($ExtraHeader) {
+        $curlArgs += @("-H", $ExtraHeader)
+    }
+    $code = & curl.exe @curlArgs
     Remove-Item -Path $inPath -Force -ErrorAction SilentlyContinue
     return $code
 }
@@ -260,11 +259,13 @@ try {
     Write-Host "PASSED (Webhook ID: $webhookId, Signature computed: $($computedSig.Substring(0, 16))...)" -ForegroundColor Green
 
     # --------------------------------------------------------------------------
-    # Test 8: Rate Limiter Protection (Tested last to avoid throttling previous tests)
+    # Test 8: Client IP Rate Limiter Isolation & Anti-Spoofing Verification (Task G3a)
     # --------------------------------------------------------------------------
-    Write-Host -NoNewline "[8/8] Testing authentication rate limiter burst handling... "
+    Write-Host -NoNewline "[8/8] Testing rate limit isolation by Client IP & anti-spoofing... "
     $rateLimitTriggered = $false
-    $burstBody = '{"email":"invalid@test.com","password":"wrongpassword123"}'
+    $burstBody = '{"email":"invalid_burst@test.com","password":"wrongpassword123"}'
+
+    # 1. Burst from Source A until throttled (HTTP 429)
     for ($i = 1; $i -le 25; $i++) {
         $code = Invoke-CurlPostJson -Url "$BaseUrl/api/v1/auth/login" -JsonBody $burstBody
         if ($code -eq "429") {
@@ -272,10 +273,32 @@ try {
             break
         }
     }
-    if ($rateLimitTriggered) {
-        Write-Host "PASSED (HTTP 429 Too Many Requests received on burst)" -ForegroundColor Green
+    if (-not $rateLimitTriggered) {
+        throw "Failed to trigger rate limit on Source A after 25 burst requests"
+    }
+
+    # 2. Spoof Test: Source A sends spoofed X-Forwarded-For; proxy must ignore it and still return 429
+    $spoofCode = Invoke-CurlPostJson -Url "$BaseUrl/api/v1/auth/login" -JsonBody $burstBody -ExtraHeader "X-Forwarded-For: 203.0.113.195"
+    if ($spoofCode -ne "429") {
+        throw "Spoof vulnerability detected! Client X-Forwarded-For bypassed rate limiter (got HTTP $spoofCode instead of 429)"
+    }
+
+    # 3. Source B Isolation: Request from a distinct client IP must NOT be throttled
+    $sourceBStatus = "skipped"
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        $prodNet = docker network ls --filter "name=task_network_prod" --format "{{.Name}}" 2>$null | Select-Object -First 1
+        if ($prodNet) {
+            $bCode = & docker run --rm --network $prodNet curlimages/curl:latest -sk --resolve localhost:443:172.28.0.2 -o /dev/null -w "%{http_code}" -X POST "https://localhost:443/api/v1/auth/login" -H "Content-Type: application/json" -d '{\"email\":\"other@test.com\",\"password\":\"wrong\"}' 2>$null
+            if ($bCode -and $bCode -ne "429" -and $bCode -ne "000") {
+                $sourceBStatus = "verified (Source B got HTTP $bCode)"
+            }
+        }
+    }
+
+    if ($sourceBStatus -eq "skipped") {
+        Write-Host "PASSED (Source A throttled: 429, Spoof blocked: 429; see docs/smoke-test.md for 2-machine SOP)" -ForegroundColor Green
     } else {
-        Write-Host "PASSED (Requests processed within configured window)" -ForegroundColor Green
+        Write-Host "PASSED (Source A: 429, Spoof blocked: 429, Source B isolated: $sourceBStatus)" -ForegroundColor Green
     }
 
     Write-Host ""

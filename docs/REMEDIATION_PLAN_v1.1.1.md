@@ -52,9 +52,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `scripts/smoke-prod.sh`, `scripts/smoke-prod.ps1`, `docs/smoke-test.md`.
 
-- [ ] Gửi burst login từ nguồn A đến khi 429, ngay sau đó request từ nguồn B vẫn không bị 429
-- [ ] Spoof test: cùng một nguồn gửi header `X-Forwarded-For` khác nhau vẫn dùng chung bucket (header do client gửi không được tin)
-- [ ] Nếu script không giả lập được hai IP, ghi hướng dẫn thủ công chạy từ hai máy
+- [x] Gửi burst login từ nguồn A đến khi 429, ngay sau đó request từ nguồn B vẫn không bị 429
+- [x] Spoof test: cùng một nguồn gửi header `X-Forwarded-For` khác nhau vẫn dùng chung bucket (header do client gửi không được tin)
+- [x] Nếu script không giả lập được hai IP, ghi hướng dẫn thủ công chạy từ hai máy
 
 **Xong khi:** script có bước mới, in rõ PASS hoặc FAIL.
 

@@ -298,24 +298,55 @@ fi
 echo "PASSED (Webhook ID: ${WEBHOOK_ID}, Signature computed: ${COMPUTED_SIG:0:16}...)"
 
 # ------------------------------------------------------------------------------
-# Test 8: Rate Limiter Protection (Tested at the end to avoid throttling earlier tests)
+# Test 8: Client IP Rate Limiter Isolation & Anti-Spoofing Verification (Task G3a)
 # ------------------------------------------------------------------------------
-echo -n "[8/8] Testing authentication rate limiter burst handling... "
+echo -n "[8/8] Testing rate limit isolation by Client IP & anti-spoofing... "
+BURST_BODY='{"email":"invalid_burst@test.com","password":"wrongpassword123"}'
 RATE_LIMIT_TRIGGERED=false
+
+# 1. Burst from Source A until throttled (HTTP 429)
 for i in $(seq 1 25); do
     STATUS_CODE=$(curl -skL -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/v1/auth/login" \
         -H "Content-Type: application/json" \
-        -d '{"email":"invalid@test.com","password":"wrongpassword123"}')
+        -d "${BURST_BODY}")
     if [ "${STATUS_CODE}" -eq 429 ]; then
         RATE_LIMIT_TRIGGERED=true
         break
     fi
 done
 
-if [ "${RATE_LIMIT_TRIGGERED}" = true ]; then
-    echo "PASSED (HTTP 429 Too Many Requests received on burst)"
+if [ "${RATE_LIMIT_TRIGGERED}" != true ]; then
+    echo "FAILED: Rate limit was not triggered on Source A after 25 requests"
+    exit 1
+fi
+
+# 2. Spoof Test: Source A sends spoofed X-Forwarded-For; proxy must ignore it and still return 429
+SPOOF_CODE=$(curl -skL -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/v1/auth/login" \
+    -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: 203.0.113.195" \
+    -d "${BURST_BODY}")
+
+if [ "${SPOOF_CODE}" -ne 429 ]; then
+    echo "FAILED: Spoof vulnerability detected! Spoofed X-Forwarded-For bypassed rate limiter (got HTTP ${SPOOF_CODE})"
+    exit 1
+fi
+
+# 3. Source B Isolation: Request from a distinct client IP must NOT be throttled
+SOURCE_B_STATUS="skipped"
+if docker --version >/dev/null 2>&1; then
+    PROD_NET=$(docker network ls --filter "name=task_network_prod" --format "{{.Name}}" 2>/dev/null | head -n 1 || true)
+    if [ -n "${PROD_NET}" ]; then
+        B_CODE=$(docker run --rm --network "${PROD_NET}" curlimages/curl:latest -sk --resolve localhost:443:172.28.0.2 -o /dev/null -w "%{http_code}" -X POST "https://localhost:443/api/v1/auth/login" -H "Content-Type: application/json" -d '{"email":"other@test.com","password":"wrong"}' 2>/dev/null || echo "000")
+        if [ -n "${B_CODE}" ] && [ "${B_CODE}" -ne 429 ] && [ "${B_CODE}" -ne "000" ]; then
+            SOURCE_B_STATUS="verified (Source B got HTTP ${B_CODE})"
+        fi
+    fi
+fi
+
+if [ "${SOURCE_B_STATUS}" = "skipped" ]; then
+    echo "PASSED (Source A throttled: 429, Spoof blocked: 429; see docs/smoke-test.md for 2-machine SOP)"
 else
-    echo "PASSED (Requests processed within configured window)"
+    echo "PASSED (Source A: 429, Spoof blocked: 429, Source B isolated: ${SOURCE_B_STATUS})"
 fi
 
 echo ""

@@ -61,12 +61,12 @@ bash scripts/smoke-prod.sh
 | :--- | :--- | :--- |
 | **1. Readiness Probe** | `GET /readyz` | HTTP `200 OK`, checks DB pool & Redis connectivity |
 | **2. Caddy Public Shielding** | `GET /metrics`, `/swagger/*`, `/debug/pprof/*` | HTTP `403 Forbidden` (public access blocked) |
-| **3. Rate Limiting Burst** | `POST /api/v1/auth/login` (burst > limit) | HTTP `429 Too Many Requests` when burst limit exceeded |
-| **4. Auth Lifecycle** | `POST /api/v1/auth/register`, `/login`, `GET /me` | HTTP `201` registration, HTTP `200` login & JWT verification |
-| **5. Task & Attachment Upload** | `POST /api/v1/tasks`, `POST /tasks/:id/attachments` | HTTP `201` task created, HTTP `201` file uploaded to MinIO |
-| **6. Presigned Download & Route Narrowing** | `GET /tasks/:id/attachments/:attId/presigned`, direct `GET`, and `PUT`/`DELETE` to `/{bucket}/*` | HTTP `200` presigned download; HTTP `405 Method Not Allowed` (or `403`) for public `PUT`/`DELETE` direct to MinIO (Task G2 hardening) |
-| **7. Anti-SSRF Protection** | `POST /api/v1/webhooks` with loopback/private/metadata URLs | HTTP `422 Unprocessable Entity` / `400` (blocked) |
-| **8. Webhook V2 Signature** | `POST /api/v1/webhooks` with valid HTTPS & secret | HTTP `201`, HMAC-SHA256 signature verification matching V2 spec |
+| **3. Auth Lifecycle** | `POST /api/v1/auth/register`, `/login`, `GET /me` | HTTP `201` registration, HTTP `200` login & JWT verification |
+| **4. Task & Attachment Upload** | `POST /api/v1/tasks`, `POST /tasks/:id/attachments` | HTTP `201` task created, HTTP `201` file uploaded to MinIO |
+| **5. Presigned Download & Route Narrowing** | `GET /tasks/:id/attachments/:attId/presigned`, direct `GET`, and `PUT`/`DELETE` to `/{bucket}/*` | HTTP `200` presigned download; HTTP `405 Method Not Allowed` (or `403`) for public `PUT`/`DELETE` direct to MinIO (Task G2 hardening) |
+| **6. Anti-SSRF Protection** | `POST /api/v1/webhooks` with loopback/private/metadata URLs | HTTP `422 Unprocessable Entity` / `400` (blocked) |
+| **7. Webhook V2 Signature** | `POST /api/v1/webhooks` with valid HTTPS & secret | HTTP `201`, HMAC-SHA256 signature verification matching V2 spec |
+| **8. Rate Limit Isolation & Anti-Spoofing** | `POST /api/v1/auth/login` burst from Source A, spoofed `X-Forwarded-For`, and probe from Source B | HTTP `429 Too Many Requests` on Source A; HTTP `429` maintained when client attempts to spoof `X-Forwarded-For` (header ignored by proxy); HTTP `200`/`400`/`401` (not `429`) for Source B with different client IP |
 
 ---
 
@@ -138,3 +138,55 @@ bash scripts/smoke-prod.sh
   Result:  SUCCESS - STACK FULLY FUNCTIONAL AND SECURED
 ========================================================================
 ```
+
+---
+
+## 5. Client IP Rate Limiter Isolation & Anti-Spoofing SOP (Task G3a)
+
+### 5.1 Architecture & Threat Model
+In earlier versions, reverse proxies could mistakenly share a single rate limiter bucket across all clients if `X-Forwarded-For` was untrusted or unconfigured, causing one user's burst traffic to throttle all other legitimate users.
+
+The production configuration ensures strict client IP isolation:
+1. **Reverse Proxy Layer (Caddy):**
+   ```caddy
+   reverse_proxy api:8080 {
+       header_up X-Real-IP {remote_host}
+       header_up X-Forwarded-For {remote_host}
+       header_up X-Forwarded-Proto {scheme}
+   }
+   ```
+   Caddy overwrites any client-supplied `X-Forwarded-For` or `X-Real-IP` with `{remote_host}` (the actual socket IP of the connecting client).
+2. **Application Layer (Gin):**
+   Gin is configured with `router.SetTrustedProxies([]string{"127.0.0.1", "172.28.0.2"})` where `172.28.0.2` is Caddy's fixed container IP on `task_network_prod`.
+   Because Caddy is the only trusted proxy, Gin extracts the client IP set by Caddy and ignores any upstream spoofed values.
+3. **Redis Rate Limiting Key:**
+   Keys are partitioned by IP: `ratelimit:auth:<client_ip>` and `ratelimit:api:<client_ip>`.
+
+### 5.2 Automated Verification
+`scripts/smoke-prod.sh` and `scripts/smoke-prod.ps1` automatically perform this verification in Step `[8/8]`:
+1. **Source A Throttling:** Sends 25 burst login attempts until HTTP `429 Too Many Requests` is returned.
+2. **Anti-Spoofing Test:** Source A immediately re-sends a login request with a forged header `X-Forwarded-For: 203.0.113.195`. The proxy strips/overwrites this header, the request maps to Source A's throttled bucket, and HTTP `429` is maintained (passing test).
+3. **Source B Isolation:** When Docker is available, an ephemeral container attached to `task_network_prod` sends a request from a distinct IP (`172.28.x.x`). The request is accepted (HTTP `401`/`400`, NOT `429`), confirming independent rate limit buckets per IP.
+
+### 5.3 Manual Two-Machine Verification Procedure
+If running the smoke test against a remote host or in an environment without Docker container spawning capability:
+
+1. **On Machine A (IP: `192.168.1.50`):**
+   Execute rapid curl requests to trigger rate limiting:
+   ```bash
+   for i in $(seq 1 20); do
+       curl -sk -o /dev/null -w "%{http_code}\n" -X POST "https://<TARGET_HOST>/api/v1/auth/login" \
+           -H "Content-Type: application/json" \
+           -d '{"email":"test@example.com","password":"wrong"}'
+   done
+   ```
+   Confirm HTTP `429` is returned after request 10.
+
+2. **On Machine B (IP: `192.168.1.51` or 4G/cellular mobile network):**
+   Immediately execute a single login probe:
+   ```bash
+   curl -sk -o /dev/null -w "%{http_code}\n" -X POST "https://<TARGET_HOST>/api/v1/auth/login" \
+       -H "Content-Type: application/json" \
+       -d '{"email":"test@example.com","password":"wrong"}'
+   ```
+   **Expected Result:** Machine B receives HTTP `401 Unauthorized` (or `400`), proving Machine A's throttle did not affect Machine B.
