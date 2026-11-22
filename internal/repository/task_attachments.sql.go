@@ -151,3 +151,13 @@ func (q *Queries) ListTaskAttachmentsByTaskID(ctx context.Context, taskID uuid.U
 	}
 	return items, nil
 }
+
+const lockTaskAttachmentUpload = `-- name: LockTaskAttachmentUpload :exec
+SELECT pg_advisory_xact_lock($1)
+`
+
+func (q *Queries) LockTaskAttachmentUpload(ctx context.Context, key int64) error {
+	_, err := q.db.Exec(ctx, lockTaskAttachmentUpload, key)
+	return err
+}
+

@@ -456,3 +456,7 @@ func (m *mockQuerierWithHooks) CountAttachmentsByTaskID(context.Context, uuid.UU
 func (m *mockQuerierWithHooks) GetTotalAttachmentSizeByUserID(context.Context, uuid.UUID) (int64, error) {
 	return 0, nil
 }
+
+func (m *mockQuerierWithHooks) LockTaskAttachmentUpload(context.Context, int64) error {
+	return nil
+}

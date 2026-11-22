@@ -405,6 +405,10 @@ func (m *mockIdempotencyQuerier) GetTotalAttachmentSizeByUserID(context.Context,
 	return 0, nil
 }
 
+func (m *mockIdempotencyQuerier) LockTaskAttachmentUpload(context.Context, int64) error {
+	return nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

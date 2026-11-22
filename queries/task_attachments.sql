@@ -31,3 +31,7 @@ WHERE task_id = $1;
 -- name: GetTotalAttachmentSizeByUserID :one
 SELECT COALESCE(SUM(file_size), 0)::bigint FROM task_attachments
 WHERE user_id = $1;
+
+-- name: LockTaskAttachmentUpload :exec
+SELECT pg_advisory_xact_lock($1);
+

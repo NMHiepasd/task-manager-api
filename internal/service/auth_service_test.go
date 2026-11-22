@@ -340,6 +340,10 @@ func (m *mockQuerier) GetTotalAttachmentSizeByUserID(context.Context, uuid.UUID)
 	return 0, nil
 }
 
+func (m *mockQuerier) LockTaskAttachmentUpload(context.Context, int64) error {
+	return nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

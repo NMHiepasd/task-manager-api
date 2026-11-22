@@ -73,6 +73,7 @@ type Querier interface {
 	ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]WebhookDelivery, error)
+	LockTaskAttachmentUpload(ctx context.Context, key int64) error
 	ListWebhooksByProjectID(ctx context.Context, projectID pgtype.UUID) ([]Webhook, error)
 	ListWebhooksByUserID(ctx context.Context, userID uuid.UUID) ([]Webhook, error)
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
