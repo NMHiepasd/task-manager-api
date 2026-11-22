@@ -64,7 +64,7 @@ bash scripts/smoke-prod.sh
 | **3. Rate Limiting Burst** | `POST /api/v1/auth/login` (burst > limit) | HTTP `429 Too Many Requests` when burst limit exceeded |
 | **4. Auth Lifecycle** | `POST /api/v1/auth/register`, `/login`, `GET /me` | HTTP `201` registration, HTTP `200` login & JWT verification |
 | **5. Task & Attachment Upload** | `POST /api/v1/tasks`, `POST /tasks/:id/attachments` | HTTP `201` task created, HTTP `201` file uploaded to MinIO |
-| **6. Presigned URL Retrieval** | `GET /tasks/:id/attachments/:attId/presigned` | HTTP `200`, direct download through Caddy matches original content |
+| **6. Presigned Download & Route Narrowing** | `GET /tasks/:id/attachments/:attId/presigned`, direct `GET`, and `PUT`/`DELETE` to `/{bucket}/*` | HTTP `200` presigned download; HTTP `405 Method Not Allowed` (or `403`) for public `PUT`/`DELETE` direct to MinIO (Task G2 hardening) |
 | **7. Anti-SSRF Protection** | `POST /api/v1/webhooks` with loopback/private/metadata URLs | HTTP `422 Unprocessable Entity` / `400` (blocked) |
 | **8. Webhook V2 Signature** | `POST /api/v1/webhooks` with valid HTTPS & secret | HTTP `201`, HMAC-SHA256 signature verification matching V2 spec |
 

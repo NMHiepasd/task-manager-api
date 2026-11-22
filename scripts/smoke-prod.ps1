@@ -194,7 +194,22 @@ try {
     if ($downloadedContent.Trim() -ne $testContent.Trim()) {
         throw "Downloaded content mismatch! Expected '$testContent', got '$downloadedContent'"
     }
-    Write-Host "PASSED (Presigned download verified)" -ForegroundColor Green
+
+    # Verify Caddy restricts MinIO bucket route methods (G2: Only GET/HEAD allowed, PUT/DELETE blocked with 405/403)
+    $bucketName = if ($env:S3_BUCKET_NAME) { $env:S3_BUCKET_NAME } else { "task-attachments" }
+    $putOut = Join-Path $TempDir "put_blocked.txt"
+    $putBlockedCode = & curl.exe -skL -o $putOut -w "%{http_code}" -X PUT "$BaseUrl/$bucketName/illegal_probe.txt" -d "exploit"
+    if ($putBlockedCode -ne "405" -and $putBlockedCode -ne "403") {
+        throw "Direct PUT to bucket should be rejected with 405/403, got $putBlockedCode"
+    }
+
+    $delOut = Join-Path $TempDir "del_blocked.txt"
+    $delBlockedCode = & curl.exe -skL -o $delOut -w "%{http_code}" -X DELETE "$BaseUrl/$bucketName/illegal_probe.txt"
+    if ($delBlockedCode -ne "405" -and $delBlockedCode -ne "403") {
+        throw "Direct DELETE to bucket should be rejected with 405/403, got $delBlockedCode"
+    }
+
+    Write-Host "PASSED (Presigned download verified & PUT/DELETE rejected with 405/403)" -ForegroundColor Green
 
     # --------------------------------------------------------------------------
     # Test 6: Webhook Anti-SSRF Protection

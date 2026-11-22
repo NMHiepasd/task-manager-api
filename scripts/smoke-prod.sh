@@ -214,7 +214,21 @@ if [ "${DOWNLOADED_CONTENT}" != "${TEST_CONTENT}" ]; then
     echo "FAILED (Downloaded content mismatch)"
     exit 1
 fi
-echo "PASSED (Presigned download verified)"
+
+# Verify Caddy restricts MinIO bucket route methods (G2: Only GET/HEAD allowed, PUT/DELETE blocked with 405/403)
+BUCKET_NAME="${S3_BUCKET_NAME:-task-attachments}"
+PUT_BLOCKED_CODE=$(curl -skL -o /dev/null -w "%{http_code}" -X PUT "${BASE_URL}/${BUCKET_NAME}/illegal_probe.txt" -d "exploit")
+DELETE_BLOCKED_CODE=$(curl -skL -o /dev/null -w "%{http_code}" -X DELETE "${BASE_URL}/${BUCKET_NAME}/illegal_probe.txt")
+if [ "${PUT_BLOCKED_CODE}" -ne 405 ] && [ "${PUT_BLOCKED_CODE}" -ne 403 ]; then
+    echo "FAILED (Direct PUT to bucket not blocked: HTTP ${PUT_BLOCKED_CODE})"
+    exit 1
+fi
+if [ "${DELETE_BLOCKED_CODE}" -ne 405 ] && [ "${DELETE_BLOCKED_CODE}" -ne 403 ]; then
+    echo "FAILED (Direct DELETE to bucket not blocked: HTTP ${DELETE_BLOCKED_CODE})"
+    exit 1
+fi
+
+echo "PASSED (Presigned download verified & PUT/DELETE rejected with 405/403)"
 
 # ------------------------------------------------------------------------------
 # Test 6: Webhook Anti-SSRF Protection (Block loopback / metadata / internal IP)

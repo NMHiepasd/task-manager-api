@@ -40,9 +40,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `deploy/caddy/Caddyfile`, `docs/smoke-test.md`, `scripts/smoke-prod.sh`, `scripts/smoke-prod.ps1`.
 
-- [ ] Thêm matcher chỉ cho method GET và HEAD tới đường dẫn bucket; method khác trả 405 hoặc 403
-- [ ] Giữ nguyên khối chặn `/metrics`, `/swagger`, `/debug/pprof`
-- [ ] Thêm bước smoke: PUT và DELETE tới đường dẫn bucket qua Caddy bị từ chối, GET presigned vẫn tải được
+- [x] Thêm matcher chỉ cho method GET và HEAD tới đường dẫn bucket; method khác trả 405 hoặc 403
+- [x] Giữ nguyên khối chặn `/metrics`, `/swagger`, `/debug/pprof`
+- [x] Thêm bước smoke: PUT và DELETE tới đường dẫn bucket qua Caddy bị từ chối, GET presigned vẫn tải được
 
 **Xong khi:** người dùng chạy `caddy validate` và bước smoke mới cho kết quả đúng.
 

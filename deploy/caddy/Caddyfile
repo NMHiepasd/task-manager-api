@@ -1,29 +1,37 @@
 {
-    # Global options
-    admin off
+	# Global options
+	admin off
 }
 
 {$DOMAIN:localhost} {
-    encode gzip zstd
+	encode gzip zstd
 
-    # Block public access to internal observability and documentation endpoints
-    @blocked {
-        path /metrics /metrics/* /swagger /swagger/* /debug/pprof /debug/pprof/*
-    }
-    respond @blocked 403 {
-        body "Forbidden"
-        close
-    }
+	# Block public access to internal observability and documentation endpoints
+	@blocked {
+		path /metrics /metrics/* /swagger /swagger/* /debug/pprof /debug/pprof/*
+	}
+	respond @blocked 403 {
+		body "Forbidden"
+		close
+	}
 
-    # Route public S3 / MinIO direct downloads for task attachments
-    handle /{$S3_BUCKET_NAME:task-attachments}/* {
-        reverse_proxy minio:9000
-    }
+	# Route public S3 / MinIO direct downloads for task attachments (read-only: GET and HEAD)
+	handle /{$S3_BUCKET_NAME:task-attachments}/* {
+		@disallowedMethods {
+			not method GET HEAD
+		}
+		respond @disallowedMethods 405 {
+			body "Method Not Allowed"
+			close
+		}
 
-    # Route all legitimate API traffic to backend
-    reverse_proxy api:8080 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+		reverse_proxy minio:9000
+	}
+
+	# Route all legitimate API traffic to backend
+	reverse_proxy api:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
 }
