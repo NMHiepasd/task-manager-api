@@ -101,6 +101,11 @@ func ErrorHandler(logger *slog.Logger) gin.HandlerFunc {
 			code = "CONFLICT"
 			detail = err.Error()
 
+		case errors.Is(err, domain.ErrAccountLocked):
+			status = http.StatusLocked
+			code = "ACCOUNT_LOCKED"
+			detail = err.Error()
+
 		case errors.Is(err, domain.ErrUnauthorized):
 			status = http.StatusUnauthorized
 			code = "UNAUTHORIZED"

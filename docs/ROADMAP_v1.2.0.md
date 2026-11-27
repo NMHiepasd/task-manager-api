@@ -202,12 +202,12 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 **File:** `internal/domain/errors.go`, `internal/service/auth_service.go`, `internal/transport/http/handler/auth.go`, `internal/transport/http/middleware/error_handler.go`, `internal/service/auth_service_test.go`.
 
-- [ ] Định nghĩa lỗi `ErrAccountLocked` tương ứng HTTP 423 `Locked` (`ACCOUNT_LOCKED`) trong RFC 9457 Problem Details.
-- [ ] Trong `authService.Login`:
+- [x] Định nghĩa lỗi `ErrAccountLocked` tương ứng HTTP 423 `Locked` (`ACCOUNT_LOCKED`) trong RFC 9457 Problem Details.
+- [x] Trong `authService.Login`:
   - Nếu `user.LockedUntil > time.Now()`: chạy dummy hash comparison chống timing attack, trả về `ErrAccountLocked`.
   - Nếu sai mật khẩu: gọi `RecordFailedLogin`, trả về `ErrInvalidCredentials`.
   - Nếu đăng nhập thành công: gọi `ResetFailedLogin` và cấp phát token pair.
-- [ ] Unit tests bao phủ toàn diện: đúng sau 4 lần sai, bị khóa ở lần 5, thử đăng nhập khi đang bị khóa nhận HTTP 423, và đăng nhập bình thường sau khi hết 15 phút.
+- [x] Unit tests bao phủ toàn diện: đúng sau 4 lần sai, bị khóa ở lần 5, thử đăng nhập khi đang bị khóa nhận HTTP 423, và đăng nhập bình thường sau khi hết 15 phút.
 
 **Xong khi:** Toàn bộ test auth pass xanh, không rò rỉ timing attack.
 

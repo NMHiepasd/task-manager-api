@@ -135,8 +135,22 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*TokenRespon
 		return nil, fmt.Errorf("failed to retrieve user: %w", err)
 	}
 
+	// Check if account is currently locked
+	if user.LockedUntil.Valid && user.LockedUntil.Time.After(time.Now()) {
+		// Run dummy comparison to equalize execution time and prevent timing attacks on locked accounts
+		_ = s.hasher.ComparePassword(s.dummyHash, input.Password)
+		return nil, ErrAccountLocked
+	}
+
 	if err := s.hasher.ComparePassword(user.PasswordHash, input.Password); err != nil {
+		// Record failed login attempt and potentially lock the account
+		_, _ = s.repo.RecordFailedLogin(ctx, user.ID)
 		return nil, ErrInvalidCredentials
+	}
+
+	// Login succeeded. Reset failed login attempts if any were recorded.
+	if user.FailedLoginAttempts > 0 || user.LockedUntil.Valid {
+		_ = s.repo.ResetFailedLogin(ctx, user.ID)
 	}
 
 	return s.issueTokenPair(ctx, user)

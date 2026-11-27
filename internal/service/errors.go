@@ -7,6 +7,7 @@ import (
 var (
 	ErrEmailAlreadyExists         = domain.ErrEmailAlreadyExists
 	ErrInvalidCredentials         = domain.ErrInvalidCredentials
+	ErrAccountLocked              = domain.ErrAccountLocked
 	ErrUserNotFound               = domain.ErrUserNotFound
 	ErrInvalidToken               = domain.ErrInvalidToken
 	ErrTokenExpired               = domain.ErrTokenExpired

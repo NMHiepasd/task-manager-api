@@ -26,6 +26,10 @@ type mockQuerier struct {
 	getProjectMemberFn      func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
 	createOutboxEventFn     func(ctx context.Context, arg repository.CreateOutboxEventParams) (repository.OutboxEvent, error)
 	outboxEvents            []repository.CreateOutboxEventParams
+	recordFailedLoginFn     func(ctx context.Context, id uuid.UUID) (repository.RecordFailedLoginRow, error)
+	resetFailedLoginFn      func(ctx context.Context, id uuid.UUID) error
+	recordedFailedLogins    []uuid.UUID
+	resetFailedLogins       []uuid.UUID
 }
 
 func (m *mockQuerier) CreateUser(ctx context.Context, arg repository.CreateUserParams) (repository.User, error) {
@@ -392,11 +396,19 @@ func (m *mockQuerier) RecordOutboxEventRetry(context.Context, repository.RecordO
 	return nil
 }
 
-func (m *mockQuerier) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+func (m *mockQuerier) RecordFailedLogin(ctx context.Context, id uuid.UUID) (repository.RecordFailedLoginRow, error) {
+	m.recordedFailedLogins = append(m.recordedFailedLogins, id)
+	if m.recordFailedLoginFn != nil {
+		return m.recordFailedLoginFn(ctx, id)
+	}
 	return repository.RecordFailedLoginRow{}, nil
 }
 
-func (m *mockQuerier) ResetFailedLogin(context.Context, uuid.UUID) error {
+func (m *mockQuerier) ResetFailedLogin(ctx context.Context, id uuid.UUID) error {
+	m.resetFailedLogins = append(m.resetFailedLogins, id)
+	if m.resetFailedLoginFn != nil {
+		return m.resetFailedLoginFn(ctx, id)
+	}
 	return nil
 }
 
@@ -540,6 +552,143 @@ func TestAuthService_Login_InvalidCredentials(t *testing.T) {
 		Password: "WrongPassword!",
 	})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+func TestAuthService_Login_WrongPassword_RecordsFailedLogin(t *testing.T) {
+	h := hasher.NewBcryptHasher(bcrypt.MinCost)
+	hashed, err := h.HashPassword("CorrectPassword123!")
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{
+				ID:           userID,
+				Email:        "user@example.com",
+				PasswordHash: hashed,
+			}, nil
+		},
+	}
+
+	authService := setupTestAuthService(t, mock)
+
+	_, err = authService.Login(context.Background(), LoginInput{
+		Email:    "user@example.com",
+		Password: "WrongPassword!",
+	})
+	require.ErrorIs(t, err, ErrInvalidCredentials)
+	require.Contains(t, mock.recordedFailedLogins, userID)
+}
+
+func TestAuthService_Login_AccountLocked_DummyTimingDefense(t *testing.T) {
+	h := hasher.NewBcryptHasher(bcrypt.MinCost)
+	hashed, err := h.HashPassword("CorrectPassword123!")
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	futureLock := time.Now().Add(10 * time.Minute)
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{
+				ID:                  userID,
+				Email:               "locked@example.com",
+				PasswordHash:        hashed,
+				FailedLoginAttempts: 5,
+				LockedUntil:         pgtype.Timestamptz{Time: futureLock, Valid: true},
+			}, nil
+		},
+	}
+
+	tracker := &trackingHasher{PasswordHasher: h}
+	tm, err := token.NewJWTMaker("12345678901234567890123456789012")
+	require.NoError(t, err)
+
+	authService := NewAuthService(mock, tracker, tm, 15*time.Minute, 7*24*time.Hour)
+
+	_, err = authService.Login(context.Background(), LoginInput{
+		Email:    "locked@example.com",
+		Password: "AnyPassword!",
+	})
+
+	require.ErrorIs(t, err, ErrAccountLocked)
+	require.Equal(t, 1, tracker.compareCount, "Must perform dummy comparison to prevent timing attack on locked account")
+	require.Empty(t, mock.recordedFailedLogins, "Must not increment failed login attempts when account is already locked")
+}
+
+func TestAuthService_Login_AccountLockExpired_AllowsLogin(t *testing.T) {
+	h := hasher.NewBcryptHasher(bcrypt.MinCost)
+	hashed, err := h.HashPassword("CorrectPassword123!")
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	pastLock := time.Now().Add(-5 * time.Minute)
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{
+				ID:                  userID,
+				Email:               "unlocked@example.com",
+				PasswordHash:        hashed,
+				Role:                "user",
+				FailedLoginAttempts: 5,
+				LockedUntil:         pgtype.Timestamptz{Time: pastLock, Valid: true},
+				CreatedAt:           pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			}, nil
+		},
+		createRefreshTokenFn: func(_ context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
+			return repository.RefreshToken{
+				ID:     uuid.New(),
+				UserID: arg.UserID,
+			}, nil
+		},
+	}
+
+	authService := setupTestAuthService(t, mock)
+
+	res, err := authService.Login(context.Background(), LoginInput{
+		Email:    "unlocked@example.com",
+		Password: "CorrectPassword123!",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Contains(t, mock.resetFailedLogins, userID, "Must reset failed logins after lock duration expires")
+}
+
+func TestAuthService_Login_Success_ResetsFailedLoginCount(t *testing.T) {
+	h := hasher.NewBcryptHasher(bcrypt.MinCost)
+	hashed, err := h.HashPassword("CorrectPassword123!")
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{
+				ID:                  userID,
+				Email:               "user@example.com",
+				PasswordHash:        hashed,
+				Role:                "user",
+				FailedLoginAttempts: 3,
+				CreatedAt:           pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			}, nil
+		},
+		createRefreshTokenFn: func(_ context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
+			return repository.RefreshToken{
+				ID:     uuid.New(),
+				UserID: arg.UserID,
+			}, nil
+		},
+	}
+
+	authService := setupTestAuthService(t, mock)
+
+	res, err := authService.Login(context.Background(), LoginInput{
+		Email:    "user@example.com",
+		Password: "CorrectPassword123!",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Contains(t, mock.resetFailedLogins, userID, "Must reset failed logins upon successful authentication")
 }
 
 type trackingHasher struct {

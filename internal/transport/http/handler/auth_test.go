@@ -203,6 +203,33 @@ func TestAuthHandler_Login(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
 		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
 	})
+
+	t.Run("Locked_423", func(t *testing.T) {
+		mock := &mockAuthService{
+			loginFn: func(_ context.Context, _ service.LoginInput) (*service.TokenResponse, error) {
+				return nil, service.ErrAccountLocked
+			},
+		}
+
+		handler := NewAuthHandler(mock)
+		router := gin.New()
+		router.Use(middleware.ErrorHandler(nil))
+		router.POST("/login", handler.Login)
+
+		body := map[string]string{
+			"email":    "user@example.com",
+			"password": "Password123!",
+		}
+		jsonBytes, _ := json.Marshal(body)
+
+		req, _ := http.NewRequest(http.MethodPost, "/login", bytes.NewReader(jsonBytes))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusLocked, rec.Code)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
+	})
 }
 
 func TestAuthHandler_RefreshToken(t *testing.T) {

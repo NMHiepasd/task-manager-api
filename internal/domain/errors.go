@@ -17,6 +17,7 @@ var (
 	// Specific domain errors
 	ErrEmailAlreadyExists         = fmt.Errorf("%w: email is already registered", ErrConflict)
 	ErrInvalidCredentials         = fmt.Errorf("%w: invalid email or password", ErrUnauthorized)
+	ErrAccountLocked              = errors.New("account is temporarily locked due to consecutive failed login attempts; please try again after 15 minutes")
 	ErrUserNotFound               = fmt.Errorf("%w: user not found", ErrNotFound)
 	ErrInvalidToken               = fmt.Errorf("%w: token is invalid", ErrUnauthorized)
 	ErrTokenExpired               = fmt.Errorf("%w: token has expired", ErrUnauthorized)

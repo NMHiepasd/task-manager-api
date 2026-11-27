@@ -84,6 +84,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success      200 {object} service.TokenResponse
 // @Failure      400 {object} ProblemDetails
 // @Failure      401 {object} ProblemDetails
+// @Failure      423 {object} ProblemDetails
 // @Failure      429 {object} ProblemDetails
 // @Router       /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -116,6 +117,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success      200 {object} service.TokenResponse
 // @Failure      400 {object} ProblemDetails
 // @Failure      401 {object} ProblemDetails
+// @Failure      423 {object} ProblemDetails
 // @Failure      429 {object} ProblemDetails
 // @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
