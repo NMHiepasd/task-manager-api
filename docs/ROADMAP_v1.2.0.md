@@ -44,10 +44,10 @@ Mục tiêu: Không còn lưu secret dưới dạng plaintext trong PostgreSQL v
 
 **File:** `pkg/crypto/aes_gcm.go`, `pkg/crypto/aes_gcm_test.go`.
 
-- [ ] Triển khai `Encrypt(plaintext []byte, key []byte) (ciphertextBase64 string, error)`: sử dụng AES-256-GCM với nonce ngẫu nhiên 12 bytes sinh từ `crypto/rand`, đóng gói `nonce + ciphertext + tag` và encode Base64.
-- [ ] Triển khai `Decrypt(ciphertextBase64 string, key []byte) ([]byte, error)`: decode Base64, trích xuất nonce 12 bytes và giải mã kèm xác thực tag toàn vẹn.
-- [ ] Định nghĩa các lỗi sentinel: `ErrInvalidKeySize`, `ErrCiphertextTooShort`, `ErrDecryptionFailed`.
-- [ ] Unit tests: kiểm thử round-trip, test vectors, tính ngẫu nhiên của nonce (mỗi lần mã hóa cùng plaintext ra kết quả khác nhau), và từ chối ciphertext bị giả mạo.
+- [x] Triển khai `Encrypt(plaintext []byte, key []byte) (ciphertextBase64 string, error)`: sử dụng AES-256-GCM với nonce ngẫu nhiên 12 bytes sinh từ `crypto/rand`, đóng gói `nonce + ciphertext + tag` và encode Base64.
+- [x] Triển khai `Decrypt(ciphertextBase64 string, key []byte) ([]byte, error)`: decode Base64, trích xuất nonce 12 bytes và giải mã kèm xác thực tag toàn vẹn.
+- [x] Định nghĩa các lỗi sentinel: `ErrInvalidKeySize`, `ErrCiphertextTooShort`, `ErrDecryptionFailed`.
+- [x] Unit tests: kiểm thử round-trip, test vectors, tính ngẫu nhiên của nonce (mỗi lần mã hóa cùng plaintext ra kết quả khác nhau), và từ chối ciphertext bị giả mạo.
 
 **Xong khi:** `go test ./pkg/crypto/...` pass 100%, coverage đạt trên 90%.
 
