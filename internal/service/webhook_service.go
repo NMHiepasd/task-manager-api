@@ -11,6 +11,7 @@ import (
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/worker"
+	"task-manager-api/pkg/crypto"
 	"task-manager-api/pkg/webhook"
 	"time"
 
@@ -86,14 +87,20 @@ type webhookService struct {
 	queries            repository.Querier
 	distributor        worker.TaskDistributor
 	allowLocalWebhooks bool
+	encryptionKey      []byte
 }
 
 // NewWebhookService creates a new WebhookService instance.
-func NewWebhookService(queries repository.Querier, distributor worker.TaskDistributor, allowLocalWebhooks bool) WebhookService {
+func NewWebhookService(queries repository.Querier, distributor worker.TaskDistributor, allowLocalWebhooks bool, encryptionKey ...[]byte) WebhookService {
+	var key []byte
+	if len(encryptionKey) > 0 && len(encryptionKey[0]) == crypto.KeySize {
+		key = encryptionKey[0]
+	}
 	return &webhookService{
 		queries:            queries,
 		distributor:        distributor,
 		allowLocalWebhooks: allowLocalWebhooks,
+		encryptionKey:      key,
 	}
 }
 
@@ -140,11 +147,20 @@ func (s *webhookService) CreateWebhook(ctx context.Context, userID uuid.UUID, re
 		return nil, domain.ErrInvalidWebhookSecret
 	}
 
+	encryptedSecret := secret
+	if len(s.encryptionKey) == crypto.KeySize {
+		enc, err := crypto.EncryptString(secret, s.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt webhook secret: %w", err)
+		}
+		encryptedSecret = enc
+	}
+
 	wh, err := s.queries.CreateWebhook(ctx, repository.CreateWebhookParams{
 		UserID:    userID,
 		ProjectID: projectUUID,
 		Url:       req.URL,
-		Secret:    secret,
+		Secret:    encryptedSecret,
 		Events:    req.Events,
 		IsActive:  true,
 	})
@@ -153,8 +169,8 @@ func (s *webhookService) CreateWebhook(ctx context.Context, userID uuid.UUID, re
 	}
 
 	resp := mapWebhookToResponse(wh)
-	// Return full secret on creation so the caller can store it securely
-	resp.Secret = wh.Secret
+	// Return full plaintext secret on creation so the caller can store it securely
+	resp.Secret = secret
 	return resp, nil
 }
 
@@ -323,7 +339,7 @@ func (s *webhookService) TriggerTestPing(ctx context.Context, userID, webhookID 
 		DeliveryID: deliveryID,
 		WebhookID:  wh.ID,
 		TargetURL:  wh.Url,
-		Secret:     wh.Secret,
+		Secret:     s.decryptSecretWithFallback(wh.Secret),
 		EventType:  "ping",
 		Payload:    pingPayload,
 	})
@@ -429,7 +445,7 @@ func (s *webhookService) DispatchEvent(ctx context.Context, actorID uuid.UUID, p
 			DeliveryID: deliveryID,
 			WebhookID:  wh.ID,
 			TargetURL:  wh.Url,
-			Secret:     wh.Secret,
+			Secret:     s.decryptSecretWithFallback(wh.Secret),
 			EventType:  eventType,
 			Payload:    envelopeBytes,
 		})
@@ -491,4 +507,19 @@ func mapWebhookToResponse(wh repository.Webhook) *WebhookResponse {
 		CreatedAt: wh.CreatedAt.Time,
 		UpdatedAt: wh.UpdatedAt.Time,
 	}
+}
+
+// decryptSecretWithFallback decrypts the stored secret using AES-256-GCM.
+// If decryption fails (e.g., legacy plaintext secret), it falls back to returning the stored secret as-is
+// ensuring non-breaking backward compatibility during rollout.
+func (s *webhookService) decryptSecretWithFallback(storedSecret string) string {
+	if len(s.encryptionKey) != crypto.KeySize || storedSecret == "" {
+		return storedSecret
+	}
+	decrypted, err := crypto.DecryptString(storedSecret, s.encryptionKey)
+	if err == nil {
+		return decrypted
+	}
+	// Fallback to stored secret if not encrypted
+	return storedSecret
 }

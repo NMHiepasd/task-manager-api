@@ -198,7 +198,11 @@ func main() {
 		}
 	}
 
-	webhookService := service.NewWebhookService(store, taskDistributor, cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts)
+	webhookKey, err := cfg.GetWebhookEncryptionKey()
+	if err != nil {
+		log.Warn("Webhook encryption key unavailable; stored secrets will not be encrypted", "error", err)
+	}
+	webhookService := service.NewWebhookService(store, taskDistributor, cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts, webhookKey)
 	if d, ok := taskService.(service.EventDispatchable); ok {
 		d.SetEventDispatcher(webhookService)
 	}

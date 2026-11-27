@@ -6,6 +6,7 @@ import (
 	"task-manager-api/internal/domain"
 	"task-manager-api/internal/repository"
 	"task-manager-api/internal/worker"
+	"task-manager-api/pkg/crypto"
 	"testing"
 	"time"
 
@@ -402,6 +403,106 @@ func TestWebhookService_TriggerTestPingAndDispatch(t *testing.T) {
 		require.NoError(t, json.Unmarshal(dist.sent[1].Payload, &parsed2))
 		assert.Equal(t, dist.sent[0].DeliveryID.String(), parsed1["id"])
 		assert.Equal(t, dist.sent[1].DeliveryID.String(), parsed2["id"])
+	})
+}
+
+func TestWebhookService_SecretEncryption(t *testing.T) {
+	encKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	customSecret := "sample_secret_key_32_chars_very_secure!"
+
+	t.Run("CreateWebhook_EncryptsSecretInDatabase", func(t *testing.T) {
+		var capturedSecretInDB string
+		mockQ := &mockWebhookQuerier{
+			createWebhookFn: func(_ context.Context, arg repository.CreateWebhookParams) (repository.Webhook, error) {
+				capturedSecretInDB = arg.Secret
+				return repository.Webhook{
+					ID:        uuid.New(),
+					UserID:    arg.UserID,
+					Url:       arg.Url,
+					Secret:    arg.Secret,
+					Events:    arg.Events,
+					IsActive:  arg.IsActive,
+					CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				}, nil
+			},
+		}
+
+		svc := NewWebhookService(mockQ, nil, true, encKey)
+		res, err := svc.CreateWebhook(context.Background(), userID, CreateWebhookRequest{
+			URL:    "http://localhost:8080/hook",
+			Secret: customSecret,
+			Events: []string{"task.created"},
+		})
+		require.NoError(t, err)
+
+		// 1. Response returns plaintext secret to caller upon creation
+		assert.Equal(t, customSecret, res.Secret)
+
+		// 2. Secret stored in database must NOT be plaintext
+		assert.NotEqual(t, customSecret, capturedSecretInDB)
+
+		// 3. Secret stored in database can be decrypted back to plaintext with encKey
+		decrypted, err := crypto.DecryptString(capturedSecretInDB, encKey)
+		require.NoError(t, err)
+		assert.Equal(t, customSecret, decrypted)
+	})
+
+	t.Run("DispatchEvent_DecryptsEncryptedSecret", func(t *testing.T) {
+		dist := &mockWebhookDistributor{}
+		encryptedSecret, err := crypto.EncryptString(customSecret, encKey)
+		require.NoError(t, err)
+
+		wh := repository.Webhook{
+			ID:     uuid.New(),
+			UserID: userID,
+			Url:    "https://hook.com",
+			Secret: encryptedSecret,
+		}
+
+		mockQ := &mockWebhookQuerier{
+			listActiveWebhooksForEventFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+				return []repository.Webhook{wh}, nil
+			},
+		}
+
+		svc := NewWebhookService(mockQ, dist, false, encKey)
+		err = svc.DispatchEvent(context.Background(), userID, nil, "task.created", map[string]any{"task_id": "123"})
+		require.NoError(t, err)
+		require.Len(t, dist.sent, 1)
+
+		// Decrypted secret was passed to distributor for signing
+		assert.Equal(t, customSecret, dist.sent[0].Secret)
+	})
+
+	t.Run("DispatchEvent_FallbackToPlaintextSecret", func(t *testing.T) {
+		dist := &mockWebhookDistributor{}
+		//nolint:gosec // G101: Test dummy legacy secret
+		legacyPlainSecret := "legacy_unencrypted_secret_string_from_old_schema"
+
+		wh := repository.Webhook{
+			ID:     uuid.New(),
+			UserID: userID,
+			Url:    "https://hook.com",
+			Secret: legacyPlainSecret,
+		}
+
+		mockQ := &mockWebhookQuerier{
+			listActiveWebhooksForEventFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+				return []repository.Webhook{wh}, nil
+			},
+		}
+
+		svc := NewWebhookService(mockQ, dist, false, encKey)
+		err = svc.DispatchEvent(context.Background(), userID, nil, "task.created", map[string]any{"task_id": "123"})
+		require.NoError(t, err)
+		require.Len(t, dist.sent, 1)
+
+		// Fallback mechanism preserves plain secret without failing
+		assert.Equal(t, legacyPlainSecret, dist.sent[0].Secret)
 	})
 }
 

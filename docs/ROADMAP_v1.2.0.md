@@ -59,11 +59,11 @@ Mục tiêu: Không còn lưu secret dưới dạng plaintext trong PostgreSQL v
 
 **File:** `internal/config/config.go`, `.env.example`, `docker-compose.prod.yml`, `README.md`, `internal/service/webhook_service.go`, `internal/service/webhook_service_test.go`.
 
-- [ ] Thêm `WEBHOOK_ENCRYPTION_KEY` (khóa 32-byte hex/base64) vào `internal/config/config.go` kèm validation nghiêm ngặt trong staging/production.
-- [ ] Cập nhật `.env.example`, `docker-compose.prod.yml`, và tài liệu `README.md`.
-- [ ] Tại `CreateWebhook`: mã hóa secret bằng `pkg/crypto` trước khi lưu vào DB thông qua `queries.CreateWebhook`.
-- [ ] Cung cấp cơ chế giải mã hỗ trợ fallback: nếu secret trong DB là plaintext cũ (chưa được mã hóa), giải mã trả về plaintext để duy trì tương thích trong quá trình rolling update.
-- [ ] Viết unit & integration tests xác thực dữ liệu lưu trong DB là ciphertext base64.
+- [x] Thêm `WEBHOOK_ENCRYPTION_KEY` (khóa 32-byte hex/base64) vào `internal/config/config.go` kèm validation nghiêm ngặt trong staging/production.
+- [x] Cập nhật `.env.example`, `docker-compose.prod.yml`, và tài liệu `README.md`.
+- [x] Tại `CreateWebhook`: mã hóa secret bằng `pkg/crypto` trước khi lưu vào DB thông qua `queries.CreateWebhook`.
+- [x] Cung cấp cơ chế giải mã hỗ trợ fallback: nếu secret trong DB là plaintext cũ (chưa được mã hóa), giải mã trả về plaintext để duy trì tương thích trong quá trình rolling update.
+- [x] Viết unit & integration tests xác thực dữ liệu lưu trong DB là ciphertext base64.
 
 **Xong khi:** Test service và integration pass xanh; secret lưu trong DB là ciphertext.
 
