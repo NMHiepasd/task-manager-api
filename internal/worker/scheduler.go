@@ -50,6 +50,14 @@ func NewScheduler(redisOpt asynq.RedisConnOpt, cfg *config.Config, log *slog.Log
 	}
 	log.Info("Registered recurring deadline scanner job", "entry_id", entryID, "schedule", scanSchedule)
 
+	// 4. Register old processed outbox events cleanup job
+	outboxCleanupTask := NewCleanupOldOutboxEventsTask()
+	entryID, err = scheduler.Register(cleanupSchedule, outboxCleanupTask)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register cleanup old outbox events cron: %w", err)
+	}
+	log.Info("Registered recurring outbox cleanup job", "entry_id", entryID, "schedule", cleanupSchedule)
+
 	return &Scheduler{
 		scheduler: scheduler,
 		log:       log,

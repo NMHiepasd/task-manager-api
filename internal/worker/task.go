@@ -26,6 +26,7 @@ const (
 	TypeDeadlineReminder              = "task:deadline_reminder"
 	TypeSendWebhook                   = "task:send_webhook"
 	TypeDeleteStorageObject           = "storage:delete_object"
+	TypeCleanupOldOutboxEvents        = "task:cleanup_old_outbox_events"
 )
 
 // DeleteStorageObjectPayload defines the payload for asynchronous orphan object cleanup.
@@ -91,4 +92,9 @@ func NewDeleteStorageObjectTask(payload DeleteStorageObjectPayload) (*asynq.Task
 		return nil, fmt.Errorf("failed to marshal delete storage object payload: %w", err)
 	}
 	return asynq.NewTask(TypeDeleteStorageObject, data, asynq.Queue(QueueLow), asynq.MaxRetry(5)), nil
+}
+
+// NewCleanupOldOutboxEventsTask creates an Asynq task to prune processed outbox events older than 7 days.
+func NewCleanupOldOutboxEventsTask() *asynq.Task {
+	return asynq.NewTask(TypeCleanupOldOutboxEvents, nil, asynq.Queue(QueueLow), asynq.MaxRetry(3))
 }

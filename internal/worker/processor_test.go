@@ -26,11 +26,12 @@ import (
 
 // mockWorkerStore mocks TaskStore for background worker tests
 type mockWorkerStore struct {
-	deleteExpiredTokensFn      func(ctx context.Context) error
-	deleteOldIdempotencyKeysFn func(ctx context.Context, cutoff pgtype.Timestamptz) error
-	listTasksDueSoonFn         func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
-	createWebhookDeliveryFn    func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
-	getWebhookByIDFn           func(ctx context.Context, id uuid.UUID) (repository.Webhook, error)
+	deleteExpiredTokensFn            func(ctx context.Context) error
+	deleteOldIdempotencyKeysFn       func(ctx context.Context, cutoff pgtype.Timestamptz) error
+	listTasksDueSoonFn               func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
+	createWebhookDeliveryFn          func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
+	getWebhookByIDFn                 func(ctx context.Context, id uuid.UUID) (repository.Webhook, error)
+	deleteOldProcessedOutboxEventsFn func(ctx context.Context, processedAt pgtype.Timestamptz) (int64, error)
 }
 
 func (m *mockWorkerStore) DeleteExpiredRefreshTokens(ctx context.Context) error {
@@ -72,6 +73,13 @@ func (m *mockWorkerStore) GetWebhookByID(ctx context.Context, id uuid.UUID) (rep
 		Secret:   "whsec_test_secret_32_characters_minimum_len!",
 		IsActive: true,
 	}, nil
+}
+
+func (m *mockWorkerStore) DeleteOldProcessedOutboxEvents(ctx context.Context, processedAt pgtype.Timestamptz) (int64, error) {
+	if m.deleteOldProcessedOutboxEventsFn != nil {
+		return m.deleteOldProcessedOutboxEventsFn(ctx, processedAt)
+	}
+	return 0, nil
 }
 
 type errTransport struct {
@@ -856,5 +864,52 @@ func TestProcessDeleteStorageObject(t *testing.T) {
 
 		err = processor.ProcessDeleteStorageObject(context.Background(), task)
 		assert.Error(t, err)
+	})
+}
+
+func TestRedisTaskProcessor_ProcessCleanupOldOutboxEvents(t *testing.T) {
+	t.Parallel()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		store := &mockWorkerStore{
+			deleteOldProcessedOutboxEventsFn: func(_ context.Context, processedAt pgtype.Timestamptz) (int64, error) {
+				assert.True(t, processedAt.Valid)
+				assert.WithinDuration(t, time.Now().Add(-7*24*time.Hour), processedAt.Time, 5*time.Second)
+				return 42, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store: store,
+			log:   log,
+		}
+
+		task := NewCleanupOldOutboxEventsTask()
+		require.NotNil(t, task)
+		assert.Equal(t, TypeCleanupOldOutboxEvents, task.Type())
+
+		err := processor.ProcessCleanupOldOutboxEvents(context.Background(), task)
+		require.NoError(t, err)
+	})
+
+	t.Run("StoreError", func(t *testing.T) {
+		t.Parallel()
+		store := &mockWorkerStore{
+			deleteOldProcessedOutboxEventsFn: func(_ context.Context, _ pgtype.Timestamptz) (int64, error) {
+				return 0, errors.New("db connection failure")
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store: store,
+			log:   log,
+		}
+
+		task := NewCleanupOldOutboxEventsTask()
+		err := processor.ProcessCleanupOldOutboxEvents(context.Background(), task)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cleanup old outbox events failed")
 	})
 }

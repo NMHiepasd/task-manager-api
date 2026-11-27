@@ -33,6 +33,7 @@ type TaskProcessor interface {
 	ProcessDeadlineReminder(ctx context.Context, task *asynq.Task) error
 	ProcessSendWebhook(ctx context.Context, task *asynq.Task) error
 	ProcessDeleteStorageObject(ctx context.Context, task *asynq.Task) error
+	ProcessCleanupOldOutboxEvents(ctx context.Context, task *asynq.Task) error
 }
 
 // TaskStore defines the database access methods required by the background worker.
@@ -42,6 +43,7 @@ type TaskStore interface {
 	ListTasksDueSoon(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
 	CreateWebhookDelivery(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
 	GetWebhookByID(ctx context.Context, id uuid.UUID) (repository.Webhook, error)
+	DeleteOldProcessedOutboxEvents(ctx context.Context, processedAt pgtype.Timestamptz) (int64, error)
 }
 
 // RedisTaskProcessor implements TaskProcessor using Asynq Server.
@@ -126,6 +128,7 @@ func NewRedisTaskProcessor(
 	mux.HandleFunc(TypeDeadlineReminder, processor.ProcessDeadlineReminder)
 	mux.HandleFunc(TypeSendWebhook, processor.ProcessSendWebhook)
 	mux.HandleFunc(TypeDeleteStorageObject, processor.ProcessDeleteStorageObject)
+	mux.HandleFunc(TypeCleanupOldOutboxEvents, processor.ProcessCleanupOldOutboxEvents)
 
 	return processor
 }
@@ -168,6 +171,21 @@ func (p *RedisTaskProcessor) ProcessCleanupExpiredIdempotencyKeys(ctx context.Co
 	}
 
 	p.log.Info("Expired idempotency keys cleaned up successfully")
+	return nil
+}
+
+// ProcessCleanupOldOutboxEvents deletes processed outbox events older than 7 days from the database.
+func (p *RedisTaskProcessor) ProcessCleanupOldOutboxEvents(ctx context.Context, task *asynq.Task) error {
+	p.log.Info("Executing old outbox events cleanup job", "task_type", task.Type())
+
+	cutoff := time.Now().Add(-7 * 24 * time.Hour)
+	deletedCount, err := p.store.DeleteOldProcessedOutboxEvents(ctx, pgtype.Timestamptz{Time: cutoff, Valid: true})
+	if err != nil {
+		p.log.Error("Failed to delete old outbox events", "error", err)
+		return fmt.Errorf("cleanup old outbox events failed: %w", err)
+	}
+
+	p.log.Info("Old outbox events cleaned up successfully", "deleted_count", deletedCount)
 	return nil
 }
 

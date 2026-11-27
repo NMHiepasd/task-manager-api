@@ -143,11 +143,11 @@ Mục tiêu: Đảm bảo tính nguyên tử giữa dữ liệu nghiệp vụ v�
 
 **File:** `internal/worker/outbox_relay.go`, `internal/worker/processor.go`, `cmd/api/main.go`, `internal/service/outbox_integration_test.go`.
 
-- [ ] Xây dựng Outbox Relay loop: định kỳ (mỗi 500ms - 1s) lấy batch pending events bằng `FetchPendingOutboxEvents`.
-- [ ] Tìm danh sách webhook hợp lệ cho từng event và enqueue task `task:send_webhook` (hoặc dispatch) vào queue Asynq.
-- [ ] Cập nhật trạng thái các event thành `published` trong một database transaction.
-- [ ] Thêm background job dọn dẹp các outbox events cũ đã hoàn tất (`published` quá 7 ngày).
-- [ ] Viết Live Integration test với Testcontainers PostgreSQL: tạo task qua service $\to$ commit DB $\to$ relay quét và dispatch thành công.
+- [x] Xây dựng Outbox Relay loop: định kỳ (mỗi 500ms - 1s) lấy batch pending events bằng `FetchPendingOutboxEvents`.
+- [x] Tìm danh sách webhook hợp lệ cho từng event và enqueue task `task:send_webhook` (hoặc dispatch) vào queue Asynq.
+- [x] Cập nhật trạng thái các event thành `published` trong một database transaction.
+- [x] Thêm background job dọn dẹp các outbox events cũ đã hoàn tất (`published` quá 7 ngày).
+- [x] Viết Live Integration test với Testcontainers PostgreSQL: tạo task qua service $\to$ commit DB $\to$ relay quét và dispatch thành công.
 
 **Xong khi:** Test integration chạy xanh với `-race`, không có hiện tượng race condition khi chạy nhiều relay workers.
 

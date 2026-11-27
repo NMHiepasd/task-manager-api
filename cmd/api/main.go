@@ -190,7 +190,12 @@ func main() {
 					defer scheduler.Shutdown()
 				}
 			}
-			log.Info("Background task worker and cron scheduler initialized successfully",
+
+			outboxRelay := worker.NewOutboxRelay(store, distributor, log)
+			outboxRelay.Start(context.Background())
+			defer outboxRelay.Stop()
+
+			log.Info("Background task worker, outbox relay, and cron scheduler initialized successfully",
 				"concurrency", cfg.WorkerConcurrency,
 				"cleanup_cron", cfg.CleanupCronSchedule,
 				"deadline_cron", cfg.DeadlineReminderCronSchedule,
