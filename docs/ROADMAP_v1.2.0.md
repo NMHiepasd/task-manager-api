@@ -183,14 +183,14 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 **File:** `migrations/000011_add_account_lockout_to_users.up.sql`, `migrations/000011_add_account_lockout_to_users.down.sql`, `queries/users.sql`, `internal/repository/users.sql.go`.
 
-- [ ] Migration thêm các cột vào `users`:
+- [x] Migration thêm các cột vào `users`:
   - `failed_login_attempts INT NOT NULL DEFAULT 0`
   - `locked_until TIMESTAMPTZ NULL`
   - `last_failed_login_at TIMESTAMPTZ NULL`
-- [ ] Viết queries trong `queries/users.sql`:
+- [x] Viết queries trong `queries/users.sql`:
   - `RecordFailedLogin`: tăng `failed_login_attempts`, nếu $\ge 5$ thì set `locked_until = NOW() + INTERVAL '15 minutes'`.
   - `ResetFailedLogin`: đặt lại `failed_login_attempts = 0` và `locked_until = NULL`.
-- [ ] Chạy `make sqlc` sinh repository code.
+- [x] Chạy `make sqlc` sinh repository code.
 
 **Xong khi:** Migration và sqlc compile sạch, test migration up/down thành công.
 

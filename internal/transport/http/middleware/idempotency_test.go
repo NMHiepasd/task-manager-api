@@ -449,6 +449,14 @@ func (m *mockIdempotencyQuerier) RecordOutboxEventRetry(context.Context, reposit
 	return nil
 }
 
+func (m *mockIdempotencyQuerier) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+	return repository.RecordFailedLoginRow{}, nil
+}
+
+func (m *mockIdempotencyQuerier) ResetFailedLogin(context.Context, uuid.UUID) error {
+	return nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

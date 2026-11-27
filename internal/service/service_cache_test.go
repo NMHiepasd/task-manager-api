@@ -500,3 +500,11 @@ func (m *mockQuerierWithHooks) MarkOutboxEventsPublished(context.Context, []uuid
 func (m *mockQuerierWithHooks) RecordOutboxEventRetry(context.Context, repository.RecordOutboxEventRetryParams) error {
 	return nil
 }
+
+func (m *mockQuerierWithHooks) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+	return repository.RecordFailedLoginRow{}, nil
+}
+
+func (m *mockQuerierWithHooks) ResetFailedLogin(context.Context, uuid.UUID) error {
+	return nil
+}

@@ -392,6 +392,14 @@ func (m *mockQuerier) RecordOutboxEventRetry(context.Context, repository.RecordO
 	return nil
 }
 
+func (m *mockQuerier) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+	return repository.RecordFailedLoginRow{}, nil
+}
+
+func (m *mockQuerier) ResetFailedLogin(context.Context, uuid.UUID) error {
+	return nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {
