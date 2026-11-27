@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"task-manager-api/pkg/crypto"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -77,9 +78,10 @@ type Config struct {
 	MaxUserStorageMB         int64  `env:"MAX_USER_STORAGE_MB" envDefault:"500"`
 
 	// Webhooks
-	AllowLocalWebhooks       bool `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
-	WebhookAllowPrivateHosts bool `env:"WEBHOOK_ALLOW_PRIVATE_HOSTS" envDefault:"false"`
-	WebhookMaxRetry          int  `env:"WEBHOOK_MAX_RETRY" envDefault:"6"`
+	AllowLocalWebhooks       bool   `env:"ALLOW_LOCAL_WEBHOOKS" envDefault:"false"`
+	WebhookAllowPrivateHosts bool   `env:"WEBHOOK_ALLOW_PRIVATE_HOSTS" envDefault:"false"`
+	WebhookMaxRetry          int    `env:"WEBHOOK_MAX_RETRY" envDefault:"6"`
+	WebhookEncryptionKey     string `env:"WEBHOOK_ENCRYPTION_KEY" envDefault:"12345678901234567890123456789012"`
 }
 
 // Load parses environment variables into Config and validates required fields.
@@ -175,7 +177,27 @@ func (c *Config) Validate(env string) error {
 		if c.AllowLocalWebhooks || c.WebhookAllowPrivateHosts {
 			errs = append(errs, errors.New("ALLOW_LOCAL_WEBHOOKS / WEBHOOK_ALLOW_PRIVATE_HOSTS cannot be enabled in production"))
 		}
+
+		// 5. Webhook encryption key check: required and non-default in production
+		if strings.TrimSpace(c.WebhookEncryptionKey) == "" || c.WebhookEncryptionKey == "12345678901234567890123456789012" {
+			errs = append(errs, errors.New("WEBHOOK_ENCRYPTION_KEY is required and cannot be default insecure key in production"))
+		}
+	}
+
+	// Webhook encryption key format validation across all environments if provided
+	if c.WebhookEncryptionKey != "" {
+		if _, err := crypto.ParseKey(c.WebhookEncryptionKey); err != nil {
+			errs = append(errs, fmt.Errorf("invalid WEBHOOK_ENCRYPTION_KEY: %w", err))
+		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// GetWebhookEncryptionKey returns the validated 32-byte key slice for AES-256 webhook encryption.
+func (c *Config) GetWebhookEncryptionKey() ([]byte, error) {
+	if strings.TrimSpace(c.WebhookEncryptionKey) == "" {
+		return nil, errors.New("webhook encryption key is not set")
+	}
+	return crypto.ParseKey(c.WebhookEncryptionKey)
 }

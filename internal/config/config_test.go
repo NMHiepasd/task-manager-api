@@ -12,17 +12,18 @@ import (
 //nolint:gosec // Test mock configuration
 func validProductionConfig() *config.Config {
 	return &config.Config{
-		AppPort:            8080,
-		AppEnv:             "production",
-		GinMode:            "release",
-		RedisPassword:      "super-secure-production-redis-password-12345",
-		JWTSecret:          "prod-super-secure-random-secret-key-64bytes-very-long!",
-		JWTExpiration:      15 * time.Minute,
-		S3AccessKey:        "actual-prod-access-key-id",
-		S3SecretKey:        "actual-prod-secret-access-key",
-		CORSAllowedOrigins: []string{"https://app.taskmanager.com", "https://api.taskmanager.com"},
-		RequestTimeout:     30 * time.Second,
-		ServerWriteTimeout: 60 * time.Second,
+		AppPort:              8080,
+		AppEnv:               "production",
+		GinMode:              "release",
+		RedisPassword:        "super-secure-production-redis-password-12345",
+		JWTSecret:            "prod-super-secure-random-secret-key-64bytes-very-long!",
+		JWTExpiration:        15 * time.Minute,
+		S3AccessKey:          "actual-prod-access-key-id",
+		S3SecretKey:          "actual-prod-secret-access-key",
+		CORSAllowedOrigins:   []string{"https://app.taskmanager.com", "https://api.taskmanager.com"},
+		RequestTimeout:       30 * time.Second,
+		ServerWriteTimeout:   60 * time.Second,
+		WebhookEncryptionKey: "prod-super-secure-webhook-key-32",
 	}
 }
 
@@ -297,5 +298,47 @@ func TestConfig_Validate_ProductionDisallowsLocalWebhooks(t *testing.T) {
 			err := cfg.Validate(envName)
 			require.NoError(t, err, "env %s should allow local webhooks flag", envName)
 		}
+	})
+}
+
+func TestConfig_Validate_WebhookEncryptionKey(t *testing.T) {
+	t.Run("ProductionRequiresNonDefaultKey", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.WebhookEncryptionKey = "12345678901234567890123456789012"
+
+		err := cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WEBHOOK_ENCRYPTION_KEY")
+	})
+
+	t.Run("ProductionRejectsEmptyKey", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.WebhookEncryptionKey = ""
+
+		err := cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WEBHOOK_ENCRYPTION_KEY")
+	})
+
+	t.Run("RejectsInvalidKeyFormat", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.WebhookEncryptionKey = "short-invalid-key"
+
+		err := cfg.Validate("development")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid WEBHOOK_ENCRYPTION_KEY")
+	})
+
+	t.Run("GetWebhookEncryptionKey_Success", func(t *testing.T) {
+		cfg := validProductionConfig()
+		key, err := cfg.GetWebhookEncryptionKey()
+		require.NoError(t, err)
+		assert.Len(t, key, 32)
+	})
+
+	t.Run("GetWebhookEncryptionKey_Empty", func(t *testing.T) {
+		cfg := &config.Config{WebhookEncryptionKey: ""}
+		_, err := cfg.GetWebhookEncryptionKey()
+		require.Error(t, err)
 	})
 }

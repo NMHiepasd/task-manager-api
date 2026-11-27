@@ -324,6 +324,7 @@ cp .env.example .env
 | `MAX_UPLOAD_SIZE_MB` | `10` | Maximum file upload size in MB |
 | `ALLOW_LOCAL_WEBHOOKS` | `false` | Allow webhook delivery to loopback and private networks (testing only) |
 | `WEBHOOK_MAX_RETRY` | `6` | Maximum retry attempts for failed webhook deliveries |
+| `WEBHOOK_ENCRYPTION_KEY` | *(required in prod)* | 32-byte master key for AES-256 encryption of webhook secrets in database (raw, 64-char hex, or 44-char base64) |
 
 ### Quickstart with Docker
 
