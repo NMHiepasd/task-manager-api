@@ -24,6 +24,8 @@ type mockQuerier struct {
 	revokeRefreshTokenFn    func(ctx context.Context, tokenHash string) error
 	revokeAllUserTokensFn   func(ctx context.Context, userID uuid.UUID) error
 	getProjectMemberFn      func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
+	createOutboxEventFn     func(ctx context.Context, arg repository.CreateOutboxEventParams) (repository.OutboxEvent, error)
+	outboxEvents            []repository.CreateOutboxEventParams
 }
 
 func (m *mockQuerier) CreateUser(ctx context.Context, arg repository.CreateUserParams) (repository.User, error) {
@@ -346,8 +348,20 @@ func (m *mockQuerier) LockTaskAttachmentUpload(context.Context, int64) error {
 
 func (m *mockQuerier) CountFailedOutboxEvents(context.Context) (int64, error)  { return 0, nil }
 func (m *mockQuerier) CountPendingOutboxEvents(context.Context) (int64, error) { return 0, nil }
-func (m *mockQuerier) CreateOutboxEvent(context.Context, repository.CreateOutboxEventParams) (repository.OutboxEvent, error) {
-	return repository.OutboxEvent{}, nil
+func (m *mockQuerier) CreateOutboxEvent(ctx context.Context, arg repository.CreateOutboxEventParams) (repository.OutboxEvent, error) {
+	m.outboxEvents = append(m.outboxEvents, arg)
+	if m.createOutboxEventFn != nil {
+		return m.createOutboxEventFn(ctx, arg)
+	}
+	return repository.OutboxEvent{
+		ID:            uuid.New(),
+		EventType:     arg.EventType,
+		AggregateType: arg.AggregateType,
+		AggregateID:   arg.AggregateID,
+		ActorID:       arg.ActorID,
+		ProjectID:     arg.ProjectID,
+		Payload:       arg.Payload,
+	}, nil
 }
 
 func (m *mockQuerier) DeleteOldProcessedOutboxEvents(context.Context, pgtype.Timestamptz) (int64, error) {

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -280,6 +281,23 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 				return fmt.Errorf("failed to save attachment record: %w", err)
 			}
 			record = rec
+
+			payloadBytes, err := json.Marshal(toAttachmentResponse(record))
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "attachment.uploaded",
+				AggregateType: "attachment",
+				AggregateID:   record.ID,
+				ActorID:       userID,
+				ProjectID:     task.ProjectID,
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
+
 			return nil
 		})
 	} else {
@@ -307,6 +325,16 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 			})
 			if err != nil {
 				err = fmt.Errorf("failed to save attachment record: %w", err)
+			} else {
+				payloadBytes, _ := json.Marshal(toAttachmentResponse(record))
+				_, _ = s.queries.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+					EventType:     "attachment.uploaded",
+					AggregateType: "attachment",
+					AggregateID:   record.ID,
+					ActorID:       userID,
+					ProjectID:     task.ProjectID,
+					Payload:       payloadBytes,
+				})
 			}
 		}
 	}
@@ -318,15 +346,6 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, userID, taskID
 	}
 
 	resp := toAttachmentResponse(record)
-	if s.dispatcher != nil {
-		var pID *uuid.UUID
-		if task.ProjectID.Valid {
-			id := uuid.UUID(task.ProjectID.Bytes)
-			pID = &id
-		}
-		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "attachment.uploaded", resp)
-	}
-
 	return resp, nil
 }
 

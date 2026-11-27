@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -207,6 +208,22 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 			}
 
 			tags, _ = q.GetTagsForTask(ctx, task.ID)
+			payloadBytes, err := json.Marshal(s.mapTask(task, tags))
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "task.created",
+				AggregateType: "task",
+				AggregateID:   task.ID,
+				ActorID:       userID,
+				ProjectID:     pID,
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
 			return nil
 		})
 		if err != nil {
@@ -235,12 +252,18 @@ func (s *taskService) CreateTask(ctx context.Context, userID uuid.UUID, input Cr
 			})
 		}
 		tags, _ = s.repo.GetTagsForTask(ctx, task.ID)
+		payloadBytes, _ := json.Marshal(s.mapTask(task, tags))
+		_, _ = s.repo.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+			EventType:     "task.created",
+			AggregateType: "task",
+			AggregateID:   task.ID,
+			ActorID:       userID,
+			ProjectID:     pID,
+			Payload:       payloadBytes,
+		})
 	}
 
 	resp := s.mapTask(task, tags)
-	if s.dispatcher != nil {
-		_ = s.dispatcher.DispatchEvent(ctx, userID, resp.ProjectID, "task.created", resp)
-	}
 	return resp, nil
 }
 
@@ -701,34 +724,99 @@ func (s *taskService) UpdateTask(ctx context.Context, userID uuid.UUID, taskID u
 		dDate = pgtype.Timestamptz{Time: *input.DueDate, Valid: true}
 	}
 
-	updated, err := s.repo.UpdateTask(ctx, repository.UpdateTaskParams{
-		ID:          taskID,
-		ProjectID:   pID,
-		AssigneeID:  aID,
-		Title:       title,
-		Description: description,
-		Status:      status,
-		Priority:    priority,
-		DueDate:     dDate,
-		Version:     input.Version,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrOptimisticLockConflict
+	var updated repository.Task
+	var tags []repository.Tag
+	if store, ok := s.repo.(repository.Store); ok {
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			var err error
+			updated, err = q.UpdateTask(ctx, repository.UpdateTaskParams{
+				ID:          taskID,
+				ProjectID:   pID,
+				AssigneeID:  aID,
+				Title:       title,
+				Description: description,
+				Status:      status,
+				Priority:    priority,
+				DueDate:     dDate,
+				Version:     input.Version,
+			})
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrOptimisticLockConflict
+				}
+				return fmt.Errorf("failed to update task: %w", err)
+			}
+
+			if input.TagIDs != nil {
+				_ = q.ClearTaskTags(ctx, taskID)
+				for _, tagID := range input.TagIDs {
+					_ = q.AddTagToTask(ctx, repository.AddTagToTaskParams{
+						TaskID: taskID,
+						TagID:  tagID,
+					})
+				}
+			}
+
+			tags, _ = q.GetTagsForTask(ctx, taskID)
+			payloadBytes, err := json.Marshal(s.mapTask(updated, tags))
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "task.updated",
+				AggregateType: "task",
+				AggregateID:   taskID,
+				ActorID:       userID,
+				ProjectID:     updated.ProjectID,
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("failed to update task: %w", err)
+	} else {
+		var err error
+		updated, err = s.repo.UpdateTask(ctx, repository.UpdateTaskParams{
+			ID:          taskID,
+			ProjectID:   pID,
+			AssigneeID:  aID,
+			Title:       title,
+			Description: description,
+			Status:      status,
+			Priority:    priority,
+			DueDate:     dDate,
+			Version:     input.Version,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrOptimisticLockConflict
+			}
+			return nil, fmt.Errorf("failed to update task: %w", err)
+		}
+
+		// Update tags if provided
+		if input.TagIDs != nil {
+			_, _ = s.SetTaskTags(ctx, userID, taskID, input.TagIDs)
+		}
+
+		tags, _ = s.repo.GetTagsForTask(ctx, taskID)
+		payloadBytes, _ := json.Marshal(s.mapTask(updated, tags))
+		_, _ = s.repo.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+			EventType:     "task.updated",
+			AggregateType: "task",
+			AggregateID:   taskID,
+			ActorID:       userID,
+			ProjectID:     updated.ProjectID,
+			Payload:       payloadBytes,
+		})
 	}
 
-	// Update tags if provided
-	if input.TagIDs != nil {
-		_, _ = s.SetTaskTags(ctx, userID, taskID, input.TagIDs)
-	}
-
-	tags, _ := s.repo.GetTagsForTask(ctx, taskID)
 	resp := s.mapTask(updated, tags)
-	if s.dispatcher != nil {
-		_ = s.dispatcher.DispatchEvent(ctx, userID, resp.ProjectID, "task.updated", resp)
-	}
 	return resp, nil
 }
 
@@ -760,17 +848,46 @@ func (s *taskService) DeleteTask(ctx context.Context, userID uuid.UUID, taskID u
 		return ErrInsufficientProjectRole
 	}
 
-	if err := s.repo.SoftDeleteTask(ctx, taskID); err != nil {
-		return fmt.Errorf("failed to delete task: %w", err)
-	}
+	if store, ok := s.repo.(repository.Store); ok {
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			if err := q.SoftDeleteTask(ctx, taskID); err != nil {
+				return fmt.Errorf("failed to delete task: %w", err)
+			}
 
-	if s.dispatcher != nil {
-		var pID *uuid.UUID
-		if existing.ProjectID.Valid {
-			id := uuid.UUID(existing.ProjectID.Bytes)
-			pID = &id
+			payloadBytes, err := json.Marshal(map[string]any{"task_id": taskID})
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "task.deleted",
+				AggregateType: "task",
+				AggregateID:   taskID,
+				ActorID:       userID,
+				ProjectID:     existing.ProjectID,
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
-		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "task.deleted", map[string]any{"task_id": taskID})
+	} else {
+		if err := s.repo.SoftDeleteTask(ctx, taskID); err != nil {
+			return fmt.Errorf("failed to delete task: %w", err)
+		}
+		payloadBytes, _ := json.Marshal(map[string]any{"task_id": taskID})
+		_, _ = s.repo.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+			EventType:     "task.deleted",
+			AggregateType: "task",
+			AggregateID:   taskID,
+			ActorID:       userID,
+			ProjectID:     existing.ProjectID,
+			Payload:       payloadBytes,
+		})
 	}
 
 	return nil

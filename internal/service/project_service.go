@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -434,14 +435,75 @@ func (s *projectService) AddMember(ctx context.Context, currentUserID uuid.UUID,
 		return nil, ErrProjectMemberAlreadyExists
 	}
 
-	// 4. Insert project member
-	pm, err := s.repo.AddProjectMember(ctx, repository.AddProjectMemberParams{
-		ProjectID: projectID,
-		UserID:    targetUser.ID,
-		Role:      role,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to add project member: %w", err)
+	// 4. Insert project member and record outbox event
+	var pm repository.ProjectMember
+	if store, ok := s.repo.(repository.Store); ok {
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			var err error
+			pm, err = q.AddProjectMember(ctx, repository.AddProjectMemberParams{
+				ProjectID: projectID,
+				UserID:    targetUser.ID,
+				Role:      role,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to add project member: %w", err)
+			}
+
+			payloadBytes, err := json.Marshal(map[string]any{
+				"id":         pm.ID,
+				"project_id": pm.ProjectID,
+				"user_id":    pm.UserID,
+				"email":      targetUser.Email,
+				"full_name":  targetUser.FullName,
+				"role":       pm.Role,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "project.member_added",
+				AggregateType: "project",
+				AggregateID:   projectID,
+				ActorID:       currentUserID,
+				ProjectID:     pgtype.UUID{Bytes: projectID, Valid: true},
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		pm, err = s.repo.AddProjectMember(ctx, repository.AddProjectMemberParams{
+			ProjectID: projectID,
+			UserID:    targetUser.ID,
+			Role:      role,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to add project member: %w", err)
+		}
+
+		payloadBytes, _ := json.Marshal(map[string]any{
+			"id":         pm.ID,
+			"project_id": pm.ProjectID,
+			"user_id":    pm.UserID,
+			"email":      targetUser.Email,
+			"full_name":  targetUser.FullName,
+			"role":       pm.Role,
+		})
+		_, _ = s.repo.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+			EventType:     "project.member_added",
+			AggregateType: "project",
+			AggregateID:   projectID,
+			ActorID:       currentUserID,
+			ProjectID:     pgtype.UUID{Bytes: projectID, Valid: true},
+			Payload:       payloadBytes,
+		})
 	}
 
 	// Invalidate target user's project cache

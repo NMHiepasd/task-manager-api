@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -158,13 +159,74 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		return nil, err
 	}
 
-	created, err := s.repo.CreateTaskComment(ctx, repository.CreateTaskCommentParams{
-		TaskID:  taskID,
-		UserID:  userID,
-		Content: content,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create comment: %w", err)
+	var created repository.TaskComment
+	if store, ok := s.repo.(repository.Store); ok {
+		err := store.WithTx(ctx, func(q repository.Querier) error {
+			var err error
+			created, err = q.CreateTaskComment(ctx, repository.CreateTaskCommentParams{
+				TaskID:  taskID,
+				UserID:  userID,
+				Content: content,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to create comment: %w", err)
+			}
+
+			payloadBytes, err := json.Marshal(map[string]any{
+				"id":         created.ID,
+				"task_id":    created.TaskID,
+				"user_id":    created.UserID,
+				"content":    created.Content,
+				"created_at": created.CreatedAt.Time,
+				"updated_at": created.UpdatedAt.Time,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to marshal outbox event payload: %w", err)
+			}
+
+			_, err = q.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+				EventType:     "comment.created",
+				AggregateType: "comment",
+				AggregateID:   created.ID,
+				ActorID:       userID,
+				ProjectID:     task.ProjectID,
+				Payload:       payloadBytes,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to insert outbox event: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		created, err = s.repo.CreateTaskComment(ctx, repository.CreateTaskCommentParams{
+			TaskID:  taskID,
+			UserID:  userID,
+			Content: content,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create comment: %w", err)
+		}
+
+		payloadBytes, _ := json.Marshal(map[string]any{
+			"id":         created.ID,
+			"task_id":    created.TaskID,
+			"user_id":    created.UserID,
+			"content":    created.Content,
+			"created_at": created.CreatedAt.Time,
+			"updated_at": created.UpdatedAt.Time,
+		})
+		_, _ = s.repo.CreateOutboxEvent(ctx, repository.CreateOutboxEventParams{
+			EventType:     "comment.created",
+			AggregateType: "comment",
+			AggregateID:   created.ID,
+			ActorID:       userID,
+			ProjectID:     task.ProjectID,
+			Payload:       payloadBytes,
+		})
 	}
 
 	user, err := s.repo.GetUserByID(ctx, userID)
@@ -180,15 +242,6 @@ func (s *commentService) CreateComment(ctx context.Context, userID uuid.UUID, ta
 		Content:   created.Content,
 		CreatedAt: created.CreatedAt.Time,
 		UpdatedAt: created.UpdatedAt.Time,
-	}
-
-	if s.dispatcher != nil {
-		var pID *uuid.UUID
-		if task.ProjectID.Valid {
-			id := uuid.UUID(task.ProjectID.Bytes)
-			pID = &id
-		}
-		_ = s.dispatcher.DispatchEvent(ctx, userID, pID, "comment.created", resp)
 	}
 
 	return resp, nil

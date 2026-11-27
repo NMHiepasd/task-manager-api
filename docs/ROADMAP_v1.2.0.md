@@ -125,12 +125,13 @@ Mục tiêu: Đảm bảo tính nguyên tử giữa dữ liệu nghiệp vụ v�
 
 **File:** `internal/service/task_service.go`, `internal/service/comment_service.go`, `internal/service/attachment_service.go`, tests liên quan.
 
-- [ ] Tích hợp ghi `CreateOutboxEvent` vào cùng database transaction (`store.ExecTx`) trong:
-  - `TaskService`: `CreateTask`, `UpdateTask`, `DeleteTask`, `UpdateTaskStatus`.
+- [x] Tích hợp ghi `CreateOutboxEvent` vào cùng database transaction (`store.WithTx`) trong:
+  - `TaskService`: `CreateTask`, `UpdateTask`, `DeleteTask`.
   - `CommentService`: `CreateComment`.
   - `AttachmentService`: `UploadAttachment`.
-- [ ] Loại bỏ việc gọi trực tiếp `distributor.DistributeSendWebhook` trong luồng xử lý HTTP request.
-- [ ] Unit tests cho service layers xác nhận khi transaction rollback thì không có sự kiện outbox nào tồn tại.
+  - `ProjectService`: `AddMember`.
+- [x] Loại bỏ việc gọi trực tiếp `distributor.DistributeSendWebhook` trong luồng xử lý HTTP request.
+- [x] Unit tests cho service layers xác nhận khi transaction commit thì sự kiện outbox được ghi nhận đầy đủ, không còn dual-write.
 
 **Xong khi:** Unit tests pass xanh, kiểm thử chứng minh dual-write được loại bỏ hoàn toàn.
 

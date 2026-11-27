@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -779,4 +780,49 @@ func TestCommentService_ADR018_SoftDeletedProjectGets404(t *testing.T) {
 		err := svc.DeleteComment(context.Background(), ownerID, taskID, commentID)
 		require.ErrorIs(t, err, ErrTaskNotFound)
 	})
+}
+
+func TestCommentService_OutboxIntegration(t *testing.T) {
+	ctx := context.Background()
+	userID := uuid.New()
+	taskID := uuid.New()
+	commentID := uuid.New()
+
+	mock := &mockCommentQuerier{
+		getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+			return repository.Task{
+				ID:        id,
+				CreatorID: userID,
+			}, nil
+		},
+		createTaskCommentFn: func(_ context.Context, arg repository.CreateTaskCommentParams) (repository.TaskComment, error) {
+			return repository.TaskComment{
+				ID:      commentID,
+				TaskID:  arg.TaskID,
+				UserID:  arg.UserID,
+				Content: arg.Content,
+			}, nil
+		},
+		getUserByIDFn: func(_ context.Context, id uuid.UUID) (repository.User, error) {
+			return repository.User{
+				ID:       id,
+				FullName: "Commenter User",
+			}, nil
+		},
+	}
+
+	svc := NewCommentService(mock)
+	res, err := svc.CreateComment(ctx, userID, taskID, CreateCommentInput{
+		Content: "Outbox Comment Content",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	require.Len(t, mock.outboxEvents, 1)
+	evt := mock.outboxEvents[0]
+	assert.Equal(t, "comment.created", evt.EventType)
+	assert.Equal(t, "comment", evt.AggregateType)
+	assert.Equal(t, commentID, evt.AggregateID)
+	assert.Equal(t, userID, evt.ActorID)
+	assert.Contains(t, string(evt.Payload), "Outbox Comment Content")
 }

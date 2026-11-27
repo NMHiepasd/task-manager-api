@@ -1086,3 +1086,102 @@ func TestTaskService_SetTaskTags(t *testing.T) {
 		require.ErrorIs(t, err, ErrInsufficientProjectRole)
 	})
 }
+
+func TestTaskService_OutboxIntegration(t *testing.T) {
+	ctx := context.Background()
+	userID := uuid.New()
+	taskID := uuid.New()
+
+	t.Run("CreateTask_RecordsOutboxEvent", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			createTaskFn: func(_ context.Context, arg repository.CreateTaskParams) (repository.Task, error) {
+				return repository.Task{
+					ID:        uuid.New(),
+					CreatorID: arg.CreatorID,
+					Title:     arg.Title,
+					Status:    arg.Status,
+					Priority:  arg.Priority,
+				}, nil
+			},
+		}
+		svc := NewTaskService(mock)
+
+		res, err := svc.CreateTask(ctx, userID, CreateTaskInput{
+			Title: "Outbox Task",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+
+		require.Len(t, mock.outboxEvents, 1)
+		evt := mock.outboxEvents[0]
+		assert.Equal(t, "task.created", evt.EventType)
+		assert.Equal(t, "task", evt.AggregateType)
+		assert.Equal(t, res.ID, evt.AggregateID)
+		assert.Equal(t, userID, evt.ActorID)
+		assert.Contains(t, string(evt.Payload), "Outbox Task")
+	})
+
+	t.Run("UpdateTask_RecordsOutboxEvent", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: userID,
+					Title:     "Old Title",
+					Version:   1,
+				}, nil
+			},
+			updateTaskFn: func(_ context.Context, arg repository.UpdateTaskParams) (repository.Task, error) {
+				return repository.Task{
+					ID:        arg.ID,
+					CreatorID: userID,
+					Title:     arg.Title,
+					Version:   2,
+				}, nil
+			},
+		}
+		svc := NewTaskService(mock)
+
+		newTitle := "Updated Outbox Task"
+		res, err := svc.UpdateTask(ctx, userID, taskID, UpdateTaskInput{
+			Title:   newTitle,
+			Version: 1,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+
+		require.Len(t, mock.outboxEvents, 1)
+		evt := mock.outboxEvents[0]
+		assert.Equal(t, "task.updated", evt.EventType)
+		assert.Equal(t, "task", evt.AggregateType)
+		assert.Equal(t, taskID, evt.AggregateID)
+		assert.Equal(t, userID, evt.ActorID)
+		assert.Contains(t, string(evt.Payload), newTitle)
+	})
+
+	t.Run("DeleteTask_RecordsOutboxEvent", func(t *testing.T) {
+		mock := &mockTaskQuerier{
+			getTaskByIDFn: func(_ context.Context, id uuid.UUID) (repository.Task, error) {
+				return repository.Task{
+					ID:        id,
+					CreatorID: userID,
+				}, nil
+			},
+			softDeleteTaskFn: func(_ context.Context, _ uuid.UUID) error {
+				return nil
+			},
+		}
+		svc := NewTaskService(mock)
+
+		err := svc.DeleteTask(ctx, userID, taskID)
+		require.NoError(t, err)
+
+		require.Len(t, mock.outboxEvents, 1)
+		evt := mock.outboxEvents[0]
+		assert.Equal(t, "task.deleted", evt.EventType)
+		assert.Equal(t, "task", evt.AggregateType)
+		assert.Equal(t, taskID, evt.AggregateID)
+		assert.Equal(t, userID, evt.ActorID)
+		assert.Contains(t, string(evt.Payload), taskID.String())
+	})
+}
