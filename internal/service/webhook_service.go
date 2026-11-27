@@ -339,7 +339,6 @@ func (s *webhookService) TriggerTestPing(ctx context.Context, userID, webhookID 
 		DeliveryID: deliveryID,
 		WebhookID:  wh.ID,
 		TargetURL:  wh.Url,
-		Secret:     s.decryptSecretWithFallback(wh.Secret),
 		EventType:  "ping",
 		Payload:    pingPayload,
 	})
@@ -445,7 +444,6 @@ func (s *webhookService) DispatchEvent(ctx context.Context, actorID uuid.UUID, p
 			DeliveryID: deliveryID,
 			WebhookID:  wh.ID,
 			TargetURL:  wh.Url,
-			Secret:     s.decryptSecretWithFallback(wh.Secret),
 			EventType:  eventType,
 			Payload:    envelopeBytes,
 		})
@@ -507,19 +505,4 @@ func mapWebhookToResponse(wh repository.Webhook) *WebhookResponse {
 		CreatedAt: wh.CreatedAt.Time,
 		UpdatedAt: wh.UpdatedAt.Time,
 	}
-}
-
-// decryptSecretWithFallback decrypts the stored secret using AES-256-GCM.
-// If decryption fails (e.g., legacy plaintext secret), it falls back to returning the stored secret as-is
-// ensuring non-breaking backward compatibility during rollout.
-func (s *webhookService) decryptSecretWithFallback(storedSecret string) string {
-	if len(s.encryptionKey) != crypto.KeySize || storedSecret == "" {
-		return storedSecret
-	}
-	decrypted, err := crypto.DecryptString(storedSecret, s.encryptionKey)
-	if err == nil {
-		return decrypted
-	}
-	// Fallback to stored secret if not encrypted
-	return storedSecret
 }

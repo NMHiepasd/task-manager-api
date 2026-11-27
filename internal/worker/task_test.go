@@ -57,12 +57,10 @@ func TestNewDeadlineReminderTask(t *testing.T) {
 }
 
 func TestNewSendWebhookTask(t *testing.T) {
-	//nolint:gosec // G101: Test payload with dummy secret
 	payload := SendWebhookPayload{
 		DeliveryID: uuid.New(),
 		WebhookID:  uuid.New(),
 		TargetURL:  "https://example.com/webhook",
-		Secret:     "dummy-webhook-secret-string-12345",
 		EventType:  "task:created",
 		Payload:    []byte(`{"id":"task-123"}`),
 	}
@@ -78,7 +76,6 @@ func TestNewSendWebhookTask(t *testing.T) {
 	assert.Equal(t, payload.DeliveryID, decoded.DeliveryID)
 	assert.Equal(t, payload.WebhookID, decoded.WebhookID)
 	assert.Equal(t, payload.TargetURL, decoded.TargetURL)
-	assert.Equal(t, payload.Secret, decoded.Secret)
 	assert.Equal(t, payload.EventType, decoded.EventType)
 	assert.Equal(t, payload.Payload, decoded.Payload)
 }

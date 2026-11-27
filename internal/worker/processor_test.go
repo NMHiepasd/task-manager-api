@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/crypto"
 	"task-manager-api/pkg/storage"
 	"task-manager-api/pkg/webhook"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +30,7 @@ type mockWorkerStore struct {
 	deleteOldIdempotencyKeysFn func(ctx context.Context, cutoff pgtype.Timestamptz) error
 	listTasksDueSoonFn         func(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
 	createWebhookDeliveryFn    func(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
+	getWebhookByIDFn           func(ctx context.Context, id uuid.UUID) (repository.Webhook, error)
 }
 
 func (m *mockWorkerStore) DeleteExpiredRefreshTokens(ctx context.Context) error {
@@ -56,6 +59,19 @@ func (m *mockWorkerStore) CreateWebhookDelivery(ctx context.Context, arg reposit
 		return m.createWebhookDeliveryFn(ctx, arg)
 	}
 	return repository.WebhookDelivery{}, nil
+}
+
+func (m *mockWorkerStore) GetWebhookByID(ctx context.Context, id uuid.UUID) (repository.Webhook, error) {
+	if m.getWebhookByIDFn != nil {
+		return m.getWebhookByIDFn(ctx, id)
+	}
+	//nolint:gosec // G101: Test dummy secret key
+	return repository.Webhook{
+		ID:       id,
+		Url:      "https://example.com/webhook",
+		Secret:   "whsec_test_secret_32_characters_minimum_len!",
+		IsActive: true,
+	}, nil
 }
 
 type errTransport struct {
@@ -298,7 +314,6 @@ func TestProcessSendWebhook(t *testing.T) {
 			DeliveryID: deliveryID,
 			WebhookID:  webhookID,
 			TargetURL:  ts.URL,
-			Secret:     secret,
 			EventType:  "task.created",
 			Payload:    payloadBody,
 		}
@@ -360,7 +375,6 @@ func TestProcessSendWebhook(t *testing.T) {
 			DeliveryID: deliveryID,
 			WebhookID:  uuid.New(),
 			TargetURL:  ts.URL,
-			Secret:     secret,
 			EventType:  "task.updated",
 			Payload:    payloadBody,
 		}
@@ -422,7 +436,6 @@ func TestProcessSendWebhook(t *testing.T) {
 		payload := SendWebhookPayload{
 			WebhookID: uuid.New(),
 			TargetURL: ts.URL,
-			Secret:    "secret",
 			EventType: "task.deleted",
 			Payload:   []byte(`{"task_id":"123"}`),
 		}
@@ -470,7 +483,6 @@ func TestProcessSendWebhook(t *testing.T) {
 		payload := SendWebhookPayload{
 			WebhookID: uuid.New(),
 			TargetURL: ts.URL, // ts.URL is 127.0.0.1, must be blocked
-			Secret:    "secret",
 			EventType: "task.created",
 			Payload:   []byte(`{"task_id":"123"}`),
 		}
@@ -504,7 +516,6 @@ func TestProcessSendWebhook(t *testing.T) {
 		payload := SendWebhookPayload{
 			WebhookID: uuid.New(),
 			TargetURL: "https://example.com/webhook",
-			Secret:    "secret",
 			EventType: "task.created",
 			Payload:   []byte(`{"task_id":"123"}`),
 		}
@@ -548,7 +559,6 @@ func TestProcessSendWebhook(t *testing.T) {
 		payload := SendWebhookPayload{
 			WebhookID: uuid.New(),
 			TargetURL: redirectingServer.URL,
-			Secret:    "secret",
 			EventType: "task.updated",
 			Payload:   []byte(`{"task_id":"123"}`),
 		}
@@ -561,6 +571,132 @@ func TestProcessSendWebhook(t *testing.T) {
 		assert.False(t, redirectTargetCalled, "should not have followed redirect")
 		assert.Equal(t, "failed", recordedDelivery.Status)
 		assert.Equal(t, int32(302), recordedDelivery.ResponseStatus.Int32)
+	})
+
+	t.Run("webhook not found returns SkipRetry", func(t *testing.T) {
+		store := &mockWorkerStore{
+			getWebhookByIDFn: func(_ context.Context, _ uuid.UUID) (repository.Webhook, error) {
+				return repository.Webhook{}, pgx.ErrNoRows
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store: store,
+			log:   log,
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: "https://example.com/webhook",
+			EventType: "task.created",
+			Payload:   []byte(`{"id":"task-1"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, asynq.SkipRetry), "missing webhook should not be retried")
+	})
+
+	t.Run("inactive webhook skips delivery", func(t *testing.T) {
+		httpCalled := false
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			httpCalled = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		store := &mockWorkerStore{
+			getWebhookByIDFn: func(_ context.Context, id uuid.UUID) (repository.Webhook, error) {
+				return repository.Webhook{
+					ID:       id,
+					Url:      ts.URL,
+					IsActive: false,
+				}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:      store,
+			log:        log,
+			httpClient: ts.Client(),
+		}
+
+		payload := SendWebhookPayload{
+			WebhookID: uuid.New(),
+			TargetURL: ts.URL,
+			EventType: "task.created",
+			Payload:   []byte(`{"id":"task-1"}`),
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		assert.NoError(t, err, "inactive webhook should return nil without retrying")
+		assert.False(t, httpCalled, "inactive webhook must not make HTTP request")
+	})
+
+	t.Run("encrypted secret decrypted and verified successfully", func(t *testing.T) {
+		encKey, err := crypto.GenerateKey()
+		require.NoError(t, err)
+
+		//nolint:gosec // G101: Test dummy secret key
+		rawSecret := "plain_test_webhook_signing_secret_32b!"
+		encryptedSecret, err := crypto.EncryptString(rawSecret, encKey)
+		require.NoError(t, err)
+
+		var receivedSig, receivedID, receivedTs string
+		var receivedBody []byte
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedSig = r.Header.Get("X-Webhook-Signature")
+			receivedID = r.Header.Get("X-Webhook-Id")
+			receivedTs = r.Header.Get("X-Webhook-Timestamp")
+			receivedBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		store := &mockWorkerStore{
+			getWebhookByIDFn: func(_ context.Context, id uuid.UUID) (repository.Webhook, error) {
+				return repository.Webhook{
+					ID:       id,
+					Url:      ts.URL,
+					Secret:   encryptedSecret,
+					IsActive: true,
+				}, nil
+			},
+		}
+
+		processor := &RedisTaskProcessor{
+			store:                store,
+			log:                  log,
+			httpClient:           ts.Client(),
+			webhookEncryptionKey: encKey,
+		}
+
+		deliveryID := uuid.New()
+		payloadBody := []byte(`{"event":"test_crypto"}`)
+		payload := SendWebhookPayload{
+			DeliveryID: deliveryID,
+			WebhookID:  uuid.New(),
+			TargetURL:  ts.URL,
+			EventType:  "task.created",
+			Payload:    payloadBody,
+		}
+
+		task, err := NewSendWebhookTask(payload)
+		require.NoError(t, err)
+
+		err = processor.ProcessSendWebhook(context.Background(), task)
+		require.NoError(t, err)
+
+		// Verification with the plain decrypted secret must succeed
+		verifyErr := webhook.VerifyV2(rawSecret, receivedTs, receivedID, receivedBody, receivedSig, time.Now(), 5*time.Minute)
+		assert.NoError(t, verifyErr, "signature must match raw secret when decrypted by worker")
 	})
 }
 

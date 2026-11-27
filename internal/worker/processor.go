@@ -12,12 +12,14 @@ import (
 	"strconv"
 	"task-manager-api/internal/config"
 	"task-manager-api/internal/repository"
+	"task-manager-api/pkg/crypto"
 	"task-manager-api/pkg/storage"
 	"task-manager-api/pkg/webhook"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -39,17 +41,19 @@ type TaskStore interface {
 	DeleteOldIdempotencyKeys(ctx context.Context, cutoff pgtype.Timestamptz) error
 	ListTasksDueSoon(ctx context.Context, arg repository.ListTasksDueSoonParams) ([]repository.ListTasksDueSoonRow, error)
 	CreateWebhookDelivery(ctx context.Context, arg repository.CreateWebhookDeliveryParams) (repository.WebhookDelivery, error)
+	GetWebhookByID(ctx context.Context, id uuid.UUID) (repository.Webhook, error)
 }
 
 // RedisTaskProcessor implements TaskProcessor using Asynq Server.
 type RedisTaskProcessor struct {
-	server      *asynq.Server
-	mux         *asynq.ServeMux
-	store       TaskStore
-	distributor TaskDistributor
-	storage     storage.Client
-	log         *slog.Logger
-	httpClient  *http.Client
+	server               *asynq.Server
+	mux                  *asynq.ServeMux
+	store                TaskStore
+	distributor          TaskDistributor
+	storage              storage.Client
+	log                  *slog.Logger
+	httpClient           *http.Client
+	webhookEncryptionKey []byte
 }
 
 // NewRedisTaskProcessor initializes a new worker server with priority queues and structured logging.
@@ -94,14 +98,25 @@ func NewRedisTaskProcessor(
 	if len(storageClient) > 0 {
 		st = storageClient[0]
 	}
+
+	var encKey []byte
+	if cfg != nil {
+		var keyErr error
+		encKey, keyErr = cfg.GetWebhookEncryptionKey()
+		if keyErr != nil && log != nil {
+			log.Warn("Webhook encryption key is unconfigured or invalid, worker will fallback to plaintext secrets", "error", keyErr)
+		}
+	}
+
 	processor := &RedisTaskProcessor{
-		server:      server,
-		mux:         mux,
-		store:       store,
-		distributor: distributor,
-		storage:     st,
-		log:         log,
-		httpClient:  webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts, 10*time.Second),
+		server:               server,
+		mux:                  mux,
+		store:                store,
+		distributor:          distributor,
+		storage:              st,
+		log:                  log,
+		httpClient:           webhook.NewSafeHTTPClient(cfg.AllowLocalWebhooks || cfg.WebhookAllowPrivateHosts, 10*time.Second),
+		webhookEncryptionKey: encKey,
 	}
 
 	// Register task handlers
@@ -218,10 +233,30 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 		return fmt.Errorf("invalid send webhook payload: %w", asynq.SkipRetry)
 	}
 
-	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, payload.TargetURL, bytes.NewReader(payload.Payload))
+	wh, err := p.store.GetWebhookByID(ctx, payload.WebhookID)
 	if err != nil {
-		p.log.Error("Failed to create webhook request", "error", err, "target_url", payload.TargetURL)
+		if errors.Is(err, pgx.ErrNoRows) {
+			p.log.Warn("Webhook subscription not found, skipping delivery", "webhook_id", payload.WebhookID)
+			return fmt.Errorf("webhook subscription %s not found: %w", payload.WebhookID, asynq.SkipRetry)
+		}
+		p.log.Error("Failed to fetch webhook subscription", "webhook_id", payload.WebhookID, "error", err)
+		return fmt.Errorf("failed to fetch webhook %s: %w", payload.WebhookID, err)
+	}
+
+	if !wh.IsActive {
+		p.log.Info("Webhook subscription is inactive, skipping delivery", "webhook_id", payload.WebhookID)
+		return nil
+	}
+
+	targetURL := payload.TargetURL
+	if targetURL == "" {
+		targetURL = wh.Url
+	}
+
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(payload.Payload))
+	if err != nil {
+		p.log.Error("Failed to create webhook request", "error", err, "target_url", targetURL)
 		return fmt.Errorf("failed to create webhook request: %w", asynq.SkipRetry)
 	}
 
@@ -231,8 +266,9 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 	}
 	deliveryIDStr := deliveryID.String()
 
+	secret := p.decryptSecretWithFallback(wh.Secret)
 	tsStr := strconv.FormatInt(time.Now().Unix(), 10)
-	sig := webhook.SignV2(payload.Secret, tsStr, deliveryIDStr, payload.Payload)
+	sig := webhook.SignV2(secret, tsStr, deliveryIDStr, payload.Payload)
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Event", payload.EventType)
@@ -245,7 +281,7 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 	durationMs := int32(time.Since(start).Milliseconds()) //nolint:gosec // G115: Delivery timeout is capped at 10s, fits in int32
 
 	if err != nil {
-		p.log.Warn("Webhook delivery failed with network error", "target_url", payload.TargetURL, "error", err)
+		p.log.Warn("Webhook delivery failed with network error", "target_url", targetURL, "error", err)
 		_, _ = p.store.CreateWebhookDelivery(ctx, repository.CreateWebhookDeliveryParams{
 			WebhookID:           payload.WebhookID,
 			EventType:           payload.EventType,
@@ -295,6 +331,19 @@ func (p *RedisTaskProcessor) ProcessSendWebhook(ctx context.Context, task *asynq
 	)
 
 	return nil
+}
+
+// decryptSecretWithFallback decrypts the stored secret using AES-256-GCM.
+// If decryption fails or key is unconfigured, it falls back to returning storedSecret.
+func (p *RedisTaskProcessor) decryptSecretWithFallback(storedSecret string) string {
+	if len(p.webhookEncryptionKey) != crypto.KeySize || storedSecret == "" {
+		return storedSecret
+	}
+	decrypted, err := crypto.DecryptString(storedSecret, p.webhookEncryptionKey)
+	if err == nil {
+		return decrypted
+	}
+	return storedSecret
 }
 
 // ProcessDeleteStorageObject executes background deletion of an orphan object from storage.

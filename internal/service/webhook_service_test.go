@@ -451,7 +451,7 @@ func TestWebhookService_SecretEncryption(t *testing.T) {
 		assert.Equal(t, customSecret, decrypted)
 	})
 
-	t.Run("DispatchEvent_DecryptsEncryptedSecret", func(t *testing.T) {
+	t.Run("DispatchEvent_EnqueuesWebhookIDWithoutSecret", func(t *testing.T) {
 		dist := &mockWebhookDistributor{}
 		encryptedSecret, err := crypto.EncryptString(customSecret, encKey)
 		require.NoError(t, err)
@@ -474,35 +474,9 @@ func TestWebhookService_SecretEncryption(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dist.sent, 1)
 
-		// Decrypted secret was passed to distributor for signing
-		assert.Equal(t, customSecret, dist.sent[0].Secret)
-	})
-
-	t.Run("DispatchEvent_FallbackToPlaintextSecret", func(t *testing.T) {
-		dist := &mockWebhookDistributor{}
-		//nolint:gosec // G101: Test dummy legacy secret
-		legacyPlainSecret := "legacy_unencrypted_secret_string_from_old_schema"
-
-		wh := repository.Webhook{
-			ID:     uuid.New(),
-			UserID: userID,
-			Url:    "https://hook.com",
-			Secret: legacyPlainSecret,
-		}
-
-		mockQ := &mockWebhookQuerier{
-			listActiveWebhooksForEventFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
-				return []repository.Webhook{wh}, nil
-			},
-		}
-
-		svc := NewWebhookService(mockQ, dist, false, encKey)
-		err = svc.DispatchEvent(context.Background(), userID, nil, "task.created", map[string]any{"task_id": "123"})
-		require.NoError(t, err)
-		require.Len(t, dist.sent, 1)
-
-		// Fallback mechanism preserves plain secret without failing
-		assert.Equal(t, legacyPlainSecret, dist.sent[0].Secret)
+		// Secret is decoupled from payload; WebhookID is transmitted instead
+		assert.Equal(t, wh.ID, dist.sent[0].WebhookID)
+		assert.Equal(t, wh.Url, dist.sent[0].TargetURL)
 	})
 }
 

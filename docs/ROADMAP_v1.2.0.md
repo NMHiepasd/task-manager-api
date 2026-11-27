@@ -75,11 +75,11 @@ Mục tiêu: Không còn lưu secret dưới dạng plaintext trong PostgreSQL v
 
 **File:** `internal/worker/task.go`, `internal/worker/processor.go`, `internal/worker/processor_test.go`, `internal/service/webhook_service.go`.
 
-- [ ] Sửa `SendWebhookPayload`: xóa hoàn toàn trường `Secret string`, chỉ truyền `WebhookID uuid.UUID`.
-- [ ] Sửa `webhookService.DispatchEvent`: không còn gán `Secret` vào payload khi enqueue task.
-- [ ] Sửa `processor.ProcessSendWebhook`: dùng `payload.WebhookID` truy vấn thông tin webhook từ DB, giải mã secret bằng master key và thực hiện `webhook.SignV2`.
-- [ ] Nếu webhook không còn tồn tại hoặc đã bị xóa: bỏ qua với `asynq.SkipRetry` để tránh retry vô ích.
-- [ ] Cập nhật toàn bộ worker tests và test fixtures.
+- [x] Sửa `SendWebhookPayload`: xóa hoàn toàn trường `Secret string`, chỉ truyền `WebhookID uuid.UUID`.
+- [x] Sửa `webhookService.DispatchEvent`: không còn gán `Secret` vào payload khi enqueue task.
+- [x] Sửa `processor.ProcessSendWebhook`: dùng `payload.WebhookID` truy vấn thông tin webhook từ DB, giải mã secret bằng master key và thực hiện `webhook.SignV2`.
+- [x] Nếu webhook không còn tồn tại hoặc đã bị xóa: bỏ qua với `asynq.SkipRetry` để tránh retry vô ích.
+- [x] Cập nhật toàn bộ worker tests và test fixtures.
 
 **Xong khi:** Payload trong Redis không chứa secret, worker giải mã và ký chữ ký Webhook V2 hợp lệ, tests pass với `-race`.
 

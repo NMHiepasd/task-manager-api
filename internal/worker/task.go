@@ -38,7 +38,6 @@ type SendWebhookPayload struct {
 	DeliveryID uuid.UUID `json:"delivery_id"`
 	WebhookID  uuid.UUID `json:"webhook_id"`
 	TargetURL  string    `json:"target_url"`
-	Secret     string    `json:"secret"`
 	EventType  string    `json:"event_type"`
 	Payload    []byte    `json:"payload"`
 }
@@ -78,7 +77,6 @@ func NewDeadlineReminderTask(payload DeadlineReminderPayload) (*asynq.Task, erro
 
 // NewSendWebhookTask creates an Asynq task to deliver an HTTP webhook notification.
 func NewSendWebhookTask(payload SendWebhookPayload) (*asynq.Task, error) {
-	//nolint:gosec // G117: Webhook secret must be marshaled into worker task payload for HMAC computation
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal send webhook payload: %w", err)
