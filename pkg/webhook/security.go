@@ -1,9 +1,6 @@
 package webhook
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"net/url"
@@ -141,23 +138,4 @@ func ValidateURL(targetURL string, allowLocal bool) error {
 	}
 
 	return nil
-}
-
-// ComputeSignature calculates the HMAC-SHA256 hex digest of a payload using a secret.
-func ComputeSignature(secret string, payload []byte) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-// VerifySignature validates a signature against a payload using constant-time comparison.
-func VerifySignature(secret string, payload []byte, expectedHexSignature string) bool {
-	expectedSig, err := hex.DecodeString(expectedHexSignature)
-	if err != nil {
-		return false
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	actualSig := mac.Sum(nil)
-	return hmac.Equal(actualSig, expectedSig)
 }

@@ -129,8 +129,8 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `pkg/webhook/security.go` và test liên quan.
 
-- [ ] Tìm bằng grep `ComputeSignature` và các hàm/header kiểu cũ; xóa nếu chỉ còn test tham chiếu
-- [ ] Chạy golangci-lint bật `unused` để bắt thêm mã chết; chỉ xóa phần chắc chắn không dùng
+- [x] Tìm bằng grep `ComputeSignature` và các hàm/header kiểu cũ; xóa nếu chỉ còn test tham chiếu
+- [x] Chạy golangci-lint bật `unused` để bắt thêm mã chết; chỉ xóa phần chắc chắn không dùng
 
 **Xong khi:** lint và test xanh, hành vi không đổi.
 

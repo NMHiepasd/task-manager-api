@@ -126,16 +126,3 @@ func TestIsBlockedIP(t *testing.T) {
 		})
 	}
 }
-
-func TestHMACSignature(t *testing.T) {
-	secret := "super-secret-key-12345"
-	payload := []byte(`{"event":"task.created","task_id":"123"}`)
-
-	sig := ComputeSignature(secret, payload)
-	require.NotEmpty(t, sig)
-
-	assert.True(t, VerifySignature(secret, payload, sig))
-	assert.False(t, VerifySignature("wrong-secret", payload, sig))
-	assert.False(t, VerifySignature(secret, []byte(`{"tampered":true}`), sig))
-	assert.False(t, VerifySignature(secret, payload, "invalid-hex-non-hex!"))
-}
