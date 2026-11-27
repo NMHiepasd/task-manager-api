@@ -108,12 +108,12 @@ Mục tiêu: Đảm bảo tính nguyên tử giữa dữ liệu nghiệp vụ v�
 
 **Mục tiêu:** Khởi tạo bảng outbox trong PostgreSQL và sinh repository methods an toàn kiểu dữ liệu.
 
-**File:** `migrations/000010_create_outbox_events_table.up.sql`, `migrations/000010_create_outbox_events_table.down.sql`, `queries/outbox.sql`, `internal/repository/outbox.sql.go`.
+**File:** `migrations/000010_create_outbox_events.up.sql`, `migrations/000010_create_outbox_events.down.sql`, `queries/outbox.sql`, `internal/repository/outbox.sql.go`.
 
-- [ ] Viết migration tạo bảng `outbox_events` kèm partial index và constraints.
-- [ ] Viết các câu lệnh SQL trong `queries/outbox.sql`: `CreateOutboxEvent`, `FetchPendingOutboxEvents` (`FOR UPDATE SKIP LOCKED`), `MarkOutboxEventsPublished`, `MarkOutboxEventFailed`, `DeleteOldProcessedOutboxEvents`.
-- [ ] Chạy `make sqlc` sinh mã nguồn Go.
-- [ ] Kiểm thử migration up/down với script kiểm tra migration.
+- [x] Viết migration tạo bảng `outbox_events` kèm partial index và constraints.
+- [x] Viết các câu lệnh SQL trong `queries/outbox.sql`: `CreateOutboxEvent`, `FetchPendingOutboxEvents` (`FOR UPDATE SKIP LOCKED`), `MarkOutboxEventsPublished`, `MarkOutboxEventFailed`, `DeleteOldProcessedOutboxEvents`.
+- [x] Chạy `make sqlc` sinh mã nguồn Go.
+- [x] Kiểm thử migration up/down với script kiểm tra migration và integration test.
 
 **Xong khi:** Migration và sqlc compile sạch, test migration up/down thành công.
 

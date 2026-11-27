@@ -16,12 +16,15 @@ type Querier interface {
 	AddTagToTask(ctx context.Context, arg AddTagToTaskParams) error
 	ClearTaskTags(ctx context.Context, taskID uuid.UUID) error
 	CountAttachmentsByTaskID(ctx context.Context, taskID uuid.UUID) (int64, error)
+	CountFailedOutboxEvents(ctx context.Context) (int64, error)
+	CountPendingOutboxEvents(ctx context.Context) (int64, error)
 	CountProjectMembers(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsByMember(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountProjectsByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	CountTaskComments(ctx context.Context, taskID uuid.UUID) (int64, error)
 	CountTasks(ctx context.Context, arg CountTasksParams) (int64, error)
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) error
+	CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) (OutboxEvent, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
@@ -35,13 +38,16 @@ type Querier interface {
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 	DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotencyKeyParams) error
 	DeleteOldIdempotencyKeys(ctx context.Context, createdAt pgtype.Timestamptz) error
+	DeleteOldProcessedOutboxEvents(ctx context.Context, processedAt pgtype.Timestamptz) (int64, error)
 	DeleteProjectMember(ctx context.Context, arg DeleteProjectMemberParams) error
 	DeleteStaleIdempotencyKey(ctx context.Context, arg DeleteStaleIdempotencyKeyParams) (int64, error)
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteTaskAttachment(ctx context.Context, arg DeleteTaskAttachmentParams) error
 	DeleteTaskComment(ctx context.Context, arg DeleteTaskCommentParams) error
 	DeleteWebhook(ctx context.Context, id uuid.UUID) error
+	FetchPendingOutboxEvents(ctx context.Context, arg FetchPendingOutboxEventsParams) ([]FetchPendingOutboxEventsRow, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
+	GetOutboxEventByID(ctx context.Context, id uuid.UUID) (OutboxEvent, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
 	GetProjectMemberWithUser(ctx context.Context, arg GetProjectMemberWithUserParams) (GetProjectMemberWithUserRow, error)
@@ -73,9 +79,13 @@ type Querier interface {
 	ListTasksKeyset(ctx context.Context, arg ListTasksKeysetParams) ([]Task, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	ListWebhookDeliveries(ctx context.Context, arg ListWebhookDeliveriesParams) ([]WebhookDelivery, error)
-	LockTaskAttachmentUpload(ctx context.Context, key int64) error
 	ListWebhooksByProjectID(ctx context.Context, projectID pgtype.UUID) ([]Webhook, error)
 	ListWebhooksByUserID(ctx context.Context, userID uuid.UUID) ([]Webhook, error)
+	LockTaskAttachmentUpload(ctx context.Context, pgAdvisoryXactLock int64) error
+	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
+	MarkOutboxEventPublished(ctx context.Context, id uuid.UUID) error
+	MarkOutboxEventsPublished(ctx context.Context, dollar_1 []uuid.UUID) error
+	RecordOutboxEventRetry(ctx context.Context, arg RecordOutboxEventRetryParams) error
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error

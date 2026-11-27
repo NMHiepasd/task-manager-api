@@ -20,6 +20,21 @@ type IdempotencyKey struct {
 	LockedAt     pgtype.Timestamptz `json:"locked_at"`
 }
 
+type OutboxEvent struct {
+	ID            uuid.UUID          `json:"id"`
+	EventType     string             `json:"event_type"`
+	AggregateType string             `json:"aggregate_type"`
+	AggregateID   uuid.UUID          `json:"aggregate_id"`
+	ActorID       uuid.UUID          `json:"actor_id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	Payload       []byte             `json:"payload"`
+	Status        string             `json:"status"`
+	RetryCount    int32              `json:"retry_count"`
+	LastError     pgtype.Text        `json:"last_error"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
+}
+
 type Project struct {
 	ID          uuid.UUID          `json:"id"`
 	OwnerID     uuid.UUID          `json:"owner_id"`
