@@ -138,9 +138,9 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `go.mod`, `Dockerfile`, `.github/workflows/ci.yml`, `docs/security.md`.
 
-- [ ] Thêm `toolchain go1.x.y` (bản vá đã sửa các advisory stdlib nêu trong security.md) và build image bằng đúng phiên bản đó
-- [ ] CI kiểm tra `go version` khớp `go.mod`; sửa ghi chú trong `security.md` (bỏ câu giảm thiểu chung chung)
-- [ ] Ghim phiên bản gosec và gitleaks trong CI và trong lệnh ví dụ của tài liệu
+- [x] Thêm `toolchain go1.x.y` (bản vá đã sửa các advisory stdlib nêu trong security.md) và build image bằng đúng phiên bản đó
+- [x] CI kiểm tra `go version` khớp `go.mod`; sửa ghi chú trong `security.md` (bỏ câu giảm thiểu chung chung)
+- [x] Ghim phiên bản gosec và gitleaks trong CI và trong lệnh ví dụ của tài liệu
 
 **Xong khi:** govulncheck không còn báo advisory stdlib.
 

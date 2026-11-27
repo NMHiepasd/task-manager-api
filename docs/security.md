@@ -97,7 +97,7 @@ The codebase is continuously verified using a defense-in-depth suite of automate
 
 | Security Tool | Version | Scan Date | Scope | Findings Count | Severity Breakdown | Status / Resolution |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **govulncheck** | `v1.9.0` | 2026-11-22 | Direct Go dependencies & symbols (`./...`) | **0 application vulnerabilities** | 0 Critical, 0 High in application code | Direct imports clean. 2 Go standard library advisories (GO-2026-6859, GO-2026-6809 in `net/http` / `crypto/x509`) to be addressed by toolchain pinning in Task I2. |
+| **govulncheck** | `v1.9.0` | 2026-11-27 | Direct Go dependencies, stdlib & symbols (`./...`) | **0 vulnerabilities** | 0 Critical, 0 High | Direct imports and Go standard library completely clean. Standard library advisories GO-2026-6859 and GO-2026-6809 are resolved by pinning toolchain to `go1.27.4` in `go.mod` and Dockerfile builder. |
 | **gosec** | `v2.30.0` | 2026-11-22 | Go AST static analysis (`./...`) | **0 real vulnerabilities** (9 false positives triaged) | 0 Critical, 0 High exploitable | 9 static pattern matches reviewed and dismissed: 5 SQL query constants in `refresh_tokens.sql.go` containing table name "token" (G101), 1 worker task name string constant (G101), 2 bounded integer conversions with timeout/status guarantees (G115), 1 webhook secret payload marshaling for HMAC signing (G117). `scripts/webhook-receiver` verified clean (G114 resolved). |
 | **Trivy** | `v0.76.2` (Action `v0.36.0`) | 2026-11-22 | Production Container Image (`ghcr.io/nmhiepasd/task-manager-api:1.0.0`) | **0 container vulnerabilities** | 0 Critical, 0 High (unfixed) | Multi-stage distroless/alpine build produces a minimal attack surface. Zero unfixed OS or library vulnerabilities detected. Output uploaded as CI artifact `trivy-report`. |
 | **Gitleaks** | `v8.24.0` (Action `v2.3.9`) | 2026-11-22 | Full Git repository history (114 commits) | **0 secret leaks** | 0 Leaks | Scanned complete repository commit history (`fetch-depth: 0`). Zero API keys, passwords, private keys, or webhook secrets leaked. |
@@ -121,13 +121,13 @@ go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 govulncheck ./...
 
 # 2. Static Application Security Testing (SAST via gosec)
-go install github.com/securego/gosec/v2/cmd/gosec@latest
+go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
 gosec -fmt=json -out=gosec-report.json ./...
 
 # 3. Secret detection across complete commit history (gitleaks)
-docker run --rm -v "${PWD}:/path" zricethezav/gitleaks:latest detect --source="/path" --verbose
+docker run --rm -v "${PWD}:/path" zricethezav/gitleaks:v8.24.0 detect --source="/path" --verbose
 
 # 4. Container vulnerability scanner (Trivy)
 docker build -t task-manager-api:audit -f Dockerfile .
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity CRITICAL,HIGH --ignore-unfixed task-manager-api:audit
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.2 image --severity CRITICAL,HIGH --ignore-unfixed task-manager-api:audit
 ```

@@ -2,6 +2,8 @@ module task-manager-api
 
 go 1.26.10
 
+toolchain go1.27.4
+
 require (
 	github.com/caarlos0/env/v11 v11.4.2
 	github.com/gin-contrib/gzip v1.2.9
