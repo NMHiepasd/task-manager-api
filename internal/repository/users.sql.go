@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -19,7 +20,7 @@ INSERT INTO users (
     role
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at
+) RETURNING id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at, failed_login_attempts, locked_until, last_failed_login_at
 `
 
 type CreateUserParams struct {
@@ -47,12 +48,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.FailedLoginAttempts,
+		&i.LockedUntil,
+		&i.LastFailedLoginAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at, failed_login_attempts, locked_until, last_failed_login_at FROM users
 WHERE lower(email) = lower($1) AND deleted_at IS NULL
 LIMIT 1
 `
@@ -70,12 +74,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.FailedLoginAttempts,
+		&i.LockedUntil,
+		&i.LastFailedLoginAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at, failed_login_attempts, locked_until, last_failed_login_at FROM users
 WHERE id = $1 AND deleted_at IS NULL
 LIMIT 1
 `
@@ -93,12 +100,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.FailedLoginAttempts,
+		&i.LockedUntil,
+		&i.LastFailedLoginAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at FROM users
+SELECT id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at, failed_login_attempts, locked_until, last_failed_login_at FROM users
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -128,6 +138,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.FailedLoginAttempts,
+			&i.LockedUntil,
+			&i.LastFailedLoginAt,
 		); err != nil {
 			return nil, err
 		}
@@ -137,6 +150,44 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordFailedLogin = `-- name: RecordFailedLogin :one
+UPDATE users
+SET failed_login_attempts = failed_login_attempts + 1,
+    last_failed_login_at = CURRENT_TIMESTAMP,
+    locked_until = CASE
+        WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+        ELSE locked_until
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING failed_login_attempts, locked_until
+`
+
+type RecordFailedLoginRow struct {
+	FailedLoginAttempts int32              `json:"failed_login_attempts"`
+	LockedUntil         pgtype.Timestamptz `json:"locked_until"`
+}
+
+func (q *Queries) RecordFailedLogin(ctx context.Context, id uuid.UUID) (RecordFailedLoginRow, error) {
+	row := q.db.QueryRow(ctx, recordFailedLogin, id)
+	var i RecordFailedLoginRow
+	err := row.Scan(&i.FailedLoginAttempts, &i.LockedUntil)
+	return i, err
+}
+
+const resetFailedLogin = `-- name: ResetFailedLogin :exec
+UPDATE users
+SET failed_login_attempts = 0,
+    locked_until = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+func (q *Queries) ResetFailedLogin(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, resetFailedLogin, id)
+	return err
 }
 
 const softDeleteUser = `-- name: SoftDeleteUser :exec
@@ -158,7 +209,7 @@ SET
     version = version + 1,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND version = $4 AND deleted_at IS NULL
-RETURNING id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at
+RETURNING id, email, password_hash, full_name, role, version, created_at, updated_at, deleted_at, failed_login_attempts, locked_until, last_failed_login_at
 `
 
 type UpdateUserParams struct {
@@ -186,6 +237,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.FailedLoginAttempts,
+		&i.LockedUntil,
+		&i.LastFailedLoginAt,
 	)
 	return i, err
 }

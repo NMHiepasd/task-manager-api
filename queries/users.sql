@@ -38,3 +38,23 @@ RETURNING *;
 UPDATE users
 SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: RecordFailedLogin :one
+UPDATE users
+SET failed_login_attempts = failed_login_attempts + 1,
+    last_failed_login_at = CURRENT_TIMESTAMP,
+    locked_until = CASE
+        WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+        ELSE locked_until
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING failed_login_attempts, locked_until;
+
+-- name: ResetFailedLogin :exec
+UPDATE users
+SET failed_login_attempts = 0,
+    locked_until = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+

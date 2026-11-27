@@ -85,8 +85,10 @@ type Querier interface {
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	MarkOutboxEventPublished(ctx context.Context, id uuid.UUID) error
 	MarkOutboxEventsPublished(ctx context.Context, dollar_1 []uuid.UUID) error
+	RecordFailedLogin(ctx context.Context, id uuid.UUID) (RecordFailedLoginRow, error)
 	RecordOutboxEventRetry(ctx context.Context, arg RecordOutboxEventRetryParams) error
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
+	ResetFailedLogin(ctx context.Context, id uuid.UUID) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) error

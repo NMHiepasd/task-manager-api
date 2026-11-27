@@ -156,8 +156,7 @@ const lockTaskAttachmentUpload = `-- name: LockTaskAttachmentUpload :exec
 SELECT pg_advisory_xact_lock($1)
 `
 
-func (q *Queries) LockTaskAttachmentUpload(ctx context.Context, key int64) error {
-	_, err := q.db.Exec(ctx, lockTaskAttachmentUpload, key)
+func (q *Queries) LockTaskAttachmentUpload(ctx context.Context, pgAdvisoryXactLock int64) error {
+	_, err := q.db.Exec(ctx, lockTaskAttachmentUpload, pgAdvisoryXactLock)
 	return err
 }
-

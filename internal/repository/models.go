@@ -117,15 +117,18 @@ type TaskTag struct {
 }
 
 type User struct {
-	ID           uuid.UUID          `json:"id"`
-	Email        string             `json:"email"`
-	PasswordHash string             `json:"password_hash"`
-	FullName     string             `json:"full_name"`
-	Role         string             `json:"role"`
-	Version      int32              `json:"version"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
+	ID                  uuid.UUID          `json:"id"`
+	Email               string             `json:"email"`
+	PasswordHash        string             `json:"password_hash"`
+	FullName            string             `json:"full_name"`
+	Role                string             `json:"role"`
+	Version             int32              `json:"version"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	FailedLoginAttempts int32              `json:"failed_login_attempts"`
+	LockedUntil         pgtype.Timestamptz `json:"locked_until"`
+	LastFailedLoginAt   pgtype.Timestamptz `json:"last_failed_login_at"`
 }
 
 type Webhook struct {
