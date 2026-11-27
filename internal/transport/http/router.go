@@ -222,11 +222,11 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Project endpoints (protected)
+		// Project endpoints (protected: admin and standard users only)
 		if deps.ProjectService != nil && deps.TokenMaker != nil {
 			projectHandler := handler.NewProjectHandler(deps.ProjectService)
 			projectGroup := v1.Group("/projects")
-			projectGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			projectGroup.Use(middleware.AuthMiddleware(deps.TokenMaker), middleware.RequireAnyRole(domain.RoleAdmin, domain.RoleUser))
 			{
 				projectGroup.POST("", projectHandler.Create)
 				projectGroup.GET("", projectHandler.List)
@@ -245,11 +245,11 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Task endpoints (protected)
+		// Task endpoints (protected: admin and standard users only)
 		if deps.TaskService != nil && deps.TokenMaker != nil {
 			taskHandler := handler.NewTaskHandler(deps.TaskService)
 			taskGroup := v1.Group("/tasks")
-			taskGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			taskGroup.Use(middleware.AuthMiddleware(deps.TokenMaker), middleware.RequireAnyRole(domain.RoleAdmin, domain.RoleUser))
 			{
 				if deps.DBPool != nil {
 					taskGroup.POST("", middleware.Idempotency(repository.New(deps.DBPool)), taskHandler.Create)
@@ -283,11 +283,11 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			}
 		}
 
-		// Tag endpoints (protected)
+		// Tag endpoints (protected: admin and standard users only)
 		if deps.TagService != nil && deps.TokenMaker != nil {
 			tagHandler := handler.NewTagHandler(deps.TagService)
 			tagGroup := v1.Group("/tags")
-			tagGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
+			tagGroup.Use(middleware.AuthMiddleware(deps.TokenMaker), middleware.RequireAnyRole(domain.RoleAdmin, domain.RoleUser))
 			{
 				tagGroup.POST("", tagHandler.Create)
 				tagGroup.GET("", tagHandler.List)
@@ -301,14 +301,26 @@ func NewRouter(deps RouterDependencies) *gin.Engine {
 			webhookGroup := v1.Group("/webhooks")
 			webhookGroup.Use(middleware.AuthMiddleware(deps.TokenMaker))
 			{
-				webhookGroup.POST("", webhookHandler.Create)
-				webhookGroup.GET("", webhookHandler.List)
-				webhookGroup.GET("/:id", webhookHandler.GetByID)
-				webhookGroup.PATCH("/:id", webhookHandler.Update)
-				webhookGroup.DELETE("/:id", webhookHandler.Delete)
-				webhookGroup.POST("/:id/test", webhookHandler.TriggerPing)
-				webhookGroup.GET("/:id/deliveries", webhookHandler.ListDeliveries)
+				// Mutations require webhooks:manage capability (auditor cannot modify webhooks)
+				webhookGroup.POST("", middleware.RequirePermission(domain.PermissionWebhooksManage), webhookHandler.Create)
+				webhookGroup.PATCH("/:id", middleware.RequirePermission(domain.PermissionWebhooksManage), webhookHandler.Update)
+				webhookGroup.DELETE("/:id", middleware.RequirePermission(domain.PermissionWebhooksManage), webhookHandler.Delete)
+				webhookGroup.POST("/:id/test", middleware.RequirePermission(domain.PermissionWebhooksManage), webhookHandler.TriggerPing)
+
+				// Inspection routes allow webhooks:read (accessible to admin, auditor, and owner)
+				webhookGroup.GET("", middleware.RequirePermission(domain.PermissionWebhooksRead), webhookHandler.List)
+				webhookGroup.GET("/:id", middleware.RequirePermission(domain.PermissionWebhooksRead), webhookHandler.GetByID)
+				webhookGroup.GET("/:id/deliveries", middleware.RequirePermission(domain.PermissionWebhooksRead), webhookHandler.ListDeliveries)
 			}
+		}
+
+		// System metrics endpoint (protected: admin and auditor only)
+		if deps.Metrics != nil && deps.TokenMaker != nil {
+			v1.GET("/system/metrics",
+				middleware.AuthMiddleware(deps.TokenMaker),
+				middleware.RequirePermission(domain.PermissionSystemMetrics),
+				gin.WrapH(promhttp.HandlerFor(deps.Metrics.Registry, promhttp.HandlerOpts{})),
+			)
 		}
 	}
 

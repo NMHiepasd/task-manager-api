@@ -219,10 +219,10 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 **File:** `internal/domain/user.go`, `internal/transport/http/middleware/rbac.go`, `internal/transport/http/middleware/rbac_test.go`, `internal/transport/http/router.go`.
 
-- [ ] Bổ sung vai trò `auditor` vào enum vai trò hệ thống (`domain.RoleAuditor`).
-- [ ] Tạo middleware `RequireAnyRole(roles ...string)` và `RequirePermission(perm string)`.
-- [ ] Bảo vệ các routes quản trị: cho phép `auditor` xem `/metrics`, deliveries, logs; cấm sửa đổi tài nguyên nghiệp vụ.
-- [ ] Unit tests kiểm thử ma trận phân quyền mới.
+- [x] Bổ sung vai trò `auditor` vào enum vai trò hệ thống (`domain.RoleAuditor`).
+- [x] Tạo middleware `RequireAnyRole(roles ...string)` và `RequirePermission(perm string)`.
+- [x] Bảo vệ các routes quản trị: cho phép `auditor` xem `/metrics`, deliveries, logs; cấm sửa đổi tài nguyên nghiệp vụ.
+- [x] Unit tests kiểm thử ma trận phân quyền mới.
 
 **Xong khi:** Linter 0 issue, test pass xanh, các quyền cũ của `admin` và `user` hoạt động nguyên vẹn.
 

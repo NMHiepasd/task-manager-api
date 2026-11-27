@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +30,18 @@ type mockAuthService struct {
 
 type mockUserService struct {
 	service.UserService
+}
+
+type mockProjectService struct {
+	service.ProjectService
+}
+
+type mockTaskService struct {
+	service.TaskService
+}
+
+type mockWebhookService struct {
+	service.WebhookService
 }
 
 func setupTestRouter() http.Handler {
@@ -375,4 +388,86 @@ func TestRouter_UntrustedProxy_DoesNotTrustXForwardedFor(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	router.ServeHTTP(rec2, req2)
 	assert.Equal(t, http.StatusTooManyRequests, rec2.Code, "Untrusted proxy should not bypass rate limiting via spoofed X-Forwarded-For")
+}
+
+func TestRouter_AuditorAndRBAC(t *testing.T) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	tokenMaker, _ := token.NewJWTMaker("12345678901234567890123456789012")
+	appMetrics := metrics.NewMetrics()
+
+	router := transportHttp.NewRouter(transportHttp.RouterDependencies{
+		Config: &config.Config{
+			AppEnv:  "test",
+			GinMode: "test",
+		},
+		Logger:         log,
+		Metrics:        appMetrics,
+		AuthService:    &mockAuthService{},
+		UserService:    &mockUserService{},
+		ProjectService: &mockProjectService{},
+		TaskService:    &mockTaskService{},
+		WebhookService: &mockWebhookService{},
+		TokenMaker:     tokenMaker,
+	})
+
+	auditorToken, _, err := tokenMaker.CreateAccessToken(
+		uuid.New(),
+		"auditor@example.com",
+		domain.RoleAuditor,
+		15*time.Minute,
+	)
+	require.NoError(t, err)
+
+	userToken, _, err := tokenMaker.CreateAccessToken(
+		uuid.New(),
+		"user@example.com",
+		domain.RoleUser,
+		15*time.Minute,
+	)
+	require.NoError(t, err)
+
+	t.Run("AuditorAllowedSystemMetrics", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/metrics", nil)
+		req.Header.Set("Authorization", "Bearer "+auditorToken)
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "taskmanager_http_in_flight_requests")
+	})
+
+	t.Run("StandardUserBlockedFromSystemMetrics", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/metrics", nil)
+		req.Header.Set("Authorization", "Bearer "+userToken)
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+	})
+
+	t.Run("AuditorBlockedFromMutatingBusinessResources", func(t *testing.T) {
+		// 1. Projects
+		reqProj := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewBufferString("{}"))
+		reqProj.Header.Set("Authorization", "Bearer "+auditorToken)
+		reqProj.Header.Set("Content-Type", "application/json")
+		recProj := httptest.NewRecorder()
+		router.ServeHTTP(recProj, reqProj)
+		assert.Equal(t, http.StatusForbidden, recProj.Code)
+
+		// 2. Tasks
+		reqTask := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString("{}"))
+		reqTask.Header.Set("Authorization", "Bearer "+auditorToken)
+		reqTask.Header.Set("Content-Type", "application/json")
+		recTask := httptest.NewRecorder()
+		router.ServeHTTP(recTask, reqTask)
+		assert.Equal(t, http.StatusForbidden, recTask.Code)
+
+		// 3. Webhook creation
+		reqWh := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks", bytes.NewBufferString("{}"))
+		reqWh.Header.Set("Authorization", "Bearer "+auditorToken)
+		reqWh.Header.Set("Content-Type", "application/json")
+		recWh := httptest.NewRecorder()
+		router.ServeHTTP(recWh, reqWh)
+		assert.Equal(t, http.StatusForbidden, recWh.Code)
+	})
 }
