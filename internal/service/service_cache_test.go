@@ -460,3 +460,43 @@ func (m *mockQuerierWithHooks) GetTotalAttachmentSizeByUserID(context.Context, u
 func (m *mockQuerierWithHooks) LockTaskAttachmentUpload(context.Context, int64) error {
 	return nil
 }
+
+func (m *mockQuerierWithHooks) CountFailedOutboxEvents(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) CountPendingOutboxEvents(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) CreateOutboxEvent(context.Context, repository.CreateOutboxEventParams) (repository.OutboxEvent, error) {
+	return repository.OutboxEvent{}, nil
+}
+
+func (m *mockQuerierWithHooks) DeleteOldProcessedOutboxEvents(context.Context, pgtype.Timestamptz) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockQuerierWithHooks) FetchPendingOutboxEvents(context.Context, repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) GetOutboxEventByID(context.Context, uuid.UUID) (repository.OutboxEvent, error) {
+	return repository.OutboxEvent{}, nil
+}
+
+func (m *mockQuerierWithHooks) MarkOutboxEventFailed(context.Context, repository.MarkOutboxEventFailedParams) error {
+	return nil
+}
+
+func (m *mockQuerierWithHooks) MarkOutboxEventPublished(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockQuerierWithHooks) MarkOutboxEventsPublished(context.Context, []uuid.UUID) error {
+	return nil
+}
+
+func (m *mockQuerierWithHooks) RecordOutboxEventRetry(context.Context, repository.RecordOutboxEventRetryParams) error {
+	return nil
+}

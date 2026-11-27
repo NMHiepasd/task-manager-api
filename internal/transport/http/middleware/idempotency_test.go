@@ -409,6 +409,46 @@ func (m *mockIdempotencyQuerier) LockTaskAttachmentUpload(context.Context, int64
 	return nil
 }
 
+func (m *mockIdempotencyQuerier) CountFailedOutboxEvents(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) CountPendingOutboxEvents(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) CreateOutboxEvent(context.Context, repository.CreateOutboxEventParams) (repository.OutboxEvent, error) {
+	return repository.OutboxEvent{}, nil
+}
+
+func (m *mockIdempotencyQuerier) DeleteOldProcessedOutboxEvents(context.Context, pgtype.Timestamptz) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockIdempotencyQuerier) FetchPendingOutboxEvents(context.Context, repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
+	return nil, nil
+}
+
+func (m *mockIdempotencyQuerier) GetOutboxEventByID(context.Context, uuid.UUID) (repository.OutboxEvent, error) {
+	return repository.OutboxEvent{}, nil
+}
+
+func (m *mockIdempotencyQuerier) MarkOutboxEventFailed(context.Context, repository.MarkOutboxEventFailedParams) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) MarkOutboxEventPublished(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) MarkOutboxEventsPublished(context.Context, []uuid.UUID) error {
+	return nil
+}
+
+func (m *mockIdempotencyQuerier) RecordOutboxEventRetry(context.Context, repository.RecordOutboxEventRetryParams) error {
+	return nil
+}
+
 func setupIdempotencyTestRouter(mock *mockIdempotencyQuerier, testUserID uuid.UUID, handlerCallCounter *int) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
