@@ -163,12 +163,12 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 **File:** `docs/adr/0021-account-lockout-and-advanced-rbac.md`.
 
-- [ ] Đặc tả quy tắc Account Lockout:
+- [x] Đặc tả quy tắc Account Lockout:
   - Ngưỡng vi phạm: 5 lần đăng nhập sai mật khẩu liên tiếp $\to$ khóa tài khoản trong 15 phút.
   - Reset vi phạm: Đăng nhập thành công $\to$ reset counter về 0 và xóa `locked_until`.
   - Cơ chế tự phục hồi: Sau 15 phút, tài khoản tự động được phép thử lại mà không cần can thiệp admin.
   - Chống timing attack / user enumeration: Khi tài khoản đang bị khóa hoặc không tồn tại, hệ thống luôn thực hiện dummy hash comparison trước khi trả lỗi.
-- [ ] Đặc tả RBAC nâng cao:
+- [x] Đặc tả RBAC nâng cao:
   - Vai trò hệ thống: `admin`, `auditor`, `user`.
   - Phân quyền theo capabilities/scopes: `users:read`, `users:manage`, `audit:read`, `system:metrics`.
   - Vai trò `auditor`: được quyền đọc metrics, audit logs, webhook deliveries nhưng bị chặn toàn bộ thao tác ghi/sửa/xóa.
