@@ -95,10 +95,10 @@ Mục tiêu: Đảm bảo tính nguyên tử giữa dữ liệu nghiệp vụ v�
 
 **File:** `docs/adr/0020-transactional-outbox-pattern.md`.
 
-- [ ] Đặc tả schema bảng `outbox_events`: `id`, `event_type`, `aggregate_type`, `aggregate_id`, `actor_id`, `project_id`, `payload`, `status` (`pending`, `published`, `failed`), `retry_count`, `last_error`, `created_at`, `processed_at`.
-- [ ] Xác lập partial index phục vụ truy vấn hàng đợi: `idx_outbox_events_pending ON outbox_events(created_at) WHERE status = 'pending'`.
-- [ ] Chọn chiến lược relay: Polling định kỳ sử dụng `SELECT ... FOR UPDATE SKIP LOCKED LIMIT $1` để an toàn khi chạy nhiều worker song song.
-- [ ] Quy định chính sách lưu trữ (retention): cron job dọn dẹp các sự kiện đã `published` sau 7 ngày.
+- [x] Đặc tả schema bảng `outbox_events`: `id`, `event_type`, `aggregate_type`, `aggregate_id`, `actor_id`, `project_id`, `payload`, `status` (`pending`, `published`, `failed`), `retry_count`, `last_error`, `created_at`, `processed_at`.
+- [x] Xác lập partial index phục vụ truy vấn hàng đợi: `idx_outbox_events_pending ON outbox_events(created_at) WHERE status = 'pending'`.
+- [x] Chọn chiến lược relay: Polling định kỳ sử dụng `SELECT ... FOR UPDATE SKIP LOCKED LIMIT $1` để an toàn khi chạy nhiều worker song song.
+- [x] Quy định chính sách lưu trữ (retention): cron job dọn dẹp các sự kiện đã `published` sau 7 ngày.
 
 **Xong khi:** Có file ADR-0020 hoàn chỉnh, không chạm vào code.
 
