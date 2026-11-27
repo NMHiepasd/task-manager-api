@@ -23,7 +23,7 @@ func TestEncryptDecrypt_RoundTrip(t *testing.T) {
 	}{
 		{name: "empty string", plaintext: ""},
 		{name: "short string", plaintext: "secret-key-123"},
-		{name: "webhook secret", plaintext: "whsec_9f83b2a7c41e05d6a89c2b1e4f7a0c3d9e8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c"},
+		{name: "webhook secret", plaintext: "sample_dummy_test_webhook_secret_not_a_real_token_1234567890"},
 		{name: "long payload", plaintext: string(make([]byte, 8192))},
 		{name: "utf8 characters", plaintext: "Khóa bí mật tiếng Việt có dấu: 🔐 Nguyễn Minh Hiệp"},
 	}
