@@ -234,10 +234,10 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 **File:** `CHANGELOG.md`, `README.md`, `docs/RELEASE_NOTES_v1.2.0.md`.
 
-- [ ] Cập nhật `CHANGELOG.md` cho bản `[1.2.0]`: Fixed, Added, Changed, Security.
-- [ ] Cập nhật `README.md`: tài liệu hóa các tính năng mới (Outbox, AES-GCM, Account Lockout, Auditor role) và liên kết ADR-0020, ADR-0021.
-- [ ] Tạo file release notes `docs/RELEASE_NOTES_v1.2.0.md`.
-- [ ] Chuyển file kế hoạch này vào `docs/archive/ROADMAP_v1.2.0.md`.
+- [x] Cập nhật `CHANGELOG.md` cho bản `[1.2.0]`: Fixed, Added, Changed, Security.
+- [x] Cập nhật `README.md`: tài liệu hóa các tính năng mới (Outbox, AES-GCM, Account Lockout, Auditor role) và liên kết ADR-0020, ADR-0021.
+- [x] Tạo file release notes `docs/RELEASE_NOTES_v1.2.0.md`.
+- [x] Chuyển file kế hoạch này vào `docs/archive/ROADMAP_v1.2.0.md`.
 
 **Xong khi:** Tài liệu khớp hoàn toàn với code, CI xanh trên main.
 
@@ -245,8 +245,8 @@ Mục tiêu: Chống tấn công brute-force phân tán theo từng tài khoản
 
 ## 🎯 Định nghĩa hoàn thành v1.2.0 (Definition of Done)
 
-- [ ] Secret webhook được mã hóa AES-256-GCM trong PostgreSQL; không xuất hiện plaintext trong database và Redis payload.
-- [ ] Sự kiện webhook được ghi nhận trong cùng transaction nghiệp vụ thông qua Outbox table; Relay worker vận hành ổn định và không phát sinh dual-write / ghost events.
-- [ ] Tài khoản bị khóa 15 phút sau 5 lần thử sai liên tiếp (HTTP 423 Locked) có bảo vệ timing attack.
-- [ ] Vai trò `auditor` được phân quyền độc lập, chỉ xem tài nguyên kiểm toán.
-- [ ] Test coverage $\ge 65\%$ trên service layer, 0 issue trên `golangci-lint`, 0 lỗ hổng trên `govulncheck`.
+- [x] Secret webhook được mã hóa AES-256-GCM trong PostgreSQL; không xuất hiện plaintext trong database và Redis payload.
+- [x] Sự kiện webhook được ghi nhận trong cùng transaction nghiệp vụ thông qua Outbox table; Relay worker vận hành ổn định và không phát sinh dual-write / ghost events.
+- [x] Tài khoản bị khóa 15 phút sau 5 lần thử sai liên tiếp (HTTP 423 Locked) có bảo vệ timing attack.
+- [x] Vai trò `auditor` được phân quyền độc lập, chỉ xem tài nguyên kiểm toán.
+- [x] Test coverage $\ge 65\%$ trên service layer, 0 issue trên `golangci-lint`, 0 lỗ hổng trên `govulncheck`.

@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-11-27
+
+### Security
+- **AES-256-GCM Webhook Secret Encryption ([ADR-0020](docs/adr/0020-transactional-outbox-pattern.md))**:
+  - Implemented standalone cryptographic package `pkg/crypto` providing authenticated symmetric encryption (`AES-256-GCM`) with random 12-byte nonces generated via `crypto/rand`.
+  - All webhook signing secrets are encrypted prior to database insertion; ciphertext is stored as Base64 in PostgreSQL (`webhooks.secret`).
+  - Implemented zero-downtime rolling update decryption fallback: seamlessly decrypts encrypted ciphertext while transparently supporting legacy plaintext secrets.
+- **Decoupled Webhook Secrets from Queue Payloads ([ADR-0020](docs/adr/0020-transactional-outbox-pattern.md))**:
+  - Completely removed signing secrets from Asynq/Redis task payloads (`SendWebhookPayload`).
+  - Background workers now load and decrypt the webhook secret directly from the database at execution time, eliminating risk of secret exfiltration via Redis persistence dumps or loggers.
+- **Account Lockout Policy ([ADR-0021](docs/adr/0021-account-lockout-and-advanced-rbac.md))**:
+  - Mitigated distributed credential stuffing and botnet brute-force attacks by enforcing a stateful account lockout: 5 consecutive failed login attempts automatically lock the user account for 15 minutes (`locked_until = NOW() + INTERVAL '15 minutes'`).
+  - Standard RFC 9457 error response: returns HTTP `423 Locked` (`ACCOUNT_LOCKED`).
+  - Automated Self-Healing: Accounts automatically recover after 15 minutes without requiring administrator manual intervention. Successful logins reset the failure counter to 0.
+- **Timing Attack & User Enumeration Resistance**:
+  - The login pipeline executes dummy bcrypt password hash comparisons for both nonexistent email addresses and currently locked accounts, guaranteeing uniform latency and eliminating timing discrepancies.
+- **Advanced Role-Based Access Control (RBAC) & Separation of Duties ([ADR-0021](docs/adr/0021-account-lockout-and-advanced-rbac.md))**:
+  - Introduced the `auditor` system role (`domain.RoleAuditor`) alongside `admin` and `user`.
+  - Implemented capability-based middlewares `RequireAnyRole` and `RequirePermission`.
+  - Auditor role is granted read-only visibility into system health, audit logs, Prometheus metrics (`GET /api/v1/system/metrics`), and webhook deliveries, while being strictly barred (HTTP 403) from modifying configurations or inspecting personal user task contents.
+
+### Added
+- **Transactional Outbox Pattern for Webhooks ([ADR-0020](docs/adr/0020-transactional-outbox-pattern.md))**:
+  - Introduced relational `outbox_events` table (migration `000010_create_outbox_events`) to record domain events inside the identical ACID transaction as the business operation, completely eliminating the dual-write problem and phantom events.
+  - Built robust background polling relay worker `internal/worker/outbox_relay.go` utilizing PostgreSQL concurrency-safe `SELECT ... FOR UPDATE SKIP LOCKED` batch queries.
+  - Added dead-letter failure handling: automatically increments event retry counts and transitions persistent errors to `status = 'failed'` after 5 attempts.
+  - Added periodic retention cleanup cron task (`task:cleanup_old_outbox_events` running `@every 6h`) that prunes processed outbox events older than 7 days.
+- **Database Migrations**:
+  - `000010_create_outbox_events`: Schema migration and partial index for transactional outbox pattern.
+  - `000011_add_account_lockout_to_users`: Added `failed_login_attempts`, `locked_until`, `last_failed_login_at` to `users` and expanded role constraint to include `auditor`.
+- **Architecture Decision Records**:
+  - **[ADR-0020](docs/adr/0020-transactional-outbox-pattern.md)**: Transactional Outbox Pattern for Reliable Webhook Event Dispatching.
+  - **[ADR-0021](docs/adr/0021-account-lockout-and-advanced-rbac.md)**: Account Lockout Policy and Advanced Role-Based Access Control (RBAC).
+
+### Changed
+- Refactored core domain services (`TaskService`, `CommentService`, `AttachmentService`, `ProjectService`) to persist domain events into `outbox_events` within `store.WithTx`, removing immediate synchronous Asynq enqueue calls from HTTP request lifecycles.
+- Re-architected background worker startup in `cmd/api/main.go` to orchestrate Asynq processor, scheduler, and OutboxRelay simultaneously with graceful shutdown synchronization.
+
+---
+
 ## [1.1.1] - 2026-11-27
 
 ### Fixed
