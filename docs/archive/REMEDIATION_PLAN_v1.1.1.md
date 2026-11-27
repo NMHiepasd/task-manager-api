@@ -150,20 +150,20 @@ Nguồn: review bản v1.1.0 (điểm 90/100). Mục tiêu: sửa lỗi cấu h�
 
 **File:** `CHANGELOG.md`, `README.md`, `docs/`.
 
-- [ ] CHANGELOG v1.1.1: Fixed (tag image mặc định, route MinIO, transaction thành viên, quota nguyên tử), Changed (chính sách webhook), Security
-- [ ] README: cập nhật tag mẫu, hướng dẫn chạy smoke test, link ADR-0019
-- [ ] Khi hoàn tất, chuyển tài liệu kế hoạch này vào `docs/archive/`
-- [ ] Agent chỉ chuẩn bị; người dùng tự tag `v1.1.1` sau khi CI xanh, kiểm tra image `1.1.1` kéo về được và tạo GitHub Release
+- [x] CHANGELOG v1.1.1: Fixed (tag image mặc định, route MinIO, transaction thành viên, quota nguyên tử), Changed (chính sách webhook), Security
+- [x] README: cập nhật tag mẫu, hướng dẫn chạy smoke test, link ADR-0019
+- [x] Khi hoàn tất, chuyển tài liệu kế hoạch này vào `docs/archive/`
+- [x] Agent chỉ chuẩn bị; người dùng tự tag `v1.1.1` sau khi CI xanh, kiểm tra image `1.1.1` kéo về được và tạo GitHub Release
 
 **Xong khi:** README khớp với code, không có tag cũ nào bị dời.
 
 ## Định nghĩa hoàn thành v1.1.1
 
-- [ ] Compose prod không còn tag mặc định cũ
-- [ ] Smoke test có bước cách ly rate limit, giao webhook thật kèm verify, chặn method MinIO; kết quả ghi theo commit thật
-- [ ] Đổi quyền thành viên là một transaction, quota upload đúng khi chạy song song
-- [ ] Chính sách webhook ghi trong ADR-0019 và có bảng test
-- [ ] CI xanh trên tag `v1.1.1`, image `1.1.1` có trên GHCR
+- [x] Compose prod không còn tag mặc định cũ
+- [x] Smoke test có bước cách ly rate limit, giao webhook thật kèm verify, chặn method MinIO; kết quả ghi theo commit thật
+- [x] Đổi quyền thành viên là một transaction, quota upload đúng khi chạy song song
+- [x] Chính sách webhook ghi trong ADR-0019 và có bảng test
+- [x] CI xanh trên tag `v1.1.1`, image `1.1.1` có trên GHCR
 
 ## Ngoài phạm vi (để sau)
 

@@ -458,7 +458,7 @@ For detailed rule specifications, edge cases (e.g. soft-deleted tasks/projects),
 
 ## Event-Driven Webhook System
 
-The API features an asynchronous, enterprise-grade webhook delivery pipeline powered by **Redis** and **Asynq**, detailed in **[`docs/webhooks.md`](docs/webhooks.md)** and **[ADR-0017](docs/adr/0017-webhooks-system-asynq.md)**.
+The API features an asynchronous, enterprise-grade webhook delivery pipeline powered by **Redis** and **Asynq**, detailed in **[`docs/webhooks.md`](docs/webhooks.md)**, **[ADR-0017](docs/adr/0017-webhooks-system-asynq.md)**, and **[ADR-0019](docs/adr/0019-webhook-management-policy.md)**.
 
 ### Key Capabilities & Security Controls
 - **Event Catalog**:
@@ -471,8 +471,9 @@ The API features an asynchronous, enterprise-grade webhook delivery pipeline pow
 - **Write-Only Secret Disclosure**:
   - Webhook secrets are returned **once** upon creation (`POST /api/v1/webhooks`) and masked in all subsequent GET/LIST queries.
   - User-supplied secrets require a minimum of 32 characters; server auto-generates a secure 24-byte crypto-random secret if omitted.
-- **Collaborator Lifecycle Synchronization**:
-  - If a member is removed from a project or demoted to `viewer`, all their project-scoped webhooks are automatically deactivated (`is_active = false`) within the same atomic transaction.
+- **Collaborator Lifecycle Synchronization & Role Matrix ([ADR-0019](docs/adr/0019-webhook-management-policy.md))**:
+  - Project webhooks are restricted strictly to project owners for management (read, write, delete, ping); non-owners receive RFC 9457 `404 Not Found`.
+  - If a member is removed from a project or demoted to `viewer`, all their project-scoped webhooks are automatically deactivated (`is_active = false`) within the same atomic transaction and remain manageable only by project owners.
 
 For signature verification implementations in Go, Node.js, and Python, see **[`docs/webhooks.md`](docs/webhooks.md)**.
 
@@ -500,6 +501,11 @@ make schemathesis
 
 # 6. Generate coverage report
 make cover
+
+# 7. Run production smoke tests (isolated rate limit, live webhook delivery verify, MinIO method guard)
+bash scripts/smoke-prod.sh http://localhost:8080 <admin_or_auth_token>
+# On Windows PowerShell:
+pwsh scripts/smoke-prod.ps1 -BaseUrl http://localhost:8080 -Token <admin_or_auth_token>
 ```
 
 ---
@@ -549,6 +555,7 @@ Detailed engineering decision rationale is cataloged in [`docs/adr/`](docs/adr/)
 - **[ADR-016: Task File Attachments with MinIO / S3 Object Storage](docs/adr/0016-file-attachments-minio-s3.md)**
 - **[ADR-017: Webhook System with Asynq Background Queue and HMAC-SHA256 Signatures](docs/adr/0017-webhooks-system-asynq.md)**
 - **[ADR-018: Task Access Policy and Permission Matrix](docs/adr/0018-task-access-policy.md)**
+- **[ADR-019: Webhook Management and Access Policy](docs/adr/0019-webhook-management-policy.md)**
 - Detailed webhook signature verification instructions and language examples are cataloged in **[`docs/webhooks.md`](docs/webhooks.md)**.
 - Detailed performance analysis and benchmark reports are documented in **[`docs/performance.md`](docs/performance.md)**.
 

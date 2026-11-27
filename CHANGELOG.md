@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-11-27
+
+### Fixed
+- **Docker Compose Production Image Tag**: Enforced `${IMAGE_TAG:?}` in `docker-compose.prod.yml` to prevent accidental rollbacks or running unversioned stale images.
+- **MinIO Gateway Reverse Proxy Route**: Hardened Caddy reverse proxy routing for object storage (`/task-attachments/*`), explicitly restricting public HTTP requests to `GET` only (blocking unauthorized `PUT`, `DELETE`, `POST`) while ensuring seamless streaming and download.
+- **Project Member Role Demotion & Removal Transaction**: Wrapped project member role updates (`UpdateMemberRole`) and member removals (`RemoveMember`) in atomic database transactions (`store.ExecTx`), ensuring project member deletion, role modification, and task unassignment occur atomically before cache invalidation.
+- **Atomic Attachment Quota Reservation**: Eliminated TOCTOU race conditions under parallel file uploads by implementing PostgreSQL transaction-level advisory locks (`pg_advisory_xact_lock`) with deterministic ordering (`user_id -> task_id`). Added resilient orphan cleanup fallback if subsequent database recording fails.
+
+### Changed
+- **Webhook Management & Access Policy ([ADR-0019](docs/adr/0019-webhook-management-policy.md))**:
+  - Enforced project webhook authorization matrix in `authorizeWebhookAccess`: project-scoped webhooks are strictly manageable by project owners only (editors and viewers are denied access).
+  - Anti-IDOR enforcement: unauthorized or cross-project webhook lookup and mutation attempts consistently return RFC 9457 `404 Not Found` (never 403).
+  - Inactive webhooks of removed or demoted members remain disabled and can only be managed, viewed, or deleted by project owners.
+- **Deprecated Webhook Signature Cleanup**:
+  - Removed obsolete legacy signature helper functions `ComputeSignature` and `VerifySignature` from `pkg/webhook`, consolidating exclusively on the Webhook V2 signing standard (`SignV2` and `VerifyV2`).
+
+### Security
+- **Go Toolchain Pinning & Scanner Hardening**:
+  - Pinned Go toolchain to `go1.27.4` in `go.mod` (`toolchain go1.27.4`) and Dockerfile builder stage (`golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280`).
+  - Resolved standard library advisories `GO-2026-6859` (HTTP/1 server crash in `net/http`) and `GO-2026-6809` (intermediate CA distrust in `crypto/x509`), achieving **0 vulnerabilities** in `govulncheck ./...`.
+  - Pinned security scanner versions across CI and reproduction documentation: `gosec@v2.30.0`, `gitleaks:v8.24.0`, `trivy:0.76.2`.
+  - Added CI Go version verification (`go-version-file: 'go.mod'` + `Verify Go Version`) across all workflows.
+
+---
+
 ## [1.1.0] - 2026-11-18
 
 ### Breaking Changes
