@@ -501,7 +501,7 @@ func (m *mockQuerierWithHooks) RecordOutboxEventRetry(context.Context, repositor
 	return nil
 }
 
-func (m *mockQuerierWithHooks) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+func (m *mockQuerierWithHooks) RecordFailedLogin(context.Context, repository.RecordFailedLoginParams) (repository.RecordFailedLoginRow, error) {
 	return repository.RecordFailedLoginRow{}, nil
 }
 

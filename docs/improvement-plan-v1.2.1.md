@@ -97,9 +97,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `queries/users.sql`, `internal/service/auth_service.go`, test service và integration.
 
-- [ ] `RecordFailedLogin` nhận tham số threshold, duration, window; nếu `last_failed_login_at` cũ hơn window hoặc khóa đã hết hạn thì đặt bộ đếm về 1 rồi mới tính
-- [ ] Test integration: sai 4 lần rồi để qua window, sai thêm 1 lần thì không bị khóa; khóa hết hạn rồi sai 1 lần thì bộ đếm bằng 1
-- [ ] Log lỗi của `RecordFailedLogin` thay cho `_, _ =`
+- [x] `RecordFailedLogin` nhận tham số threshold, duration, window; nếu `last_failed_login_at` cũ hơn window hoặc khóa đã hết hạn thì đặt bộ đếm về 1 rồi mới tính
+- [x] Test integration: sai 4 lần rồi để qua window, sai thêm 1 lần thì không bị khóa; khóa hết hạn rồi sai 1 lần thì bộ đếm bằng 1
+- [x] Log lỗi của `RecordFailedLogin` thay cho `_, _ =`
 
 **Xong khi:** hành vi khớp mô tả trong ADR-0021.
 

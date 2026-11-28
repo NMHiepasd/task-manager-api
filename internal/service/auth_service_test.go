@@ -26,7 +26,7 @@ type mockQuerier struct {
 	getProjectMemberFn      func(ctx context.Context, arg repository.GetProjectMemberParams) (repository.ProjectMember, error)
 	createOutboxEventFn     func(ctx context.Context, arg repository.CreateOutboxEventParams) (repository.OutboxEvent, error)
 	outboxEvents            []repository.CreateOutboxEventParams
-	recordFailedLoginFn     func(ctx context.Context, id uuid.UUID) (repository.RecordFailedLoginRow, error)
+	recordFailedLoginFn     func(ctx context.Context, arg repository.RecordFailedLoginParams) (repository.RecordFailedLoginRow, error)
 	resetFailedLoginFn      func(ctx context.Context, id uuid.UUID) error
 	recordedFailedLogins    []uuid.UUID
 	resetFailedLogins       []uuid.UUID
@@ -396,10 +396,10 @@ func (m *mockQuerier) RecordOutboxEventRetry(context.Context, repository.RecordO
 	return nil
 }
 
-func (m *mockQuerier) RecordFailedLogin(ctx context.Context, id uuid.UUID) (repository.RecordFailedLoginRow, error) {
-	m.recordedFailedLogins = append(m.recordedFailedLogins, id)
+func (m *mockQuerier) RecordFailedLogin(ctx context.Context, arg repository.RecordFailedLoginParams) (repository.RecordFailedLoginRow, error) {
+	m.recordedFailedLogins = append(m.recordedFailedLogins, arg.ID)
 	if m.recordFailedLoginFn != nil {
-		return m.recordFailedLoginFn(ctx, id)
+		return m.recordFailedLoginFn(ctx, arg)
 	}
 	return repository.RecordFailedLoginRow{}, nil
 }

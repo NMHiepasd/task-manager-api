@@ -87,7 +87,7 @@ type Querier interface {
 	MarkOutboxEventPublished(ctx context.Context, id uuid.UUID) error
 	MarkOutboxEventsPublished(ctx context.Context, dollar_1 []uuid.UUID) error
 	ReclaimStaleOutboxEvents(ctx context.Context, leaseSeconds float64) (int64, error)
-	RecordFailedLogin(ctx context.Context, id uuid.UUID) (RecordFailedLoginRow, error)
+	RecordFailedLogin(ctx context.Context, arg RecordFailedLoginParams) (RecordFailedLoginRow, error)
 	RecordOutboxEventRetry(ctx context.Context, arg RecordOutboxEventRetryParams) error
 	RemoveTagFromTask(ctx context.Context, arg RemoveTagFromTaskParams) error
 	ResetFailedLogin(ctx context.Context, id uuid.UUID) error

@@ -449,7 +449,7 @@ func (m *mockIdempotencyQuerier) RecordOutboxEventRetry(context.Context, reposit
 	return nil
 }
 
-func (m *mockIdempotencyQuerier) RecordFailedLogin(context.Context, uuid.UUID) (repository.RecordFailedLoginRow, error) {
+func (m *mockIdempotencyQuerier) RecordFailedLogin(context.Context, repository.RecordFailedLoginParams) (repository.RecordFailedLoginRow, error) {
 	return repository.RecordFailedLoginRow{}, nil
 }
 

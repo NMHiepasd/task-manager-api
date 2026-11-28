@@ -41,14 +41,29 @@ WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: RecordFailedLogin :one
 UPDATE users
-SET failed_login_attempts = failed_login_attempts + 1,
+SET failed_login_attempts = CASE
+        WHEN last_failed_login_at IS NULL
+          OR last_failed_login_at < CURRENT_TIMESTAMP - make_interval(secs => sqlc.arg(window_seconds)::double precision)
+          OR (locked_until IS NOT NULL AND locked_until <= CURRENT_TIMESTAMP)
+        THEN 1
+        ELSE failed_login_attempts + 1
+    END,
     last_failed_login_at = CURRENT_TIMESTAMP,
     locked_until = CASE
-        WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
-        ELSE locked_until
+        WHEN (
+            CASE
+                WHEN last_failed_login_at IS NULL
+                  OR last_failed_login_at < CURRENT_TIMESTAMP - make_interval(secs => sqlc.arg(window_seconds)::double precision)
+                  OR (locked_until IS NOT NULL AND locked_until <= CURRENT_TIMESTAMP)
+                THEN 1
+                ELSE failed_login_attempts + 1
+            END
+        ) >= sqlc.arg(threshold)::int
+        THEN CURRENT_TIMESTAMP + make_interval(secs => sqlc.arg(duration_seconds)::double precision)
+        ELSE NULL
     END,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE id = sqlc.arg(id)
 RETURNING failed_login_attempts, locked_until;
 
 -- name: ResetFailedLogin :exec

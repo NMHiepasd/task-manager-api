@@ -154,24 +154,51 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 
 const recordFailedLogin = `-- name: RecordFailedLogin :one
 UPDATE users
-SET failed_login_attempts = failed_login_attempts + 1,
+SET failed_login_attempts = CASE
+        WHEN last_failed_login_at IS NULL
+          OR last_failed_login_at < CURRENT_TIMESTAMP - make_interval(secs => $1::double precision)
+          OR (locked_until IS NOT NULL AND locked_until <= CURRENT_TIMESTAMP)
+        THEN 1
+        ELSE failed_login_attempts + 1
+    END,
     last_failed_login_at = CURRENT_TIMESTAMP,
     locked_until = CASE
-        WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
-        ELSE locked_until
+        WHEN (
+            CASE
+                WHEN last_failed_login_at IS NULL
+                  OR last_failed_login_at < CURRENT_TIMESTAMP - make_interval(secs => $1::double precision)
+                  OR (locked_until IS NOT NULL AND locked_until <= CURRENT_TIMESTAMP)
+                THEN 1
+                ELSE failed_login_attempts + 1
+            END
+        ) >= $2::int
+        THEN CURRENT_TIMESTAMP + make_interval(secs => $3::double precision)
+        ELSE NULL
     END,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE id = $4
 RETURNING failed_login_attempts, locked_until
 `
+
+type RecordFailedLoginParams struct {
+	WindowSeconds   float64   `json:"window_seconds"`
+	Threshold       int32     `json:"threshold"`
+	DurationSeconds float64   `json:"duration_seconds"`
+	ID              uuid.UUID `json:"id"`
+}
 
 type RecordFailedLoginRow struct {
 	FailedLoginAttempts int32              `json:"failed_login_attempts"`
 	LockedUntil         pgtype.Timestamptz `json:"locked_until"`
 }
 
-func (q *Queries) RecordFailedLogin(ctx context.Context, id uuid.UUID) (RecordFailedLoginRow, error) {
-	row := q.db.QueryRow(ctx, recordFailedLogin, id)
+func (q *Queries) RecordFailedLogin(ctx context.Context, arg RecordFailedLoginParams) (RecordFailedLoginRow, error) {
+	row := q.db.QueryRow(ctx, recordFailedLogin,
+		arg.WindowSeconds,
+		arg.Threshold,
+		arg.DurationSeconds,
+		arg.ID,
+	)
 	var i RecordFailedLoginRow
 	err := row.Scan(&i.FailedLoginAttempts, &i.LockedUntil)
 	return i, err

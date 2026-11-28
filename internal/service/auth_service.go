@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"task-manager-api/internal/repository"
 	"task-manager-api/pkg/hasher"
@@ -144,7 +145,14 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*TokenRespon
 
 	if err := s.hasher.ComparePassword(user.PasswordHash, input.Password); err != nil {
 		// Record failed login attempt and potentially lock the account
-		_, _ = s.repo.RecordFailedLogin(ctx, user.ID)
+		if _, recErr := s.repo.RecordFailedLogin(ctx, repository.RecordFailedLoginParams{
+			ID:              user.ID,
+			Threshold:       5,
+			DurationSeconds: 15 * 60,
+			WindowSeconds:   15 * 60,
+		}); recErr != nil {
+			slog.ErrorContext(ctx, "Failed to record failed login attempt", "user_id", user.ID, "error", recErr)
+		}
 		return nil, ErrInvalidCredentials
 	}
 
