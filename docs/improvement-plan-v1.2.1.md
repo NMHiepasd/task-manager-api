@@ -4,7 +4,6 @@ Nguồn: review HEAD sau v1.1.1 (88/100). Vì v1.2.0 chưa được tag nên cá
 
 ## Quy ước chung (giữ như kế hoạch v1.1 và v1.1.1)
 
-- 1 task = 1 phiên agent mới = 1 nhánh `fix/<mã-task>` = 1 commit/PR
 - Không đọc hay sửa file sinh tự động (`internal/repository/*.sql.go`, `docs/swagger/*`): sửa nguồn rồi chạy `make sqlc` / `make swagger`
 - Viết test tái hiện trước, sửa sau (đỏ rồi xanh)
 - Chạm tối đa khoảng 8 file; vượt thì dừng, báo cáo và đề xuất tách task
@@ -53,11 +52,11 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay.go`, `internal/worker/distributor.go`, `internal/worker/outbox_relay_test.go`.
 
-- [ ] Thay `FetchPendingOutboxEvents` bằng `ClaimOutboxEvents`
-- [ ] `deliveryID` sinh bằng `uuid.NewSHA1` từ (id sự kiện outbox, id webhook) thay cho `uuid.New()`
-- [ ] Enqueue kèm `asynq.TaskID(deliveryID)`; coi `asynq.ErrTaskIDConflict` là thành công
-- [ ] Trường `timestamp` của envelope lấy từ `created_at` của sự kiện
-- [ ] Test: cùng một sự kiện xử lý hai lần cho cùng deliveryID, `ErrTaskIDConflict` không bị tính là lỗi
+- [x] Thay `FetchPendingOutboxEvents` bằng `ClaimOutboxEvents`
+- [x] `deliveryID` sinh bằng `uuid.NewSHA1` từ (id sự kiện outbox, id webhook) thay cho `uuid.New()`
+- [x] Enqueue kèm `asynq.TaskID(deliveryID)`; coi `asynq.ErrTaskIDConflict` là thành công
+- [x] Trường `timestamp` của envelope lấy từ `created_at` của sự kiện
+- [x] Test: cùng một sự kiện xử lý hai lần cho cùng deliveryID, `ErrTaskIDConflict` không bị tính là lỗi
 
 **Xong khi:** test xanh, không còn `uuid.New()` trong luồng relay.
 
@@ -65,9 +64,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay.go`, `internal/config/config.go`, test.
 
-- [ ] Enqueue lỗi ở webhook thứ k thì sự kiện quay về `pending` (retry\_count tăng); các webhook đã enqueue không bị trùng nhờ ID xác định
-- [ ] Mỗi lượt poll gọi `ReclaimStaleOutboxEvents` với `OUTBOX_LEASE_SECONDS` (mặc định 120)
-- [ ] Test: relay dừng đột ngột sau khi claim (chưa mark) thì lượt sau reclaim và xử lý, tổng cộng đúng một lần
+- [x] Enqueue lỗi ở webhook thứ k thì sự kiện quay về `pending` (retry\_count tăng); các webhook đã enqueue không bị trùng nhờ ID xác định
+- [x] Mỗi lượt poll gọi `ReclaimStaleOutboxEvents` với `OUTBOX_LEASE_SECONDS` (mặc định 120)
+- [x] Test: relay dừng đột ngột sau khi claim (chưa mark) thì lượt sau reclaim và xử lý, tổng cộng đúng một lần
 
 **Xong khi:** test xanh.
 
@@ -75,10 +74,10 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay_integration_test.go` (build tag `integration`).
 
-- [ ] Postgres thật (testcontainers) và distributor giả ghi nhận lời gọi; tạo 200 sự kiện, chạy 3 relay song song
-- [ ] Khẳng định mỗi cặp (sự kiện, webhook) chỉ có đúng một task hiệu lực
-- [ ] Kịch bản crash giữa enqueue và mark published
-- [ ] Chạy với `-race`
+- [x] Postgres thật (testcontainers) và distributor giả ghi nhận lời gọi; tạo 200 sự kiện, chạy 3 relay song song
+- [x] Khẳng định mỗi cặp (sự kiện, webhook) chỉ có đúng một task hiệu lực
+- [x] Kịch bản crash giữa enqueue và mark published
+- [x] Chạy với `-race`
 
 **Xong khi:** `make test-integration` xanh. Nếu phát hiện lỗi mới thì ghi thành task, không sửa lan.
 
@@ -86,9 +85,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `cmd/api/main.go`, `internal/config/config.go`, `docs/adr/0020-transactional-outbox-pattern.md`, `docs/webhooks.md`, `.env.example`, README.
 
-- [ ] Env `OUTBOX_RELAY_ENABLED` (mặc định true), `OUTBOX_POLL_INTERVAL`, `OUTBOX_BATCH_SIZE`; ghi vào `.env.example`, compose và README
-- [ ] ADR-0020: giao at-least-once và khử trùng bằng deliveryID, không bảo đảm thứ tự, cơ chế lease, dead-letter
-- [ ] `docs/webhooks.md`: khuyến nghị bên nhận loại trùng theo `X-Webhook-Id`
+- [x] Env `OUTBOX_RELAY_ENABLED` (mặc định true), `OUTBOX_POLL_INTERVAL`, `OUTBOX_BATCH_SIZE`; ghi vào `.env.example`, compose và README
+- [x] ADR-0020: giao at-least-once và khử trùng bằng deliveryID, không bảo đảm thứ tự, cơ chế lease, dead-letter
+- [x] `docs/webhooks.md`: khuyến nghị bên nhận loại trùng theo `X-Webhook-Id`
 
 **Xong khi:** tài liệu khớp code.
 

@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OutboxStore defines database interactions required by the outbox relay worker.
 type OutboxStore interface {
-	FetchPendingOutboxEvents(ctx context.Context, arg repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error)
+	ClaimOutboxEvents(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error)
+	ReclaimStaleOutboxEvents(ctx context.Context, leaseSeconds float64) (int64, error)
 	ListActiveWebhooksForEvent(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error)
 	MarkOutboxEventsPublished(ctx context.Context, ids []uuid.UUID) error
 	RecordOutboxEventRetry(ctx context.Context, arg repository.RecordOutboxEventRetryParams) error
@@ -53,6 +55,15 @@ func WithMaxRetries(retries int32) OutboxRelayOption {
 	}
 }
 
+// WithLeaseSeconds sets the processing lease timeout in seconds before stale events are reclaimed.
+func WithLeaseSeconds(seconds int) OutboxRelayOption {
+	return func(r *OutboxRelay) {
+		if seconds > 0 {
+			r.leaseSeconds = float64(seconds)
+		}
+	}
+}
+
 // OutboxRelay periodically polls pending events from outbox_events and enqueues tasks to Asynq.
 type OutboxRelay struct {
 	store        OutboxStore
@@ -61,6 +72,7 @@ type OutboxRelay struct {
 	pollInterval time.Duration
 	batchSize    int32
 	maxRetries   int32
+	leaseSeconds float64
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -75,6 +87,7 @@ func NewOutboxRelay(store OutboxStore, distributor TaskDistributor, log *slog.Lo
 		pollInterval: 1 * time.Second,
 		batchSize:    50,
 		maxRetries:   5,
+		leaseSeconds: 120,
 		stopCh:       make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -123,12 +136,18 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	events, err := r.store.FetchPendingOutboxEvents(ctx, repository.FetchPendingOutboxEventsParams{
-		RetryCount: r.maxRetries,
-		Limit:      r.batchSize,
+	if reclaimed, err := r.store.ReclaimStaleOutboxEvents(ctx, r.leaseSeconds); err != nil {
+		r.log.Warn("Failed to reclaim stale outbox events", "error", err)
+	} else if reclaimed > 0 {
+		r.log.Warn("Reclaimed stale processing outbox events", "count", reclaimed, "lease_seconds", r.leaseSeconds)
+	}
+
+	events, err := r.store.ClaimOutboxEvents(ctx, repository.ClaimOutboxEventsParams{
+		MaxRetries: r.maxRetries,
+		BatchLimit: r.batchSize,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch pending outbox events: %w", err)
+		return 0, fmt.Errorf("failed to claim pending outbox events: %w", err)
 	}
 
 	if len(events) == 0 {
@@ -149,13 +168,18 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 			continue
 		}
 
+		eventTimestamp := event.CreatedAt.Time
+		if !event.CreatedAt.Valid || eventTimestamp.IsZero() {
+			eventTimestamp = time.Now()
+		}
+
 		var enqueueErr error
 		for _, wh := range webhooks {
-			deliveryID := uuid.New()
+			deliveryID := uuid.NewSHA1(event.ID, wh.ID[:])
 			envelopeBytes, err := json.Marshal(map[string]any{
 				"id":        deliveryID.String(),
 				"event":     event.EventType,
-				"timestamp": time.Now().UTC().Format(time.RFC3339),
+				"timestamp": eventTimestamp.UTC().Format(time.RFC3339),
 				"actor_id":  event.ActorID.String(),
 				"data":      json.RawMessage(event.Payload),
 			})
@@ -164,13 +188,14 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 				break
 			}
 
-			if err := r.distributor.DistributeSendWebhook(ctx, SendWebhookPayload{
+			err = r.distributor.DistributeSendWebhook(ctx, SendWebhookPayload{
 				DeliveryID: deliveryID,
 				WebhookID:  wh.ID,
 				TargetURL:  wh.Url,
 				EventType:  event.EventType,
 				Payload:    envelopeBytes,
-			}); err != nil {
+			}, asynq.TaskID(deliveryID.String()))
+			if err != nil && !errors.Is(err, asynq.ErrTaskIDConflict) {
 				enqueueErr = fmt.Errorf("failed to enqueue webhook task: %w", err)
 				break
 			}
@@ -196,7 +221,7 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 	return len(publishedIDs), nil
 }
 
-func (r *OutboxRelay) handleEventFailure(ctx context.Context, event repository.FetchPendingOutboxEventsRow, failureErr error) {
+func (r *OutboxRelay) handleEventFailure(ctx context.Context, event repository.ClaimOutboxEventsRow, failureErr error) {
 	newRetryCount := event.RetryCount + 1
 	errMsg := failureErr.Error()
 

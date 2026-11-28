@@ -121,58 +121,47 @@ if err := tx.Commit(ctx); err != nil {
 
 If the transaction succeeds, both the entity modification and the outbox event are guaranteed to be durable. If anything fails, both are rolled back cleanly.
 
-### 4. Relay Strategy (`SELECT ... FOR UPDATE SKIP LOCKED`)
+### 4. Relay Strategy: Atomic Claim with Lease & Deterministic Deduplication
 
-A background Outbox Publisher (relay worker) polls pending events using a lock-free queue pattern:
+To prevent duplicate dispatching across horizontal relay replicas and recover safely from mid-batch crashes:
+
+1. **Stale Lease Reclamation**: At the start of every polling cycle, the relay executes `ReclaimStaleOutboxEvents(lease_seconds)` (default `OUTBOX_LEASE_SECONDS = 120`), resetting any row stuck in `status = 'processing'` past its lease timeout back to `status = 'pending'`.
+2. **Atomic Claim (`UPDATE ... RETURNING`)**: Instead of a bare `SELECT ... FOR UPDATE SKIP LOCKED` outside an interactive transaction, the relay claims a batch atomically in a single statement:
 
 ```sql
--- name: FetchPendingOutboxEvents :many
-SELECT id, event_type, aggregate_type, aggregate_id, actor_id, project_id, payload, retry_count
-FROM outbox_events
-WHERE status = 'pending' AND retry_count < $1
-ORDER BY created_at ASC
-LIMIT $2
-FOR UPDATE SKIP LOCKED;
+-- name: ClaimOutboxEvents :many
+UPDATE outbox_events oe
+SET status = 'processing', locked_at = NOW()
+WHERE oe.id IN (
+    SELECT o.id FROM outbox_events o
+    WHERE o.status = 'pending' AND o.retry_count < sqlc.arg(max_retries)
+    ORDER BY o.created_at ASC
+    LIMIT sqlc.arg(batch_limit)
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING oe.id, oe.event_type, oe.aggregate_type, oe.aggregate_id,
+          oe.actor_id, oe.project_id, oe.payload, oe.status, oe.retry_count, oe.created_at;
 ```
 
-#### Why `FOR UPDATE SKIP LOCKED`?
-- **Zero Lock Contention**: When multiple worker instances run concurrently, `SKIP LOCKED` instructs PostgreSQL to lock matching rows and skip rows currently locked by another transaction, rather than waiting.
-- **Horizontal Scaling**: Multiple publisher nodes can process batches simultaneously without conflicts or deadlocks.
-- **Safety**: Locked rows remain visible only to the active transaction; uncommitted work is isolated.
+3. **Deterministic `deliveryID` & Asynq Deduplication**:
+   - For each `(outbox_event, webhook)` pair, `deliveryID` is deterministically derived using `uuid.NewSHA1(event.ID, webhook.ID[:])`.
+   - Tasks are enqueued with `asynq.TaskID(deliveryID.String())`.
+   - `asynq.ErrTaskIDConflict` is treated as a successful enqueue, guaranteeing idempotency across partial failures and lease reclaims.
+   - The envelope `timestamp` uses the event's original `created_at` from PostgreSQL.
 
 ### 5. Publishing Pipeline & Dead-Letter Handling
 
-For each locked row in the batch:
-```
-                               +----------------------------+
-                               |     outbox_events row      |
-                               +----------------------------+
-                                             |
-                                             v
-                           Query matching active webhooks in DB
-                           (filtered by event, user, project)
-                                             |
-                               +-------------+-------------+
-                               |                           |
-                       Webhooks Found               No Webhooks Found
-                               |                           |
-                               v                           |
-                    Enqueue Asynq tasks                    |
-                     (SendWebhookPayload)                  |
-                               |                           |
-                               +-------------+-------------+
-                                             |
-                                             v
-                       Mark status = 'published', processed_at = NOW()
-```
+For each claimed row (`status = 'processing'`):
+1. Query matching active webhooks in PostgreSQL.
+2. Enqueue `SendWebhookPayload` tasks with deterministic `TaskID`.
+3. If all webhooks enqueue cleanly (including `ErrTaskIDConflict`), mark `status = 'published'`, `locked_at = NULL`, `processed_at = NOW()` (guarded by `AND status = 'processing'`).
 
-#### Failure Handling:
-1. If the Asynq/Redis client returns a transient error during queue enqueueing:
-   - Increment `retry_count`.
-   - Update `last_error` with error details.
-   - If `retry_count < MaxRetries` (default: 5): row remains in `status = 'pending'`, available for the next polling cycle with exponential backoff interval.
-   - If `retry_count >= MaxRetries`: update `status = 'failed'`, `processed_at = NOW()`.
-2. Operators can monitor `COUNT(*) FROM outbox_events WHERE status = 'failed'` using Prometheus metrics (`outbox_events_failed_total`) and trigger manual inspection or replays.
+#### Failure Handling & Dead-Letter:
+1. If enqueuing fails at webhook $k$:
+   - `RecordOutboxEventRetry` transitions the row back to `status = 'pending'`, clears `locked_at`, increments `retry_count`, and records `last_error`.
+   - Already-enqueued webhooks $1 \dots k-1$ will safely hit `asynq.ErrTaskIDConflict` on the next pass without duplicating tasks.
+   - If `retry_count + 1 >= MaxRetries` (default: 5): `MarkOutboxEventFailed` transitions the row to dead-letter `status = 'failed'`, `processed_at = NOW()`.
+2. Operators can monitor `COUNT(*) FROM outbox_events WHERE status = 'failed'` and inspect `last_error` for manual intervention.
 
 ### 6. Automated Retention & Cleanup
 
@@ -201,4 +190,4 @@ To prevent the table from unbounded growth:
 ### Negative / Trade-offs
 - **PostgreSQL Write Amplification**: Storing an extra row per domain event adds write I/O to PostgreSQL. Mitigated by compact payload serialization, partial indexing, and automated 7-day pruning.
 - **Event Relay Latency**: There is a small polling latency between database commit and queue distribution (typically 200ms - 2s depending on polling frequency). This is entirely acceptable for asynchronous webhook notifications.
-- **At-Least-Once Delivery**: In rare scenarios (e.g., worker crashes immediately after enqueuing to Asynq but before marking `outbox_events` as `published`), an event could be published twice. Webhook receivers must implement idempotency checks using the `X-Webhook-Id` header (already standardized in ADR 0017 and ADR 0019).
+- **At-Least-Once Delivery & No Strict Ordering**: While deterministic `TaskID` deduplication prevents duplicate enqueuing while tasks remain in Redis, delivery guarantees remain **at-least-once** (for example, if a lease expires after a task has already executed and cleared from Redis, or during HTTP delivery retries). Furthermore, because multiple worker relays and Asynq concurrency process events in parallel, **strict event ordering is not guaranteed**. Webhook receivers must implement idempotency checks using `X-Webhook-Id` and rely on the envelope `timestamp` (`created_at`) rather than arrival order.

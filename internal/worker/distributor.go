@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -101,6 +102,9 @@ func (d *RedisTaskDistributor) DistributeSendWebhook(ctx context.Context, payloa
 
 	_, err = d.client.EnqueueContext(ctx, task, allOpts...)
 	if err != nil {
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			return nil
+		}
 		return fmt.Errorf("failed to enqueue send webhook task: %w", err)
 	}
 	return nil

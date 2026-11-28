@@ -81,11 +81,12 @@ To verify that a request genuinely originated from Task Manager API and has not 
 
 ## 5. Idempotency & Deduplication
 
-Task Manager API implements **at-least-once delivery**. Transient network timeouts, client disconnects, or 5xx receiver errors trigger automated retries (up to `WEBHOOK_MAX_RETRY` times, default: 6).
+Task Manager API implements **at-least-once delivery** and **does not guarantee strict ordering** across concurrent deliveries. Transient network timeouts, client disconnects, outbox lease reclaims, or 5xx receiver errors trigger automated retries (up to `WEBHOOK_MAX_RETRY` times, default: 6).
 
-Because retries can occur:
-- Record processed `X-Webhook-Id` values in an in-memory store (e.g., Redis `SETNX` with a 24-hour TTL) or a relational database table.
-- If an incoming request carries an `X-Webhook-Id` that has already been processed, immediately return `HTTP 200 OK` and skip processing the business logic.
+Every `X-Webhook-Id` is deterministically derived from the source outbox event and target webhook subscription, ensuring it remains identical across all outbox relay retries and HTTP delivery retries:
+- Record processed `X-Webhook-Id` values in an in-memory store (e.g., Redis `SETNX` with a 24-hour TTL) or a relational database table with a `UNIQUE` constraint.
+- If an incoming request carries an `X-Webhook-Id` that has already been processed, immediately return `HTTP 200 OK` and skip executing duplicate business logic.
+- Rely on the envelope `timestamp` field (the original event creation time) rather than HTTP arrival order when reconciling state updates.
 
 ---
 
