@@ -52,11 +52,11 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay.go`, `internal/worker/distributor.go`, `internal/worker/outbox_relay_test.go`.
 
-- [ ] Thay `FetchPendingOutboxEvents` bằng `ClaimOutboxEvents`
-- [ ] `deliveryID` sinh bằng `uuid.NewSHA1` từ (id sự kiện outbox, id webhook) thay cho `uuid.New()`
-- [ ] Enqueue kèm `asynq.TaskID(deliveryID)`; coi `asynq.ErrTaskIDConflict` là thành công
-- [ ] Trường `timestamp` của envelope lấy từ `created_at` của sự kiện
-- [ ] Test: cùng một sự kiện xử lý hai lần cho cùng deliveryID, `ErrTaskIDConflict` không bị tính là lỗi
+- [x] Thay `FetchPendingOutboxEvents` bằng `ClaimOutboxEvents`
+- [x] `deliveryID` sinh bằng `uuid.NewSHA1` từ (id sự kiện outbox, id webhook) thay cho `uuid.New()`
+- [x] Enqueue kèm `asynq.TaskID(deliveryID)`; coi `asynq.ErrTaskIDConflict` là thành công
+- [x] Trường `timestamp` của envelope lấy từ `created_at` của sự kiện
+- [x] Test: cùng một sự kiện xử lý hai lần cho cùng deliveryID, `ErrTaskIDConflict` không bị tính là lỗi
 
 **Xong khi:** test xanh, không còn `uuid.New()` trong luồng relay.
 

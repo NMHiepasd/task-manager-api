@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ import (
 type mockOutboxStore struct {
 	mu sync.Mutex
 
-	fetchPendingFn       func(ctx context.Context, arg repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error)
+	claimEventsFn        func(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error)
 	listActiveWebhooksFn func(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error)
 	markPublishedFn      func(ctx context.Context, ids []uuid.UUID) error
 	recordRetryFn        func(ctx context.Context, arg repository.RecordOutboxEventRetryParams) error
@@ -31,9 +32,9 @@ type mockOutboxStore struct {
 	failedCalls  []repository.MarkOutboxEventFailedParams
 }
 
-func (m *mockOutboxStore) FetchPendingOutboxEvents(ctx context.Context, arg repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
-	if m.fetchPendingFn != nil {
-		return m.fetchPendingFn(ctx, arg)
+func (m *mockOutboxStore) ClaimOutboxEvents(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+	if m.claimEventsFn != nil {
+		return m.claimEventsFn(ctx, arg)
 	}
 	return nil, nil
 }
@@ -88,6 +89,7 @@ type mockTaskDistributor struct {
 	closeFn             func() error
 
 	enqueuedWebhooks []SendWebhookPayload
+	enqueuedOpts     [][]asynq.Option
 	mu               sync.Mutex
 }
 
@@ -122,6 +124,7 @@ func (m *mockTaskDistributor) DistributeDeadlineReminder(ctx context.Context, pa
 func (m *mockTaskDistributor) DistributeSendWebhook(ctx context.Context, payload SendWebhookPayload, opts ...asynq.Option) error {
 	m.mu.Lock()
 	m.enqueuedWebhooks = append(m.enqueuedWebhooks, payload)
+	m.enqueuedOpts = append(m.enqueuedOpts, opts)
 	m.mu.Unlock()
 
 	if m.distributeWebhookFn != nil {
@@ -162,7 +165,7 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 	t.Run("StoreFetchError", func(t *testing.T) {
 		t.Parallel()
 		store := &mockOutboxStore{
-			fetchPendingFn: func(_ context.Context, _ repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
 				return nil, errors.New("db query timeout")
 			},
 		}
@@ -172,20 +175,21 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		count, err := relay.ProcessBatch(context.Background())
 		require.Error(t, err)
 		assert.Equal(t, 0, count)
-		assert.Contains(t, err.Error(), "failed to fetch pending outbox events")
+		assert.Contains(t, err.Error(), "failed to claim pending outbox events")
 	})
 
 	t.Run("EventWithoutSubscribersMarkedPublished", func(t *testing.T) {
 		t.Parallel()
 		eventID := uuid.New()
 		store := &mockOutboxStore{
-			fetchPendingFn: func(_ context.Context, _ repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
-				return []repository.FetchPendingOutboxEventsRow{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				return []repository.ClaimOutboxEventsRow{
 					{
 						ID:         eventID,
 						EventType:  "task.created",
 						Payload:    []byte(`{"title":"Write unit tests"}`),
 						RetryCount: 0,
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 					},
 				}, nil
 			},
@@ -208,15 +212,17 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		eventID := uuid.New()
 		webhook1ID := uuid.New()
 		webhook2ID := uuid.New()
+		fixedCreatedAt := time.Date(2026, 11, 28, 10, 0, 0, 0, time.UTC)
 
 		store := &mockOutboxStore{
-			fetchPendingFn: func(_ context.Context, _ repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
-				return []repository.FetchPendingOutboxEventsRow{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				return []repository.ClaimOutboxEventsRow{
 					{
 						ID:         eventID,
 						EventType:  "task.created",
 						Payload:    []byte(`{"title":"Task 1"}`),
 						RetryCount: 0,
+						CreatedAt:  pgtype.Timestamptz{Time: fixedCreatedAt, Valid: true},
 					},
 				}, nil
 			},
@@ -236,12 +242,72 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		assert.Contains(t, store.publishedIDs, eventID)
 		require.Len(t, dist.enqueuedWebhooks, 2)
 
+		expectedDeliveryID1 := uuid.NewSHA1(eventID, webhook1ID[:])
+		assert.Equal(t, expectedDeliveryID1, dist.enqueuedWebhooks[0].DeliveryID)
+
 		var env map[string]any
 		err = json.Unmarshal(dist.enqueuedWebhooks[0].Payload, &env)
 		require.NoError(t, err)
 		assert.Equal(t, "task.created", env["event"])
-		assert.NotEmpty(t, env["id"])
-		assert.NotEmpty(t, env["timestamp"])
+		assert.Equal(t, expectedDeliveryID1.String(), env["id"])
+		assert.Equal(t, fixedCreatedAt.Format(time.RFC3339), env["timestamp"])
+	})
+
+	t.Run("DeterministicDeliveryID_And_TaskIDConflictTreatedAsSuccess", func(t *testing.T) {
+		t.Parallel()
+		eventID := uuid.New()
+		webhookID := uuid.New()
+		fixedCreatedAt := time.Date(2026, 11, 28, 9, 30, 0, 0, time.UTC)
+
+		store := &mockOutboxStore{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				return []repository.ClaimOutboxEventsRow{
+					{
+						ID:         eventID,
+						EventType:  "task.updated",
+						Payload:    []byte(`{"title":"Task 1"}`),
+						RetryCount: 0,
+						CreatedAt:  pgtype.Timestamptz{Time: fixedCreatedAt, Valid: true},
+					},
+				}, nil
+			},
+			listActiveWebhooksFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+				return []repository.Webhook{
+					{ID: webhookID, Url: "https://example.com/wh", IsActive: true},
+				}, nil
+			},
+		}
+
+		callNum := 0
+		dist := &mockTaskDistributor{
+			distributeWebhookFn: func(_ context.Context, _ SendWebhookPayload, _ ...asynq.Option) error {
+				callNum++
+				if callNum == 2 {
+					// Second processing pass hits TaskIDConflict -> must be treated as success
+					return asynq.ErrTaskIDConflict
+				}
+				return nil
+			},
+		}
+
+		relay := NewOutboxRelay(store, dist, log)
+
+		// First pass
+		count1, err := relay.ProcessBatch(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 1, count1)
+
+		// Second pass (duplicate processing)
+		count2, err := relay.ProcessBatch(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 1, count2)
+
+		require.Len(t, dist.enqueuedWebhooks, 2)
+		assert.Equal(t, dist.enqueuedWebhooks[0].DeliveryID, dist.enqueuedWebhooks[1].DeliveryID, "deliveryID must be deterministic across retries")
+		assert.NotEmpty(t, dist.enqueuedOpts[0], "asynq.TaskID option must be passed")
+		assert.Empty(t, store.retryCalls, "ErrTaskIDConflict must not record a retry")
+		assert.Empty(t, store.failedCalls, "ErrTaskIDConflict must not mark failed")
+		assert.Len(t, store.publishedIDs, 2)
 	})
 
 	t.Run("DistributorFailureRecordsRetry", func(t *testing.T) {
@@ -250,13 +316,14 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		webhookID := uuid.New()
 
 		store := &mockOutboxStore{
-			fetchPendingFn: func(_ context.Context, _ repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
-				return []repository.FetchPendingOutboxEventsRow{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				return []repository.ClaimOutboxEventsRow{
 					{
 						ID:         eventID,
 						EventType:  "task.created",
 						Payload:    []byte(`{"title":"Task 1"}`),
 						RetryCount: 1,
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 					},
 				}, nil
 			},
@@ -288,13 +355,14 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		webhookID := uuid.New()
 
 		store := &mockOutboxStore{
-			fetchPendingFn: func(_ context.Context, _ repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error) {
-				return []repository.FetchPendingOutboxEventsRow{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				return []repository.ClaimOutboxEventsRow{
 					{
 						ID:         eventID,
 						EventType:  "task.created",
 						Payload:    []byte(`{"title":"Task 1"}`),
 						RetryCount: 4, // Next retry reaches max 5
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 					},
 				}, nil
 			},

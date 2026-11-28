@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OutboxStore defines database interactions required by the outbox relay worker.
 type OutboxStore interface {
-	FetchPendingOutboxEvents(ctx context.Context, arg repository.FetchPendingOutboxEventsParams) ([]repository.FetchPendingOutboxEventsRow, error)
+	ClaimOutboxEvents(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error)
 	ListActiveWebhooksForEvent(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error)
 	MarkOutboxEventsPublished(ctx context.Context, ids []uuid.UUID) error
 	RecordOutboxEventRetry(ctx context.Context, arg repository.RecordOutboxEventRetryParams) error
@@ -123,12 +124,12 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	events, err := r.store.FetchPendingOutboxEvents(ctx, repository.FetchPendingOutboxEventsParams{
-		RetryCount: r.maxRetries,
-		Limit:      r.batchSize,
+	events, err := r.store.ClaimOutboxEvents(ctx, repository.ClaimOutboxEventsParams{
+		MaxRetries: r.maxRetries,
+		BatchLimit: r.batchSize,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch pending outbox events: %w", err)
+		return 0, fmt.Errorf("failed to claim pending outbox events: %w", err)
 	}
 
 	if len(events) == 0 {
@@ -149,13 +150,18 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 			continue
 		}
 
+		eventTimestamp := event.CreatedAt.Time
+		if !event.CreatedAt.Valid || eventTimestamp.IsZero() {
+			eventTimestamp = time.Now()
+		}
+
 		var enqueueErr error
 		for _, wh := range webhooks {
-			deliveryID := uuid.New()
+			deliveryID := uuid.NewSHA1(event.ID, wh.ID[:])
 			envelopeBytes, err := json.Marshal(map[string]any{
 				"id":        deliveryID.String(),
 				"event":     event.EventType,
-				"timestamp": time.Now().UTC().Format(time.RFC3339),
+				"timestamp": eventTimestamp.UTC().Format(time.RFC3339),
 				"actor_id":  event.ActorID.String(),
 				"data":      json.RawMessage(event.Payload),
 			})
@@ -164,13 +170,14 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 				break
 			}
 
-			if err := r.distributor.DistributeSendWebhook(ctx, SendWebhookPayload{
+			err = r.distributor.DistributeSendWebhook(ctx, SendWebhookPayload{
 				DeliveryID: deliveryID,
 				WebhookID:  wh.ID,
 				TargetURL:  wh.Url,
 				EventType:  event.EventType,
 				Payload:    envelopeBytes,
-			}); err != nil {
+			}, asynq.TaskID(deliveryID.String()))
+			if err != nil && !errors.Is(err, asynq.ErrTaskIDConflict) {
 				enqueueErr = fmt.Errorf("failed to enqueue webhook task: %w", err)
 				break
 			}
@@ -196,7 +203,7 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 	return len(publishedIDs), nil
 }
 
-func (r *OutboxRelay) handleEventFailure(ctx context.Context, event repository.FetchPendingOutboxEventsRow, failureErr error) {
+func (r *OutboxRelay) handleEventFailure(ctx context.Context, event repository.ClaimOutboxEventsRow, failureErr error) {
 	newRetryCount := event.RetryCount + 1
 	errMsg := failureErr.Error()
 
