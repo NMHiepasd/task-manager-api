@@ -56,6 +56,7 @@ type Config struct {
 	WorkerConcurrency            int    `env:"WORKER_CONCURRENCY" envDefault:"10"`
 	CleanupCronSchedule          string `env:"CLEANUP_CRON_SCHEDULE" envDefault:"@every 6h"`
 	DeadlineReminderCronSchedule string `env:"DEADLINE_REMINDER_CRON_SCHEDULE" envDefault:"@hourly"`
+	OutboxLeaseSeconds           int    `env:"OUTBOX_LEASE_SECONDS" envDefault:"120"`
 
 	// HTTP Server & Middleware Timeouts
 	RequestTimeout          time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`

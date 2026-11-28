@@ -78,6 +78,7 @@ services:
       ALLOW_LOCAL_WEBHOOKS: "false"
       WEBHOOK_MAX_RETRY: ${WEBHOOK_MAX_RETRY:-6}
       WEBHOOK_ENCRYPTION_KEY: ${WEBHOOK_ENCRYPTION_KEY:?WEBHOOK_ENCRYPTION_KEY is required}
+      OUTBOX_LEASE_SECONDS: ${OUTBOX_LEASE_SECONDS:-120}
     depends_on:
       db:
         condition: service_healthy

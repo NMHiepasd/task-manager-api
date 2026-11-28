@@ -18,6 +18,7 @@ import (
 // OutboxStore defines database interactions required by the outbox relay worker.
 type OutboxStore interface {
 	ClaimOutboxEvents(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error)
+	ReclaimStaleOutboxEvents(ctx context.Context, leaseSeconds float64) (int64, error)
 	ListActiveWebhooksForEvent(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error)
 	MarkOutboxEventsPublished(ctx context.Context, ids []uuid.UUID) error
 	RecordOutboxEventRetry(ctx context.Context, arg repository.RecordOutboxEventRetryParams) error
@@ -54,6 +55,15 @@ func WithMaxRetries(retries int32) OutboxRelayOption {
 	}
 }
 
+// WithLeaseSeconds sets the processing lease timeout in seconds before stale events are reclaimed.
+func WithLeaseSeconds(seconds int) OutboxRelayOption {
+	return func(r *OutboxRelay) {
+		if seconds > 0 {
+			r.leaseSeconds = float64(seconds)
+		}
+	}
+}
+
 // OutboxRelay periodically polls pending events from outbox_events and enqueues tasks to Asynq.
 type OutboxRelay struct {
 	store        OutboxStore
@@ -62,6 +72,7 @@ type OutboxRelay struct {
 	pollInterval time.Duration
 	batchSize    int32
 	maxRetries   int32
+	leaseSeconds float64
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -76,6 +87,7 @@ func NewOutboxRelay(store OutboxStore, distributor TaskDistributor, log *slog.Lo
 		pollInterval: 1 * time.Second,
 		batchSize:    50,
 		maxRetries:   5,
+		leaseSeconds: 120,
 		stopCh:       make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -122,6 +134,12 @@ func (r *OutboxRelay) Stop() {
 func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 	if r.distributor == nil {
 		return 0, nil
+	}
+
+	if reclaimed, err := r.store.ReclaimStaleOutboxEvents(ctx, r.leaseSeconds); err != nil {
+		r.log.Warn("Failed to reclaim stale outbox events", "error", err)
+	} else if reclaimed > 0 {
+		r.log.Warn("Reclaimed stale processing outbox events", "count", reclaimed, "lease_seconds", r.leaseSeconds)
 	}
 
 	events, err := r.store.ClaimOutboxEvents(ctx, repository.ClaimOutboxEventsParams{

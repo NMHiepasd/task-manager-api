@@ -64,9 +64,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay.go`, `internal/config/config.go`, test.
 
-- [ ] Enqueue lỗi ở webhook thứ k thì sự kiện quay về `pending` (retry\_count tăng); các webhook đã enqueue không bị trùng nhờ ID xác định
-- [ ] Mỗi lượt poll gọi `ReclaimStaleOutboxEvents` với `OUTBOX_LEASE_SECONDS` (mặc định 120)
-- [ ] Test: relay dừng đột ngột sau khi claim (chưa mark) thì lượt sau reclaim và xử lý, tổng cộng đúng một lần
+- [x] Enqueue lỗi ở webhook thứ k thì sự kiện quay về `pending` (retry\_count tăng); các webhook đã enqueue không bị trùng nhờ ID xác định
+- [x] Mỗi lượt poll gọi `ReclaimStaleOutboxEvents` với `OUTBOX_LEASE_SECONDS` (mặc định 120)
+- [x] Test: relay dừng đột ngột sau khi claim (chưa mark) thì lượt sau reclaim và xử lý, tổng cộng đúng một lần
 
 **Xong khi:** test xanh.
 

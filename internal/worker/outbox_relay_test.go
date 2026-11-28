@@ -22,11 +22,13 @@ type mockOutboxStore struct {
 	mu sync.Mutex
 
 	claimEventsFn        func(ctx context.Context, arg repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error)
+	reclaimStaleFn       func(ctx context.Context, leaseSeconds float64) (int64, error)
 	listActiveWebhooksFn func(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error)
 	markPublishedFn      func(ctx context.Context, ids []uuid.UUID) error
 	recordRetryFn        func(ctx context.Context, arg repository.RecordOutboxEventRetryParams) error
 	markFailedFn         func(ctx context.Context, arg repository.MarkOutboxEventFailedParams) error
 
+	reclaimCalls []float64
 	publishedIDs []uuid.UUID
 	retryCalls   []repository.RecordOutboxEventRetryParams
 	failedCalls  []repository.MarkOutboxEventFailedParams
@@ -37,6 +39,17 @@ func (m *mockOutboxStore) ClaimOutboxEvents(ctx context.Context, arg repository.
 		return m.claimEventsFn(ctx, arg)
 	}
 	return nil, nil
+}
+
+func (m *mockOutboxStore) ReclaimStaleOutboxEvents(ctx context.Context, leaseSeconds float64) (int64, error) {
+	m.mu.Lock()
+	m.reclaimCalls = append(m.reclaimCalls, leaseSeconds)
+	m.mu.Unlock()
+
+	if m.reclaimStaleFn != nil {
+		return m.reclaimStaleFn(ctx, leaseSeconds)
+	}
+	return 0, nil
 }
 
 func (m *mockOutboxStore) ListActiveWebhooksForEvent(ctx context.Context, arg repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
@@ -387,6 +400,143 @@ func TestOutboxRelay_ProcessBatch(t *testing.T) {
 		require.Len(t, store.failedCalls, 1)
 		assert.Equal(t, eventID, store.failedCalls[0].ID)
 		assert.Contains(t, store.failedCalls[0].LastError.String, "permanent failure")
+	})
+
+	t.Run("PartialFailure_RetriesAndDeduplicatesAlreadyEnqueuedWebhooks", func(t *testing.T) {
+		t.Parallel()
+		eventID := uuid.New()
+		wh1 := uuid.New()
+		wh2 := uuid.New()
+		wh3 := uuid.New()
+
+		// Simulated stateful event status
+		eventStatus := "pending"
+		var retryCount int32
+
+		store := &mockOutboxStore{
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				if eventStatus != "pending" {
+					return nil, nil
+				}
+				eventStatus = "processing"
+				return []repository.ClaimOutboxEventsRow{
+					{
+						ID:         eventID,
+						EventType:  "task.created",
+						Payload:    []byte(`{"title":"Partial failure test"}`),
+						RetryCount: retryCount,
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					},
+				}, nil
+			},
+			listActiveWebhooksFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+				return []repository.Webhook{
+					{ID: wh1, Url: "https://example.com/wh1", IsActive: true},
+					{ID: wh2, Url: "https://example.com/wh2", IsActive: true},
+					{ID: wh3, Url: "https://example.com/wh3", IsActive: true},
+				}, nil
+			},
+			recordRetryFn: func(_ context.Context, _ repository.RecordOutboxEventRetryParams) error {
+				eventStatus = "pending"
+				retryCount++
+				return nil
+			},
+			markPublishedFn: func(_ context.Context, _ []uuid.UUID) error {
+				eventStatus = "published"
+				return nil
+			},
+		}
+
+		// Simulated Asynq deduplication queue
+		enqueuedTaskIDs := make(map[uuid.UUID]int)
+		attempt := 0
+		dist := &mockTaskDistributor{
+			distributeWebhookFn: func(_ context.Context, p SendWebhookPayload, _ ...asynq.Option) error {
+				attempt++
+				// Fail on wh2 during the first pass (attempt 2)
+				if attempt == 2 && p.WebhookID == wh2 {
+					return errors.New("temporary redis timeout")
+				}
+				if enqueuedTaskIDs[p.DeliveryID] > 0 {
+					return asynq.ErrTaskIDConflict
+				}
+				enqueuedTaskIDs[p.DeliveryID]++
+				return nil
+			},
+		}
+
+		relay := NewOutboxRelay(store, dist, log, WithLeaseSeconds(120))
+
+		// Pass 1: wh1 succeeds, wh2 fails -> event returns to pending, retry_count = 1
+		count1, err := relay.ProcessBatch(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 0, count1)
+		assert.Equal(t, "pending", eventStatus)
+		assert.Equal(t, int32(1), retryCount)
+		assert.Equal(t, []float64{120}, store.reclaimCalls)
+
+		// Pass 2: wh1 hits ErrTaskIDConflict (deduplicated), wh2 & wh3 succeed -> published
+		count2, err := relay.ProcessBatch(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 1, count2)
+		assert.Equal(t, "published", eventStatus)
+		assert.Len(t, enqueuedTaskIDs, 3, "each of the 3 webhooks must be effectively enqueued exactly once")
+	})
+
+	t.Run("ReclaimStaleLease_ReclaimsAndProcessesOnce", func(t *testing.T) {
+		t.Parallel()
+		eventID := uuid.New()
+		whID := uuid.New()
+
+		// Event starts as stale 'processing' (simulating a relay that crashed right after Claim)
+		eventStatus := "processing"
+		reclaimedOnce := false
+
+		store := &mockOutboxStore{
+			reclaimStaleFn: func(_ context.Context, leaseSeconds float64) (int64, error) {
+				assert.Equal(t, float64(120), leaseSeconds)
+				if eventStatus == "processing" && !reclaimedOnce {
+					eventStatus = "pending"
+					reclaimedOnce = true
+					return 1, nil
+				}
+				return 0, nil
+			},
+			claimEventsFn: func(_ context.Context, _ repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+				if eventStatus != "pending" {
+					return nil, nil
+				}
+				eventStatus = "processing"
+				return []repository.ClaimOutboxEventsRow{
+					{
+						ID:         eventID,
+						EventType:  "task.deleted",
+						Payload:    []byte(`{"title":"Crashed relay test"}`),
+						RetryCount: 0,
+						CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+					},
+				}, nil
+			},
+			listActiveWebhooksFn: func(_ context.Context, _ repository.ListActiveWebhooksForEventParams) ([]repository.Webhook, error) {
+				return []repository.Webhook{
+					{ID: whID, Url: "https://example.com/wh", IsActive: true},
+				}, nil
+			},
+			markPublishedFn: func(_ context.Context, _ []uuid.UUID) error {
+				eventStatus = "published"
+				return nil
+			},
+		}
+
+		dist := &mockTaskDistributor{}
+		relay := NewOutboxRelay(store, dist, log, WithLeaseSeconds(120))
+
+		count, err := relay.ProcessBatch(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+		assert.True(t, reclaimedOnce, "stale processing event must be reclaimed")
+		assert.Equal(t, "published", eventStatus)
+		assert.Len(t, dist.enqueuedWebhooks, 1)
 	})
 }
 

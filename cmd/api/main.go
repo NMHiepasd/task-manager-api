@@ -191,7 +191,7 @@ func main() {
 				}
 			}
 
-			outboxRelay := worker.NewOutboxRelay(store, distributor, log)
+			outboxRelay := worker.NewOutboxRelay(store, distributor, log, worker.WithLeaseSeconds(cfg.OutboxLeaseSeconds))
 			outboxRelay.Start(context.Background())
 			defer outboxRelay.Stop()
 

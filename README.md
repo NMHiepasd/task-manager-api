@@ -316,6 +316,7 @@ cp .env.example .env
 | `DB_MAX_CONN_IDLE_TIME` | `30m` | Maximum connection idle duration |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL for cache and Asynq queues |
 | `WORKER_ENABLED` | `true` | Enable Asynq background worker process |
+| `OUTBOX_LEASE_SECONDS` | `120` | Lease timeout in seconds before stale `processing` outbox events are reclaimed |
 | `REQUEST_TIMEOUT` | `30s` | Maximum HTTP request processing timeout |
 | `SERVER_READ_TIMEOUT` | `60s` | HTTP server socket read timeout |
 | `SERVER_WRITE_TIMEOUT`| `60s` | HTTP server socket write timeout |
