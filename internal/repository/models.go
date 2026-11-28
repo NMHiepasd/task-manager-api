@@ -33,6 +33,7 @@ type OutboxEvent struct {
 	LastError     pgtype.Text        `json:"last_error"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
+	LockedAt      pgtype.Timestamptz `json:"locked_at"`
 }
 
 type Project struct {

@@ -412,6 +412,14 @@ func (m *mockQuerier) ResetFailedLogin(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
+func (m *mockQuerier) ClaimOutboxEvents(context.Context, repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ReclaimStaleOutboxEvents(context.Context, float64) (int64, error) {
+	return 0, nil
+}
+
 var _ repository.Querier = (*mockQuerier)(nil)
 
 func setupTestAuthService(t *testing.T, mock *mockQuerier) AuthService {

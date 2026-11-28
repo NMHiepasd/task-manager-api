@@ -508,3 +508,11 @@ func (m *mockQuerierWithHooks) RecordFailedLogin(context.Context, uuid.UUID) (re
 func (m *mockQuerierWithHooks) ResetFailedLogin(context.Context, uuid.UUID) error {
 	return nil
 }
+
+func (m *mockQuerierWithHooks) ClaimOutboxEvents(context.Context, repository.ClaimOutboxEventsParams) ([]repository.ClaimOutboxEventsRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerierWithHooks) ReclaimStaleOutboxEvents(context.Context, float64) (int64, error) {
+	return 0, nil
+}
