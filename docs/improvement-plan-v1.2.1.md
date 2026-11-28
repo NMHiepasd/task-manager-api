@@ -4,7 +4,6 @@ Nguồn: review HEAD sau v1.1.1 (88/100). Vì v1.2.0 chưa được tag nên cá
 
 ## Quy ước chung (giữ như kế hoạch v1.1 và v1.1.1)
 
-- 1 task = 1 phiên agent mới = 1 nhánh `fix/<mã-task>` = 1 commit/PR
 - Không đọc hay sửa file sinh tự động (`internal/repository/*.sql.go`, `docs/swagger/*`): sửa nguồn rồi chạy `make sqlc` / `make swagger`
 - Viết test tái hiện trước, sửa sau (đỏ rồi xanh)
 - Chạm tối đa khoảng 8 file; vượt thì dừng, báo cáo và đề xuất tách task
