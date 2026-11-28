@@ -55,6 +55,24 @@ type AuthService interface {
 	Logout(ctx context.Context, plainRefreshToken string) error
 }
 
+// AuthServiceOption configures optional parameters for AuthService.
+type AuthServiceOption func(*authService)
+
+// WithLockoutPolicy sets the threshold, lockout duration, and failure sliding window.
+func WithLockoutPolicy(threshold int32, duration, window time.Duration) AuthServiceOption {
+	return func(s *authService) {
+		if threshold > 0 {
+			s.lockoutThreshold = threshold
+		}
+		if duration > 0 {
+			s.lockoutDuration = duration
+		}
+		if window > 0 {
+			s.lockoutWindow = window
+		}
+	}
+}
+
 type authService struct {
 	repo                 repository.Querier
 	hasher               hasher.PasswordHasher
@@ -62,6 +80,9 @@ type authService struct {
 	accessTokenDuration  time.Duration
 	refreshTokenDuration time.Duration
 	dummyHash            string
+	lockoutThreshold     int32
+	lockoutDuration      time.Duration
+	lockoutWindow        time.Duration
 }
 
 // NewAuthService constructs a new AuthService instance.
@@ -71,6 +92,7 @@ func NewAuthService(
 	tokenMaker token.Maker,
 	accessTokenDuration time.Duration,
 	refreshTokenDuration time.Duration,
+	opts ...AuthServiceOption,
 ) AuthService {
 	// Precompute dummy hash using the configured hasher so its bcrypt cost and execution time
 	// match real passwords exactly, mitigating user enumeration timing attacks.
@@ -80,14 +102,21 @@ func NewAuthService(
 		dummyHash = "$2a$12$e8Y4V9Xg7b/8W9QZ8W9QZe8Y4V9Xg7b/8W9QZ8W9QZe8Y4V9Xg7b/"
 	}
 
-	return &authService{
+	svc := &authService{
 		repo:                 repo,
 		hasher:               hasher,
 		tokenMaker:           tokenMaker,
 		accessTokenDuration:  accessTokenDuration,
 		refreshTokenDuration: refreshTokenDuration,
 		dummyHash:            dummyHash,
+		lockoutThreshold:     5,
+		lockoutDuration:      15 * time.Minute,
+		lockoutWindow:        15 * time.Minute,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // Register registers a new user, hashes password, and issues tokens.
@@ -147,9 +176,9 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*TokenRespon
 		// Record failed login attempt and potentially lock the account
 		if _, recErr := s.repo.RecordFailedLogin(ctx, repository.RecordFailedLoginParams{
 			ID:              user.ID,
-			Threshold:       5,
-			DurationSeconds: 15 * 60,
-			WindowSeconds:   15 * 60,
+			Threshold:       s.lockoutThreshold,
+			DurationSeconds: s.lockoutDuration.Seconds(),
+			WindowSeconds:   s.lockoutWindow.Seconds(),
 		}); recErr != nil {
 			slog.ErrorContext(ctx, "Failed to record failed login attempt", "user_id", user.ID, "error", recErr)
 		}

@@ -33,6 +33,9 @@ type Config struct {
 	RateLimitAuthWindow  time.Duration `env:"RATE_LIMIT_AUTH_WINDOW" envDefault:"1m"`
 	RateLimitAPIRate     float64       `env:"RATE_LIMIT_API_RATE" envDefault:"100"` // 100 reqs per minute
 	RateLimitAPIBurst    int           `env:"RATE_LIMIT_API_BURST" envDefault:"50"`
+	AuthLockoutThreshold int32         `env:"AUTH_LOCKOUT_THRESHOLD" envDefault:"5"`
+	AuthLockoutDuration  time.Duration `env:"AUTH_LOCKOUT_DURATION" envDefault:"15m"`
+	AuthLockoutWindow    time.Duration `env:"AUTH_LOCKOUT_WINDOW" envDefault:"15m"`
 	RateLimitAPILimit    int           `env:"RATE_LIMIT_API_LIMIT" envDefault:"100"`
 	RateLimitAPIWindow   time.Duration `env:"RATE_LIMIT_API_WINDOW" envDefault:"1m"`
 
@@ -133,6 +136,17 @@ func (c *Config) Validate(env string) error {
 	const inProgressLockTTL = 60 * time.Second
 	if c.RequestTimeout >= inProgressLockTTL {
 		errs = append(errs, fmt.Errorf("RequestTimeout (%v) must be less than InProgressLockTTL (%v)", c.RequestTimeout, inProgressLockTTL))
+	}
+
+	// 3. Account Lockout validations
+	if c.AuthLockoutThreshold < 3 {
+		errs = append(errs, fmt.Errorf("AUTH_LOCKOUT_THRESHOLD (%d) must be at least 3", c.AuthLockoutThreshold))
+	}
+	if c.AuthLockoutDuration < time.Minute || c.AuthLockoutDuration > 24*time.Hour {
+		errs = append(errs, fmt.Errorf("AUTH_LOCKOUT_DURATION (%v) must be between 1m and 24h", c.AuthLockoutDuration))
+	}
+	if c.AuthLockoutWindow < time.Minute || c.AuthLockoutWindow > 24*time.Hour {
+		errs = append(errs, fmt.Errorf("AUTH_LOCKOUT_WINDOW (%v) must be between 1m and 24h", c.AuthLockoutWindow))
 	}
 
 	if targetEnv == "production" {

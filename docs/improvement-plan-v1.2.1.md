@@ -107,9 +107,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/config/config.go`, `internal/service/auth_service.go`, `.env.example`, `docker-compose.prod.yml`, README.
 
-- [ ] `AUTH_LOCKOUT_THRESHOLD` (5), `AUTH_LOCKOUT_DURATION` (15m), `AUTH_LOCKOUT_WINDOW` (15m)
-- [ ] `Validate`: threshold từ 3 trở lên, duration và window trong khoảng hợp lý
-- [ ] Test config
+- [x] `AUTH_LOCKOUT_THRESHOLD` (5), `AUTH_LOCKOUT_DURATION` (15m), `AUTH_LOCKOUT_WINDOW` (15m)
+- [x] `Validate`: threshold từ 3 trở lên, duration và window trong khoảng hợp lý
+- [x] Test config
 
 **Xong khi:** không còn số 5 hay 15 phút cố định trong SQL.
 

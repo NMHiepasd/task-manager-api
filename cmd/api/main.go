@@ -121,7 +121,14 @@ func main() {
 
 	store := repository.NewStore(pool)
 	passwordHasher := hasher.NewBcryptHasher(12)
-	authService := service.NewAuthService(store, passwordHasher, tokenMaker, cfg.JWTExpiration, cfg.JWTRefreshExpiration)
+	authService := service.NewAuthService(
+		store,
+		passwordHasher,
+		tokenMaker,
+		cfg.JWTExpiration,
+		cfg.JWTRefreshExpiration,
+		service.WithLockoutPolicy(cfg.AuthLockoutThreshold, cfg.AuthLockoutDuration, cfg.AuthLockoutWindow),
+	)
 	userService := service.NewUserService(store, cacheStore)
 	projectService := service.NewProjectService(store, cacheStore)
 	taskService := service.NewTaskService(store)

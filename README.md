@@ -316,6 +316,9 @@ cp .env.example .env
 | `DB_MAX_CONN_IDLE_TIME` | `30m` | Maximum connection idle duration |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL for cache and Asynq queues |
 | `WORKER_ENABLED` | `true` | Enable Asynq background worker process |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | Consecutive failed login attempts before temporary lockout (min 3) |
+| `AUTH_LOCKOUT_DURATION` | `15m` | Duration an account stays locked after reaching threshold |
+| `AUTH_LOCKOUT_WINDOW` | `15m` | Sliding window for counting consecutive failed login attempts |
 | `OUTBOX_RELAY_ENABLED` | `true` | Enable Transactional Outbox relay poller |
 | `OUTBOX_POLL_INTERVAL` | `1s` | Polling interval for outbox relay worker |
 | `OUTBOX_BATCH_SIZE` | `50` | Maximum number of outbox events claimed per batch |

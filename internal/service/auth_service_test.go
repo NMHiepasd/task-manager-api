@@ -588,6 +588,45 @@ func TestAuthService_Login_WrongPassword_RecordsFailedLogin(t *testing.T) {
 	require.Contains(t, mock.recordedFailedLogins, userID)
 }
 
+func TestAuthService_Login_CustomLockoutPolicyPassedToRepo(t *testing.T) {
+	h := hasher.NewBcryptHasher(bcrypt.MinCost)
+	hashed, err := h.HashPassword("CorrectPassword123!")
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	var capturedParams repository.RecordFailedLoginParams
+	mock := &mockQuerier{
+		getUserByEmailFn: func(_ context.Context, _ string) (repository.User, error) {
+			return repository.User{
+				ID:           userID,
+				Email:        "policy@example.com",
+				PasswordHash: hashed,
+			}, nil
+		},
+		recordFailedLoginFn: func(_ context.Context, arg repository.RecordFailedLoginParams) (repository.RecordFailedLoginRow, error) {
+			capturedParams = arg
+			return repository.RecordFailedLoginRow{}, nil
+		},
+	}
+
+	tm, err := token.NewJWTMaker("12345678901234567890123456789012")
+	require.NoError(t, err)
+
+	authSvc := NewAuthService(mock, h, tm, 15*time.Minute, 7*24*time.Hour,
+		WithLockoutPolicy(3, 30*time.Minute, 10*time.Minute),
+	)
+
+	_, err = authSvc.Login(context.Background(), LoginInput{
+		Email:    "policy@example.com",
+		Password: "WrongPassword!",
+	})
+	require.ErrorIs(t, err, ErrInvalidCredentials)
+	require.Equal(t, userID, capturedParams.ID)
+	require.Equal(t, int32(3), capturedParams.Threshold)
+	require.Equal(t, float64(1800), capturedParams.DurationSeconds)
+	require.Equal(t, float64(600), capturedParams.WindowSeconds)
+}
+
 func TestAuthService_Login_AccountLocked_DummyTimingDefense(t *testing.T) {
 	h := hasher.NewBcryptHasher(bcrypt.MinCost)
 	hashed, err := h.HashPassword("CorrectPassword123!")

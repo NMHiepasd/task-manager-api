@@ -24,6 +24,9 @@ func validProductionConfig() *config.Config {
 		RequestTimeout:       30 * time.Second,
 		ServerWriteTimeout:   60 * time.Second,
 		WebhookEncryptionKey: "prod-super-secure-webhook-key-32",
+		AuthLockoutThreshold: 5,
+		AuthLockoutDuration:  15 * time.Minute,
+		AuthLockoutWindow:    15 * time.Minute,
 	}
 }
 
@@ -35,13 +38,16 @@ func TestConfig_Validate_ProductionSuccess(t *testing.T) {
 
 func TestConfig_Validate_DevelopmentAllowsDefaults(t *testing.T) {
 	cfg := &config.Config{
-		AppEnv:             "development",
-		JWTSecret:          "change-this-to-a-secure-random-secret-key-in-production",
-		S3AccessKey:        "minioadmin",
-		S3SecretKey:        "minioadmin",
-		CORSAllowedOrigins: []string{"http://localhost:3000"},
-		RequestTimeout:     30 * time.Second,
-		ServerWriteTimeout: 60 * time.Second,
+		AppEnv:               "development",
+		JWTSecret:            "change-this-to-a-secure-random-secret-key-in-production",
+		S3AccessKey:          "minioadmin",
+		S3SecretKey:          "minioadmin",
+		CORSAllowedOrigins:   []string{"http://localhost:3000"},
+		RequestTimeout:       30 * time.Second,
+		ServerWriteTimeout:   60 * time.Second,
+		AuthLockoutThreshold: 5,
+		AuthLockoutDuration:  15 * time.Minute,
+		AuthLockoutWindow:    15 * time.Minute,
 	}
 
 	err := cfg.Validate("development")
@@ -145,6 +151,65 @@ func TestConfig_Load_S3PublicEndpointAndPresign(t *testing.T) {
 	assert.False(t, cfg.AttachmentPresignEnabled)
 	assert.Equal(t, int64(50), cfg.MaxAttachmentsPerTask)
 	assert.Equal(t, int64(1000), cfg.MaxUserStorageMB)
+}
+
+func TestConfig_LoadAndValidate_AuthLockout(t *testing.T) {
+	t.Run("DefaultsLoaded", func(t *testing.T) {
+		t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/db")
+		t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!")
+
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.Equal(t, int32(5), cfg.AuthLockoutThreshold)
+		assert.Equal(t, 15*time.Minute, cfg.AuthLockoutDuration)
+		assert.Equal(t, 15*time.Minute, cfg.AuthLockoutWindow)
+	})
+
+	t.Run("CustomValuesLoaded", func(t *testing.T) {
+		t.Setenv("DB_URL", "postgres://user:pass@localhost:5432/db")
+		t.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long!")
+		t.Setenv("AUTH_LOCKOUT_THRESHOLD", "3")
+		t.Setenv("AUTH_LOCKOUT_DURATION", "30m")
+		t.Setenv("AUTH_LOCKOUT_WINDOW", "10m")
+
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.Equal(t, int32(3), cfg.AuthLockoutThreshold)
+		assert.Equal(t, 30*time.Minute, cfg.AuthLockoutDuration)
+		assert.Equal(t, 10*time.Minute, cfg.AuthLockoutWindow)
+	})
+
+	t.Run("ValidationBoundaries", func(t *testing.T) {
+		cfg := validProductionConfig()
+		cfg.AuthLockoutThreshold = 2
+		err := cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AUTH_LOCKOUT_THRESHOLD")
+
+		cfg = validProductionConfig()
+		cfg.AuthLockoutDuration = 30 * time.Second
+		err = cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AUTH_LOCKOUT_DURATION")
+
+		cfg = validProductionConfig()
+		cfg.AuthLockoutDuration = 25 * time.Hour
+		err = cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AUTH_LOCKOUT_DURATION")
+
+		cfg = validProductionConfig()
+		cfg.AuthLockoutWindow = 10 * time.Second
+		err = cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AUTH_LOCKOUT_WINDOW")
+
+		cfg = validProductionConfig()
+		cfg.AuthLockoutWindow = 48 * time.Hour
+		err = cfg.Validate("production")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AUTH_LOCKOUT_WINDOW")
+	})
 }
 
 func TestConfig_Validate_AppEnvAllowedValues(t *testing.T) {
