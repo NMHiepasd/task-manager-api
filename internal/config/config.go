@@ -52,11 +52,14 @@ type Config struct {
 	CacheDefaultTTL time.Duration `env:"CACHE_DEFAULT_TTL" envDefault:"15m"`
 
 	// Background Worker & Asynq
-	WorkerEnabled                bool   `env:"WORKER_ENABLED" envDefault:"true"`
-	WorkerConcurrency            int    `env:"WORKER_CONCURRENCY" envDefault:"10"`
-	CleanupCronSchedule          string `env:"CLEANUP_CRON_SCHEDULE" envDefault:"@every 6h"`
-	DeadlineReminderCronSchedule string `env:"DEADLINE_REMINDER_CRON_SCHEDULE" envDefault:"@hourly"`
-	OutboxLeaseSeconds           int    `env:"OUTBOX_LEASE_SECONDS" envDefault:"120"`
+	WorkerEnabled                bool          `env:"WORKER_ENABLED" envDefault:"true"`
+	WorkerConcurrency            int           `env:"WORKER_CONCURRENCY" envDefault:"10"`
+	CleanupCronSchedule          string        `env:"CLEANUP_CRON_SCHEDULE" envDefault:"@every 6h"`
+	DeadlineReminderCronSchedule string        `env:"DEADLINE_REMINDER_CRON_SCHEDULE" envDefault:"@hourly"`
+	OutboxRelayEnabled           bool          `env:"OUTBOX_RELAY_ENABLED" envDefault:"true"`
+	OutboxPollInterval           time.Duration `env:"OUTBOX_POLL_INTERVAL" envDefault:"1s"`
+	OutboxBatchSize              int32         `env:"OUTBOX_BATCH_SIZE" envDefault:"50"`
+	OutboxLeaseSeconds           int           `env:"OUTBOX_LEASE_SECONDS" envDefault:"120"`
 
 	// HTTP Server & Middleware Timeouts
 	RequestTimeout          time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`

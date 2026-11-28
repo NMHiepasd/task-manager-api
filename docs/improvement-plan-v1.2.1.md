@@ -85,9 +85,9 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `cmd/api/main.go`, `internal/config/config.go`, `docs/adr/0020-transactional-outbox-pattern.md`, `docs/webhooks.md`, `.env.example`, README.
 
-- [ ] Env `OUTBOX_RELAY_ENABLED` (mặc định true), `OUTBOX_POLL_INTERVAL`, `OUTBOX_BATCH_SIZE`; ghi vào `.env.example`, compose và README
-- [ ] ADR-0020: giao at-least-once và khử trùng bằng deliveryID, không bảo đảm thứ tự, cơ chế lease, dead-letter
-- [ ] `docs/webhooks.md`: khuyến nghị bên nhận loại trùng theo `X-Webhook-Id`
+- [x] Env `OUTBOX_RELAY_ENABLED` (mặc định true), `OUTBOX_POLL_INTERVAL`, `OUTBOX_BATCH_SIZE`; ghi vào `.env.example`, compose và README
+- [x] ADR-0020: giao at-least-once và khử trùng bằng deliveryID, không bảo đảm thứ tự, cơ chế lease, dead-letter
+- [x] `docs/webhooks.md`: khuyến nghị bên nhận loại trùng theo `X-Webhook-Id`
 
 **Xong khi:** tài liệu khớp code.
 
