@@ -117,8 +117,8 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `docs/adr/0022-login-response-and-lockout-abuse.md`.
 
-- [ ] So sánh: (a) trả cùng thông điệp 401 cho tài khoản bị khóa, (b) khóa theo cặp email và IP, (c) tăng dần độ trễ; chọn một, ghi lý do và rủi ro còn lại
-- [ ] Quy định log bảo mật và cách báo cho người dùng hợp lệ
+- [x] So sánh: (a) trả cùng thông điệp 401 cho tài khoản bị khóa, (b) khóa theo cặp email và IP, (c) tăng dần độ trễ; chọn một, ghi lý do và rủi ro còn lại
+- [x] Quy định log bảo mật và cách báo cho người dùng hợp lệ
 
 **Xong khi:** chỉ có file ADR.
 
