@@ -74,10 +74,10 @@ Chạy lệnh kiểm tra, tick checklist, commit rồi báo cáo: file đã đ�
 
 **File:** `internal/worker/outbox_relay_integration_test.go` (build tag `integration`).
 
-- [ ] Postgres thật (testcontainers) và distributor giả ghi nhận lời gọi; tạo 200 sự kiện, chạy 3 relay song song
-- [ ] Khẳng định mỗi cặp (sự kiện, webhook) chỉ có đúng một task hiệu lực
-- [ ] Kịch bản crash giữa enqueue và mark published
-- [ ] Chạy với `-race`
+- [x] Postgres thật (testcontainers) và distributor giả ghi nhận lời gọi; tạo 200 sự kiện, chạy 3 relay song song
+- [x] Khẳng định mỗi cặp (sự kiện, webhook) chỉ có đúng một task hiệu lực
+- [x] Kịch bản crash giữa enqueue và mark published
+- [x] Chạy với `-race`
 
 **Xong khi:** `make test-integration` xanh. Nếu phát hiện lỗi mới thì ghi thành task, không sửa lan.
 
